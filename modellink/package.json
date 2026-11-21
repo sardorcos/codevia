@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check app.js && node --check core/storage.js && node --check core/geometry.js && node --check core/pack.js && node --test tests/*.test.mjs",
+    "check": "node --check app.js && node --check core/storage.js && node --check core/geometry.js && node --check core/pack.js && node --check core/convert.js && node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
     "ios:sync": "node scripts/build.mjs && cap sync ios"
   },

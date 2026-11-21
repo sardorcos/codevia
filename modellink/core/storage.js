@@ -115,7 +115,8 @@ export function latestFiles(allFiles){
 }
 export function kindFor(name){
   const ext=String(name).split('.').at(-1)?.toLowerCase();
-  if(['svg','png','jpg','jpeg','gif','webp','bmp'].includes(ext))return 'image';
+  if(['svg','png','jpg','jpeg','gif','webp','bmp','heic','heif','tif','tiff'].includes(ext))return 'image';
+  if(['txt','md','markdown','csv','tsv','json','xml','html','htm','css','js','mjs','ts','py','php','java','c','h','cpp','swift','kt','rb','go','rs','sh','yml','yaml','ini','cfg','conf','log','sql','gcode','nc','tex','toml','env','properties'].includes(ext))return 'text';
   if(['pdf'].includes(ext))return 'pdf';
   if(['dxf'].includes(ext))return 'drawing';
   if(['obj','stl','glb'].includes(ext))return 'model';
@@ -131,6 +132,10 @@ export const capabilities={
   obj:{label:'OBJ',preview:'partial',note:'Полигональная геометрия; без материалов MTL'},
   stl:{label:'STL',preview:'yes',note:'Треугольные 3D-модели'},
   glb:{label:'GLB',preview:'partial',note:'Базовые треугольные glTF 2.0 модели; без расширений сжатия'},
+  heic:{label:'HEIC',preview:'yes',note:'Фото iPhone; конвертация в JPEG, PNG и PDF'},tif:{label:'TIFF',preview:'yes',note:'Изображение'},tiff:{label:'TIFF',preview:'yes',note:'Изображение'},
+  txt:{label:'TXT',preview:'yes',note:'Текст; экспорт в PDF'},csv:{label:'CSV',preview:'yes',note:'Таблица как текст; экспорт в PDF'},json:{label:'JSON',preview:'yes',note:'Текст'},xml:{label:'XML',preview:'yes',note:'Текст'},gcode:{label:'G-code',preview:'yes',note:'Программа ЧПУ как текст'},
+  docx:{label:'DOCX',preview:'source',note:'Просмотр через Quick Look на iPhone'},xlsx:{label:'XLSX',preview:'source',note:'Просмотр через Quick Look на iPhone'},pptx:{label:'PPTX',preview:'source',note:'Просмотр через Quick Look на iPhone'},
+  zip:{label:'ZIP',preview:'source',note:'Архив хранится и передаётся'},
   usdz:{label:'USDZ',preview:'yes',note:'3D и дополненная реальность через Quick Look на iPhone'},
   dwg:{label:'DWG',preview:'source',note:'Оригинал хранится и передаётся; для просмотра сохраните копию в DXF или PDF'},
   step:{label:'STEP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},stp:{label:'STP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},
@@ -144,7 +149,7 @@ export const capabilities={
 };
 export function fileInfo(name){
   const ext=name.split('.').at(-1)?.toLowerCase()||'';
-  return {ext:ext.toUpperCase(),...(capabilities[ext]||{label:ext.toUpperCase()||'Файл',preview:'source',note:'Сохранение и передача оригинала'})};
+  return {ext:ext.toUpperCase(),...(capabilities[ext]||{label:ext.toUpperCase()||'Файл',preview:'source',note:'Оригинал: просмотр через Quick Look (iPhone), экспорт в ZIP, передача'})};
 }
 export function formatBytes(value){if(value<1024)return `${value} Б`;if(value<1048576)return `${(value/1024).toFixed(1).replace('.0','')} КБ`;return `${(value/1048576).toFixed(1).replace('.0','')} МБ`;}
 export async function initDemo(){

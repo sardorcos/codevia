@@ -27,7 +27,9 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
         CAPPluginMethod(name: "finalizeExport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "shareExport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "deleteExport", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "previewExport", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "previewExport", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "convertExport", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "shareStaged", returnType: CAPPluginReturnPromise)
     ]
 
     private var pendingPickCall: CAPPluginCall?
@@ -146,7 +148,7 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
         guard let id = call.getString("id") else { call.reject("Нужен id"); return }
         do {
             let file = try ModelLinkImportStore.shared.fileURL(id: id)
-            guard nativePreviewExtensions.contains(file.pathExtension.lowercased()) else {
+            guard QLPreviewController.canPreview(file as NSURL) else {
                 call.resolve(["presented": false, "reason": "not_supported_by_quicklook"])
                 return
             }
@@ -276,7 +278,7 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
         guard let id = call.getString("exportId") else { call.reject("Нужен exportId"); return }
         do {
             let file = try ModelLinkExportStore.shared.finalizedURL(id: id)
-            guard nativePreviewExtensions.contains(file.pathExtension.lowercased()) else {
+            guard QLPreviewController.canPreview(file as NSURL) else {
                 call.resolve(["presented": false, "reason": "not_supported_by_quicklook"]); return
             }
             DispatchQueue.main.async {
@@ -289,6 +291,59 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
                 preview.dataSource = self
                 preview.delegate = self
                 presenter.present(preview, animated: true)
+            }
+        } catch { call.reject(error.localizedDescription) }
+    }
+
+    /// Converts a finalized export (PDF → PNG/JPEG pages, HEIC/TIFF → PNG/JPEG/PDF, text/RTF/HTML → PDF).
+    /// Results are staged like imports: JS reads them with `readChunk` or shares them with `shareStaged`.
+    @objc public func convertExport(_ call: CAPPluginCall) {
+        guard let id = call.getString("exportId"), let target = call.getString("to") else {
+            call.reject("Нужны exportId и формат"); return
+        }
+        let source: URL
+        do { source = try ModelLinkExportStore.shared.finalizedURL(id: id) }
+        catch { call.reject(error.localizedDescription); return }
+        let work = {
+            let temp = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ModelLinkConvert-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: temp) }
+            do {
+                try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+                let outputs = try ModelLinkConverter.convert(source, to: target, into: temp)
+                let items = try outputs.map { try ModelLinkImportStore.shared.stageOwned($0, source: "convert") }
+                let result: [String: Any] = ["files": items.map(\.dictionary)]
+                DispatchQueue.main.async { call.resolve(result) }
+            } catch {
+                DispatchQueue.main.async { call.reject(error.localizedDescription) }
+            }
+        }
+        if ModelLinkConverter.needsMainThread(source: source) {
+            DispatchQueue.main.async(execute: work)
+        } else {
+            DispatchQueue.global(qos: .userInitiated).async(execute: work)
+        }
+    }
+
+    /// Shares one or several staged files (e.g. every page of a converted PDF) in one Share Sheet.
+    @objc public func shareStaged(_ call: CAPPluginCall) {
+        let ids = (call.getArray("ids") as? [String]) ?? []
+        guard !ids.isEmpty else { call.reject("Нет файлов для передачи"); return }
+        do {
+            let urls = try ids.map { try ModelLinkImportStore.shared.fileURL(id: $0) }
+            DispatchQueue.main.async {
+                guard let presenter = self.bridge?.viewController else {
+                    call.reject("Системное меню передачи недоступно"); return
+                }
+                let controller = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+                controller.popoverPresentationController?.sourceView = presenter.view
+                controller.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX,
+                    y: presenter.view.bounds.maxY - 48, width: 1, height: 1)
+                controller.completionWithItemsHandler = { _, completed, _, error in
+                    if let error = error { call.reject(error.localizedDescription) }
+                    else { call.resolve(["completed": completed]) }
+                }
+                presenter.present(controller, animated: true)
             }
         } catch { call.reject(error.localizedDescription) }
     }

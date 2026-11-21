@@ -32,3 +32,6 @@ body.dark{--bg:#141a25;--surface:#1e2736;--ink:#eff3fb;--muted:#a4afbf;--line:#3
 .prose p{font-size:14px;line-height:1.55;margin-bottom:12px}.prose p:last-child{margin-bottom:0}
 .field input,.field textarea,.field select,.search-field input{font-size:16px}
 body.dark .field input,body.dark .field textarea{background:#152031;border-color:var(--line)}
+.text-preview{margin:0;position:absolute;inset:0;overflow:auto;padding:16px 16px 48px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word;color:var(--ink);background:var(--surface);-webkit-overflow-scrolling:touch;user-select:text;-webkit-user-select:text}
+.file-unsupported .row{gap:8px}
+.text-preview{touch-action:pan-x pan-y}

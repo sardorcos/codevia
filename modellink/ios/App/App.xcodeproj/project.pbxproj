@@ -21,6 +21,7 @@
 		A10001030000000000000000 /* ModelLinkExportStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000030000000000000000 /* ModelLinkExportStore.swift */; };
 		A10001040000000000000000 /* ModelLinkViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000000 /* ModelLinkViewController.swift */; };
 		A10001050000000000000000 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000000 /* PrivacyInfo.xcprivacy */; };
+		A10001060000000000000000 /* ModelLinkConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000000 /* ModelLinkConverter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 		A10000030000000000000000 /* ModelLinkExportStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkExportStore.swift; sourceTree = "<group>"; };
 		A10000040000000000000000 /* ModelLinkViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkViewController.swift; sourceTree = "<group>"; };
 		A10000050000000000000000 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000060000000000000000 /* ModelLinkConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkConverter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +77,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+				A10000060000000000000000 /* ModelLinkConverter.swift */,
 				A10000010000000000000000 /* ModelLinkNativePlugin.swift */,
 				A10000020000000000000000 /* ModelLinkImportStore.swift */,
 				A10000030000000000000000 /* ModelLinkExportStore.swift */,
@@ -177,6 +180,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				A10001060000000000000000 /* ModelLinkConverter.swift in Sources */,
 				A10001010000000000000000 /* ModelLinkNativePlugin.swift in Sources */,
 				A10001020000000000000000 /* ModelLinkImportStore.swift in Sources */,
 				A10001030000000000000000 /* ModelLinkExportStore.swift in Sources */,
