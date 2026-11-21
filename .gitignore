@@ -1,5 +1,16 @@
 node_modules/
+dist/
+public/pyodide/
+test-results/
+playwright-report/
 __pycache__/
 *.pyc
 .DS_Store
-test-artifacts/
+ios/App/App/public/
+ios/App/build/
+ios/App/DerivedData/
+*.p8
+*.mobileprovision
+*.p12
+fastlane/report.xml
+fastlane/README.md

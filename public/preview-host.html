@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' data: blob: https:; style-src 'unsafe-inline' data: https:; img-src data: blob: https:; font-src data: https:; media-src data: blob: https:; connect-src https:; worker-src blob: data:; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'">
+<title>Предпросмотр</title>
+<style>html,body{margin:0;background:#fff;font:14px system-ui,sans-serif;color:#667}</style>
+</head>
+<body>
+<script>
+// Sandboxed (opaque-origin) host for project previews. Accepts exactly one document from the parent app.
+addEventListener('message', function (e) {
+  if (e.source !== parent || !e.data || e.data.type !== 'codevia:render' || typeof e.data.html !== 'string') return;
+  document.open();
+  document.write(e.data.html);
+  document.close();
+}, { once: true });
+parent.postMessage({ type: 'codevia:host-ready' }, '*');
+</script>
+</body>
+</html>
