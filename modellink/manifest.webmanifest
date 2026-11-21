@@ -1,0 +1,11 @@
+{
+  "name": "ModelLink — чертежи и 3D",
+  "short_name": "ModelLink",
+  "description": "Открывайте и обсуждайте технические файлы",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F6F7FA",
+  "theme_color": "#FFFFFF",
+  "icons": [{"src":"assets/app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
