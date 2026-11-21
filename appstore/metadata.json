@@ -1,0 +1,29 @@
+{
+  "bundleId": "com.codevia.pocket",
+  "version": "1.0.0",
+  "copyright": "2026 Qosimbekov Sardorbek",
+  "primaryCategory": "DEVELOPER_TOOLS",
+  "secondaryCategory": "EDUCATION",
+  "privacyPolicyUrl": "https://sardorcos.github.io/codevia/privacy.html",
+  "supportUrl": "https://sardorcos.github.io/codevia/support.html",
+  "marketingUrl": "https://sardorcos.github.io/codevia/",
+  "reviewNotes": "Codevia Pocket is a code editor for learning and building websites, Python and PHP. Per App Store Review Guideline 2.5.2, all code executed by the app is written or imported by the user, is fully visible and editable in the app, and runs locally in a sandbox (WebAssembly interpreters bundled in the app binary: Pyodide/CPython and PHP 8.3). The app does not download executable code, does not change its own features, and makes no network requests. The live preview is a sandboxed iframe with a Content-Security-Policy that blocks network access unless the user explicitly enables it in Settings.\n\nTo try it: tap \"Начать с примеров\" (Start with samples) -> open \"Python · расчёты\" -> \"Запуск\" (Run) tab -> \"Запустить\" (Run). For a website, open \"Сайт-портфолио\" -> \"Просмотр\" (Preview).\n\nNo account or login is required. The interface is in Russian.",
+  "locales": {
+    "en-US": {
+      "name": "Codevia Pocket",
+      "subtitle": "Code, Python & PHP on iPhone",
+      "keywords": "code,editor,python,php,html,css,javascript,programming,website,ide,offline,web,coding",
+      "promotionalText": "Write websites, Python and PHP right on your iPhone. Everything runs on device, offline — your code never leaves your phone.",
+      "description": "Codevia Pocket is a pocket studio for web development and coding. Build websites, Python scripts and PHP pages right on your iPhone — everything runs on device, offline, and your code never leaves your phone.\n\nCODE EDITOR\n• Syntax highlighting for HTML, CSS, JavaScript, Python, PHP, JSON and Markdown.\n• Autocomplete, find and replace, undo and redo with a separate history for every file.\n• A symbol bar above the keyboard: brackets, quotes and indentation in one tap.\n\nLIVE PREVIEW\n• HTML, CSS and JavaScript with styles, images, fonts and multiple pages.\n• fetch() of project files, ES modules, and a console with errors and console.log output.\n• Full-screen mode.\n\nPYTHON AND PHP ON DEVICE\n• Python 3 with the standard library: input() support, clear tracebacks and a Stop button.\n• PHP 8.3: render pages with $_GET parameters right in the preview.\n\nSTAY IN CONTROL\n• Search file names and code across the whole project and jump to the line.\n• Project check finds broken file references and JSON errors.\n• Version history with checkpoints, plus an automatic version before deletes and restores.\n\nYOUR FILES ARE YOURS\n• Projects appear in the Files app.\n• ZIP import and export, and a one-archive backup of all projects.\n• No ads, no analytics, no account. The app collects no data.",
+      "screenshots": "screenshots/en-US"
+    },
+    "ru": {
+      "name": "Codevia Pocket",
+      "subtitle": "Код, Python и PHP на iPhone",
+      "keywords": "код,редактор,python,php,html,css,javascript,программирование,сайт,ide,офлайн,веб",
+      "promotionalText": "Сайты, Python и PHP прямо на iPhone. Всё работает на устройстве и без интернета — код не покидает телефон.",
+      "description": "Codevia Pocket — карманная студия для веб-разработки и программирования. Пишите сайты, скрипты на Python и страницы на PHP прямо на iPhone: всё работает на устройстве, без интернета и без отправки кода на серверы.\n\nРЕДАКТОР КОДА\n• Подсветка синтаксиса для HTML, CSS, JavaScript, Python, PHP, JSON и Markdown.\n• Автодополнение, поиск и замена, отмена и повтор — у каждого файла своя история.\n• Панель символов над клавиатурой: скобки, кавычки, отступы в одно касание.\n\nЖИВОЙ ПРЕДПРОСМОТР\n• HTML, CSS и JavaScript со стилями, картинками, шрифтами и несколькими страницами.\n• fetch() к файлам проекта, ES-модули, консоль с ошибками и сообщениями console.log.\n• Полноэкранный режим.\n\nPYTHON И PHP НА УСТРОЙСТВЕ\n• Python 3 со стандартной библиотекой: ввод для input(), понятные трейсбеки, кнопка «Стоп».\n• PHP 8.3: страница с параметрами $_GET прямо в предпросмотре.\n\nПРОЕКТЫ ПОД КОНТРОЛЕМ\n• Поиск по именам файлов и по коду всего проекта с переходом к строке.\n• Проверка проекта находит битые ссылки на файлы и ошибки в JSON.\n• История версий: контрольные точки и автоматическая версия перед удалением и восстановлением.\n\nВАШИ ФАЙЛЫ — ВАШИ\n• Проекты видны в приложении «Файлы».\n• Импорт и экспорт ZIP, резервная копия всех проектов одним архивом.\n• Без рекламы, аналитики и регистрации. Приложение не собирает данные.",
+      "screenshots": "screenshots/ru"
+    }
+  }
+}

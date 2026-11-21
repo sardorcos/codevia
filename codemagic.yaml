@@ -145,3 +145,34 @@ workflows:
               a = b['attributes']
               print(f"build {a.get('version')} | processing={a.get('processingState')} | uploaded={a.get('uploadedDate')} | expired={a.get('expired')} | encryption={a.get('usesNonExemptEncryption')}")
           PY
+
+  # App Store listing: texts, categories, age rating, price, availability, screenshots, build,
+  # review notes (tools/asc_submit.py + appstore/metadata.json). Does not submit.
+  app-store-metadata:
+    name: Codevia Pocket — App Store metadata
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: Apply metadata
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py appstore/metadata.json
+
+  # Same as above, then sends the version to App Review. Needs the secure group "review_contact"
+  # (REVIEW_FIRST_NAME, REVIEW_LAST_NAME, REVIEW_PHONE, REVIEW_EMAIL).
+  app-store-submit:
+    name: Codevia Pocket — submit for App Review
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - review_contact
+    scripts:
+      - name: Apply metadata and submit
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py appstore/metadata.json --submit
