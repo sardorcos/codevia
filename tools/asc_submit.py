@@ -61,6 +61,18 @@ def make_token() -> str:
     return signing_input.decode() + "." + b64(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
 
 
+class APIError(RuntimeError):
+    def __init__(self, message, status, body):
+        super().__init__(message)
+        self.status, self.body = status, body
+
+    def errors(self):
+        try:
+            return json.loads(self.body).get("errors", [])
+        except Exception:
+            return []
+
+
 class ASC:
     def __init__(self):
         self.token, self.made = make_token(), time.time()
@@ -80,7 +92,7 @@ class ASC:
             txt = e.read().decode()
             if ok_missing and e.code == 404:
                 return None
-            raise RuntimeError(f"{method} {path} -> {e.code}: {txt[:1500]}") from None
+            raise APIError(f"{method} {path} -> {e.code}: {txt[:1500]}", e.code, txt) from None
 
     def get(self, path, **kw):
         return self.call("GET", path, **kw)
@@ -152,27 +164,31 @@ AGE_SKIP = {"kidsAgeBand", "ageRatingOverride", "ageRatingOverrideV2", "koreaAge
 
 
 def apply_age_rating(asc, info):
+    """Answers every question with "none"/"no" (4+). Attribute types differ between API revisions,
+    so the type of each attribute is corrected from Apple's validation errors and retried."""
     decl = asc.get(f"/v1/appInfos/{info['id']}/ageRatingDeclaration")["data"]
-    attrs = {}
-    for k, v in decl["attributes"].items():
-        if k in AGE_SKIP:
-            continue
-        if isinstance(v, bool) or k.startswith(("is", "has")) or k in ("unrestrictedWebAccess", "gamblingAndContests", "seventeenPlus",
-                                                                            "lootBox", "advertising", "ageAssurance", "messagingAndChat",
-                                                                            "parentalControls", "userGeneratedContent", "healthOrWellnessTopics"):
-            attrs[k] = False
-        else:
-            attrs[k] = "NONE"
-    try:
-        asc.call("PATCH", f"/v1/ageRatingDeclarations/{decl['id']}", {"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": attrs}})
-    except RuntimeError as e:
-        # Some keys may be boolean/enum in a different API revision: retry with a corrected set.
-        msg = str(e)
-        for k in re.findall(r"'([A-Za-z]+)'", msg) + re.findall(r'"/data/attributes/([A-Za-z]+)"', msg):
-            if k in attrs:
-                attrs[k] = "NONE" if isinstance(attrs[k], bool) else False
-        asc.call("PATCH", f"/v1/ageRatingDeclarations/{decl['id']}", {"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": attrs}})
-    log("Age rating: all content descriptors NONE (4+)")
+    attrs = {k: (False if isinstance(v, bool) else "NONE") for k, v in decl["attributes"].items() if k not in AGE_SKIP}
+    for _ in range(6):
+        try:
+            asc.call("PATCH", f"/v1/ageRatingDeclarations/{decl['id']}", {"data": {"type": "ageRatingDeclarations", "id": decl["id"], "attributes": attrs}})
+            log("Age rating: all content descriptors NONE / No (4+)")
+            return
+        except APIError as e:
+            fixed = False
+            for err in e.errors():
+                key = (err.get("source") or {}).get("pointer", "").rsplit("/", 1)[-1]
+                detail = err.get("detail", "")
+                if key not in attrs:
+                    continue
+                if "Expected a BOOLEAN" in detail:
+                    attrs[key], fixed = False, True
+                elif "Expected a STRING" in detail or "Expected an ENUM" in detail.upper():
+                    attrs[key], fixed = "NONE", True
+                elif "is not a valid" in detail or "not allowed" in detail:
+                    attrs.pop(key)
+                    fixed = True
+            if not fixed:
+                raise
 
 
 def apply_free_price(asc, app):
