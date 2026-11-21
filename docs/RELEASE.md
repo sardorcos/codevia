@@ -1,6 +1,26 @@
 # Выпуск в TestFlight
 
-Сборка и загрузка полностью автоматизированы: workflow `.github/workflows/testflight.yml` на macOS собирает архив и загружает его в App Store Connect. Сертификаты и профили не нужны — Xcode создаёт их сам через ключ App Store Connect API (cloud signing).
+## Основной путь: Codemagic
+
+Сборка и загрузка идут через **Codemagic**: приложение `codevia` (`6b01a13d65b613536e1a6b86`), конфигурация — [`codemagic.yaml`](../codemagic.yaml), workflow `ios-testflight`.
+
+- **Подпись:** интеграция App Store Connect `monetniy-mir-asc`. Codemagic сам создаёт или подбирает сертификат распространения и профиль App Store для `com.codevia.pocket`.
+- **Ключ сертификата:** RSA-ключ хранится в защищённой переменной `CERTIFICATE_PRIVATE_KEY` (группа `codevia_signing`) в настройках приложения в Codemagic. В репозитории его нет.
+- **Номер сборки:** берётся из `BUILD_NUMBER` Codemagic, версия — из `MARKETING_VERSION` (1.0.0).
+- **Запуск:** тег `v*` (`git tag v1.0.1 && git push origin v1.0.1`), кнопка **Start new build** в Codemagic или API:
+  ```bash
+  curl -H "x-auth-token: $CM_TOKEN" -H 'Content-Type: application/json' -X POST https://api.codemagic.io/builds \
+    --data '{"appId":"6b01a13d65b613536e1a6b86","workflowId":"ios-testflight","branch":"main"}'
+  ```
+- **Результат:** сборка загружается в App Store Connect и после обработки (5–30 мин) появляется во вкладке TestFlight для внутренних тестировщиков. Для внешних тестировщиков заполните Test Information и отправьте сборку на Beta App Review.
+
+Перед каждым релизом поднимайте `version` в `package.json` и `MARKETING_VERSION` в `ios/App/App.xcodeproj/project.pbxproj`.
+
+## Запасной путь: GitHub Actions
+
+Workflow `.github/workflows/testflight.yml` делает то же самое на раннерах GitHub. Он нужен, только если вы решите хранить ключ API в GitHub Secrets.
+
+
 
 ## Статус подготовки
 
