@@ -1,0 +1,70 @@
+# Codemagic: build Codevia Pocket for iOS and upload it to TestFlight.
+# Signing is automatic: the App Store Connect integration creates/fetches the distribution
+# certificate and App Store profile; CERTIFICATE_PRIVATE_KEY (secure group "codevia_signing")
+# is the RSA key that certificate is bound to.
+workflows:
+  ios-testflight:
+    name: Codevia Pocket → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - codevia_signing
+      node: 22
+      xcode: latest
+      vars:
+        BUNDLE_ID: com.codevia.pocket
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+    scripts:
+      - name: Toolchain
+        script: |
+          xcodebuild -version
+          node --version
+          xcode_major=$(xcodebuild -version | head -1 | sed -E 's/Xcode ([0-9]+).*/\1/')
+          if [ "$xcode_major" -lt 26 ]; then echo "Capacitor 8 needs Xcode 26+"; exit 1; fi
+      - name: Install dependencies
+        script: npm ci
+      - name: Unit tests
+        script: npm test
+      - name: Build web app and sync iOS project
+        script: |
+          npm run build
+          npx cap sync ios
+      - name: Set build number
+        script: |
+          # Codemagic's BUILD_NUMBER grows with every build of this app, so uploads never collide.
+          sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9.]+;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "MARKETING_VERSION" "$XCODE_PROJECT/project.pbxproj"
+      - name: Signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --config Release
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # Upload only: the build appears in TestFlight for internal testers. External testing
+        # (Beta App Review) needs test information filled in App Store Connect first.
+        submit_to_testflight: false
