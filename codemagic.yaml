@@ -105,11 +105,11 @@ workflows:
               print(f"certificate {c['id']}: {a.get('name')} | {a.get('displayName')} | expires {a.get('expirationDate')} | serial {a.get('serialNumber')}")
           PY
           CERT_IDS=$(python3 -c "import json; print(' '.join(c['id'] for c in json.load(open('/tmp/certs.json'))))")
-          ACTIVE=$(app-store-connect bundle-ids profiles "$BID" --json 2>/dev/null \
+          ACTIVE=$(app-store-connect bundle-ids profiles --bundle-ids "$BID" --json 2>/dev/null \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(1 for p in d if p['attributes'].get('profileType')=='IOS_APP_STORE' and p['attributes'].get('profileState')=='ACTIVE'))" || echo 0)
           echo "Active App Store profiles: $ACTIVE"
           if [ "$ACTIVE" = "0" ]; then
             app-store-connect profiles create "$BID" --type IOS_APP_STORE --certificate-ids $CERT_IDS \
               --name "Codevia Pocket App Store"
           fi
-          app-store-connect bundle-ids profiles "$BID"
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE
