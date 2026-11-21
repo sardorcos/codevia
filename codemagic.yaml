@@ -13,10 +13,14 @@ workflows:
       groups:
         - codevia_signing
       ios_signing:
-        # Automatic signing: Codemagic picks the team's distribution identity (with private key,
-        # stored in Code signing identities) and fetches/creates the App Store profile via the integration.
-        distribution_type: app_store
-        bundle_identifier: com.codevia.pocket
+        # Loads the team's Apple Distribution identity (with private key) from Codemagic
+        # Code signing identities. Codemagic requires a stored profile alongside it, so an existing
+        # team profile is referenced; it is not used for this app. Our own App Store profile
+        # ("Codevia Pocket App Store", created by ios-signing-bootstrap) is downloaded below.
+        certificates:
+          - monetniy-mir-distribution
+        provisioning_profiles:
+          - mayor-city-app-store
       node: 22
       xcode: latest
       vars:
@@ -53,9 +57,10 @@ workflows:
       - name: App Store profile for com.codevia.pocket
         script: |
           set -euo pipefail
-          # Signing files were prepared by ios_signing; show what is installed, then wire them into Xcode.
+          # Download this app's App Store profile (bound to all team distribution certificates).
+          app-store-connect profiles list --type IOS_APP_STORE --state ACTIVE \
+            --name "Codevia Pocket App Store" --save
           security find-identity -v -p codesigning || true
-          ls "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
           keychain add-certificates
           xcode-project use-profiles --project "$XCODE_PROJECT"
       - name: Build IPA
