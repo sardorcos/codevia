@@ -12,6 +12,10 @@ workflows:
     environment:
       groups:
         - codevia_signing
+      ios_signing:
+        # Team code signing identity (Apple Distribution, with private key) shared by the team's apps.
+        certificates:
+          - monetniy-mir-distribution
       node: 22
       xcode: latest
       vars:
@@ -45,96 +49,34 @@ workflows:
           sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9.]+;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$XCODE_PROJECT/project.pbxproj"
           grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
           grep -m1 "MARKETING_VERSION" "$XCODE_PROJECT/project.pbxproj"
-      - name: Archive with cloud signing
+      - name: App Store profile for com.codevia.pocket
         script: |
           set -euo pipefail
-          # The account already has the maximum of 3 Apple Distribution certificates (owned by other
-          # apps' keys), so a new key-bound certificate cannot be created. Xcode cloud signing uses an
-          # Apple-managed distribution certificate through the integration's App Store Connect key.
-          for v in APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_PRIVATE_KEY; do
-            [ -n "${!v:-}" ] || { echo "Integration variable $v is not set"; exit 1; }
-          done
-          KEY_DIR="$HOME/private_keys"; mkdir -p "$KEY_DIR"
-          KEY_PATH="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
-          # Normalise the integration key into a canonical PKCS#8 PEM (it may arrive with escaped
-          # newlines, CRLF, quotes, or as base64 of the whole file). Only shape info is logged.
-          python3 - "$KEY_PATH" <<'PY'
-          import base64, os, re, sys
-          raw = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"].strip().strip('"').strip("'")
-          # Codemagic CLI references: "@file:/path/AuthKey.p8" or "@env:OTHER_VAR".
-          for _ in range(3):
-              if raw.startswith("@file:"):
-                  print("key source: @file reference")
-                  raw = open(os.path.expanduser(raw[6:])).read().strip()
-              elif raw.startswith("@env:"):
-                  print("key source: @env reference")
-                  raw = os.environ.get(raw[5:], "").strip()
-          raw = raw.replace("\\n", "\n").replace("\r", "")
-          if "BEGIN" not in raw:
-              try:
-                  dec = base64.b64decode(raw, validate=False).decode("utf-8", "ignore")
-                  if "BEGIN" in dec:
-                      raw = dec
-              except Exception:
-                  pass
-          m = re.search(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", raw, re.S)
-          label, body = (m.group(1), m.group(2)) if m else ("PRIVATE KEY", raw)
-          body = re.sub(r"[^A-Za-z0-9+/=]", "", body)
-          print(f"key shape: header={'yes' if m else 'no'} label={label!r} base64_len={len(body)}")
-          pem = f"-----BEGIN {label}-----\n" + "\n".join(body[i:i+64] for i in range(0, len(body), 64)) + f"\n-----END {label}-----\n"
-          fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-          os.write(fd, pem.encode()); os.close(fd)
-          PY
-          openssl pkey -in "$KEY_PATH" -noout && echo "key parses as a private key" || { echo "Integration key is not a valid private key"; exit 1; }
-          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY_PATH"
-                -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER"
-                -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID")
-          mkdir -p build/ios/ipa /tmp/xcodebuild_logs
-          cat > build/ios/ExportOptions.plist <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>teamID</key><string>${TEAM_ID}</string>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict></plist>
-          PLIST
-          ARCHIVE=build/ios/CodeviaPocket.xcarchive
-          archive() { # $1 = log name, rest = extra build settings
-            local log=$1; shift
-            rm -rf "$ARCHIVE"
-            xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -configuration Release \
-              -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" DEVELOPMENT_TEAM="$TEAM_ID" "$@" archive \
-              > "/tmp/xcodebuild_logs/$log.log" 2>&1 || true
-            grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" "/tmp/xcodebuild_logs/$log.log" | tail -n 15 || true
-            test -d "$ARCHIVE"
-          }
-          export_ipa() { # signs with the cloud-managed Apple Distribution certificate
-            rm -rf build/ios/ipa && mkdir -p build/ios/ipa
-            xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist build/ios/ExportOptions.plist \
-              -exportPath build/ios/ipa "${AUTH[@]}" > /tmp/xcodebuild_logs/export-$1.log 2>&1 || true
-            grep -iE "error|EXPORT (SUCCEEDED|FAILED)|Exported" /tmp/xcodebuild_logs/export-$1.log | tail -n 15 || true
-            ls build/ios/ipa/*.ipa >/dev/null 2>&1
-          }
-          # Development certificates are also at the account limit, so never sign with one:
-          # A) build an unsigned archive and sign only once, at export, for App Store distribution.
-          if archive archive-unsigned CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-             && export_ipa unsigned; then
-            echo "Signed at export from an unsigned archive"
-          # B) fall back to automatic signing straight with the distribution identity.
-          elif archive archive-distribution CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" "${AUTH[@]}" \
-             && export_ipa distribution; then
-            echo "Signed with automatic Apple Distribution signing"
-          else
-            echo "Both signing strategies failed"; tail -n 40 /tmp/xcodebuild_logs/export-*.log 2>/dev/null || true; exit 1
-          fi
+          # The account is at Apple's limit of distribution certificates, so reuse the team's
+          # existing one (loaded by ios_signing) and create/fetch an App Store profile bound to it.
+          P12=$(ls "$HOME/Library/MobileDevice/Certificates/"*.p12 | head -1)
+          KEY=/tmp/team_dist_key.pem
+          ( openssl pkcs12 -in "$P12" -nocerts -nodes -passin pass: -out "$KEY" 2>/dev/null \
+            || openssl pkcs12 -legacy -in "$P12" -nocerts -nodes -passin pass: -out "$KEY" ) 
+          chmod 600 "$KEY"
+          openssl pkey -in "$KEY" -noout && echo "team certificate key extracted"
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key=@file:"$KEY" \
+            --create
+          rm -f "$KEY"
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: Build IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --config Release
           ls -la build/ios/ipa
-          codesign -dvv build/ios/ipa/*.ipa 2>&1 | head -5 || true
-          unzip -q -o build/ios/ipa/*.ipa -d /tmp/ipa && codesign -dvv /tmp/ipa/Payload/App.app 2>&1 | grep -E "Authority|TeamIdentifier" || true
-          rm -f "$KEY_PATH"
+          unzip -q -o build/ios/ipa/*.ipa -d /tmp/ipa
+          codesign -dvv /tmp/ipa/Payload/App.app 2>&1 | grep -E "Authority=Apple Distribution|TeamIdentifier" || true
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
