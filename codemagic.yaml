@@ -124,6 +124,20 @@ workflows:
           fi
           app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE
 
+  # Read-only: App Store status (live / in review / prepare) of every app in the account.
+  asc-status:
+    name: App Store status of all apps
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: App Store versions and review submissions
+        script: |
+          set -euo pipefail
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_status.py
+
   # Read-only: shows the processing state of uploaded builds in App Store Connect / TestFlight.
   testflight-status:
     name: Codevia Pocket — TestFlight status
