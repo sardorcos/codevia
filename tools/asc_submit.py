@@ -23,6 +23,14 @@ import urllib.request
 
 API = "https://api.appstoreconnect.apple.com"
 SCREENSHOT_TYPE = "APP_IPHONE_67"  # the 6.7"/6.9" slot; accepts 1320 x 2868
+# Apple Watch screenshot slots by pixel size (one watch size is enough for the listing).
+WATCH_TYPES = {(416, 496): "APP_WATCH_SERIES_10", (422, 514): "APP_WATCH_ULTRA", (410, 502): "APP_WATCH_ULTRA",
+               (396, 484): "APP_WATCH_SERIES_7", (368, 448): "APP_WATCH_SERIES_4", (312, 390): "APP_WATCH_SERIES_3"}
+
+
+def png_size(path):
+    data = pathlib.Path(path).read_bytes()[:24]
+    return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
 
 
 def log(msg: str) -> None:
@@ -261,21 +269,27 @@ def apply_version_localizations(asc, version, meta, base_dir):
         result[locale] = lid
         shots = sorted((base_dir / loc["screenshots"]).glob("*.png")) if loc.get("screenshots") else []
         if shots:
-            upload_screenshots(asc, lid, shots)
+            upload_screenshots(asc, lid, shots, SCREENSHOT_TYPE)
+        watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png")) if loc.get("watchScreenshots") else []
+        if watch:
+            size = png_size(watch[0])
+            if size not in WATCH_TYPES:
+                raise SystemExit(f"Unsupported Apple Watch screenshot size {size}")
+            upload_screenshots(asc, lid, watch, WATCH_TYPES[size])
     return result
 
 
-def upload_screenshots(asc, loc_id, files):
+def upload_screenshots(asc, loc_id, files, display_type):
     sets = asc.all(f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets")
-    sset = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == SCREENSHOT_TYPE), None)
+    sset = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == display_type), None)
     if not sset:
-        sset = asc.call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets", "attributes": {"screenshotDisplayType": SCREENSHOT_TYPE},
+        sset = asc.call("POST", "/v1/appScreenshotSets", {"data": {"type": "appScreenshotSets", "attributes": {"screenshotDisplayType": display_type},
                                                                   "relationships": {"appStoreVersionLocalization": rel("appStoreVersionLocalizations", loc_id)}}})["data"]
     current = asc.all(f"/v1/appScreenshotSets/{sset['id']}/appScreenshots")
     wanted = [(f.name, hashlib.md5(f.read_bytes()).hexdigest()) for f in files]
     have = [(s["attributes"].get("fileName"), s["attributes"].get("sourceFileChecksum")) for s in current]
     if have == wanted:
-        log(f"  screenshots up to date ({len(files)})")
+        log(f"  {display_type}: screenshots up to date ({len(files)})")
         return
     for s in current:
         asc.call("DELETE", f"/v1/appScreenshots/{s['id']}")
@@ -298,7 +312,7 @@ def upload_screenshots(asc, loc_id, files):
         if any(st == "FAILED" for st in states):
             raise RuntimeError(f"Screenshot processing failed: {states}")
         time.sleep(5)
-    log(f"  uploaded {len(files)} screenshots")
+    log(f"  {display_type}: uploaded {len(files)} screenshots")
 
 
 def attach_build(asc, app, version, meta):
