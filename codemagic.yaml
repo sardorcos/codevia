@@ -58,8 +58,9 @@ workflows:
         script: |
           set -euo pipefail
           # Download this app's App Store profile (bound to all team distribution certificates).
-          app-store-connect profiles list --type IOS_APP_STORE --state ACTIVE \
-            --name "Codevia Pocket App Store" --save
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier "$BUNDLE_ID" --platform IOS --strict-match-identifier --json \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state ACTIVE --save
           security find-identity -v -p codesigning || true
           keychain add-certificates
           xcode-project use-profiles --project "$XCODE_PROJECT"
@@ -110,6 +111,10 @@ workflows:
               print(f"certificate {c['id']}: {a.get('name')} | {a.get('displayName')} | expires {a.get('expirationDate')} | serial {a.get('serialNumber')}")
           PY
           CERT_IDS=$(python3 -c "import json; print(' '.join(c['id'] for c in json.load(open('/tmp/certs.json'))))")
+          # Profiles that contained a revoked certificate become INVALID: delete them first.
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state INVALID --json 2>/dev/null \
+            | python3 -c "import json,sys; [print(p['id']) for p in json.load(sys.stdin)]" \
+            | while read -r pid; do echo "Deleting invalid profile $pid"; app-store-connect profiles delete "$pid"; done || true
           ACTIVE=$(app-store-connect bundle-ids profiles --bundle-ids "$BID" --json 2>/dev/null \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(1 for p in d if p['attributes'].get('profileType')=='IOS_APP_STORE' and p['attributes'].get('profileState')=='ACTIVE'))" || echo 0)
           echo "Active App Store profiles: $ACTIVE"
