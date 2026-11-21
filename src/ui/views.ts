@@ -1,8 +1,10 @@
 import { formatBytes } from '../core/bytes';
 import { basename, dirname, extOf, fileKind, isTextPath } from '../core/paths';
+import { searchProject } from '../core/search';
 import type { Language, Project, ProjectMeta } from '../core/types';
 import type { AppState, ConsoleLine } from '../state';
 import { esc, fmtDate, fmtDateTime, icon, plural } from './dom';
+import { errorLog } from './errors';
 
 export const APP_VERSION = __APP_VERSION__;
 
@@ -184,7 +186,7 @@ export function filesView(s: AppState, p: Project): string {
     .join('');
   return `<div class="pane files-pane">${storageBanner(s)}
     <div class="toolbar">
-      <div class="search-wrap grow">${icon('search')}<input id="file-search" class="text-input search-input" type="search" value="${esc(s.fileQuery)}" placeholder="Поиск файлов" aria-label="Поиск файлов" autocomplete="off"></div>
+      <div class="search-wrap grow">${icon('search')}<input id="file-search" class="text-input search-input" type="search" value="${esc(s.fileQuery)}" placeholder="Поиск по именам и коду" aria-label="Поиск по именам файлов и коду" autocomplete="off"></div>
       <button class="icon-btn" data-action="new-file" aria-label="Создать файл">${icon('plus')}</button>
       <button class="icon-btn" data-action="add-files" aria-label="Добавить файлы с устройства">${icon('upload')}</button>
     </div>
@@ -192,9 +194,24 @@ export function filesView(s: AppState, p: Project): string {
       <div class="chips" role="group" aria-label="Фильтр файлов">${chips}</div>
       <button class="btn ghost tiny" data-action="diagnostics">${icon('shield', 'sm')} Проверка</button>
     </div>
-    <div class="list scroll" role="list" id="file-list">${rows || `<div class="empty-state">${q ? 'Ничего не найдено' : 'В проекте нет файлов'}</div>`}</div>
+    <div class="list scroll" role="list" id="file-list">${rows || (q.length >= 2 ? '' : `<div class="empty-state">${q ? 'Ничего не найдено' : 'В проекте нет файлов'}</div>`)}${contentHits(p, s.fileQuery.trim())}</div>
     <div class="pane-foot"><span>${plural(Object.keys(p.files).length, 'файл', 'файла', 'файлов')} · ${formatBytes(p.size)}</span></div>
   </div>`;
+}
+
+function contentHits(p: Project, query: string): string {
+  if (query.length < 2) return '';
+  const { hits, truncated } = searchProject(p.files, query);
+  if (!hits.length) return '<div class="dir-header" role="presentation">Совпадений в коде нет</div>';
+  const mark = (h: { snippet: string; at: number }) =>
+    `${esc(h.snippet.slice(0, h.at))}<mark>${esc(h.snippet.slice(h.at, h.at + query.length))}</mark>${esc(h.snippet.slice(h.at + query.length))}`;
+  return `<div class="dir-header" role="presentation">${icon('search', 'sm')} Найдено в коде: ${hits.length}${truncated ? '+' : ''}</div>${hits
+    .map(
+      (h) => `<div class="row" role="listitem"><button class="row-button" data-action="open-issue" data-path="${esc(h.path)}" data-line="${h.line}">
+        ${fileBadge(h.path)}<span class="row-main"><span class="row-description mono">${esc(h.path)}:${h.line}</span>
+        <span class="row-title mono hit">${mark(h)}</span></span></button></div>`,
+    )
+    .join('')}`;
 }
 
 // ---------------- workspace: code ----------------
@@ -410,7 +427,10 @@ export function settingsView(s: AppState, storageKind: string, totalSize: number
     <h2 class="section-heading">Хранение</h2>
     <div class="setting-row"><span class="row-main"><span class="row-title">Проекты на устройстве</span>
       <span class="row-description">${plural(s.projects.length, 'проект', 'проекта', 'проектов')} · ${formatBytes(totalSize)} · ${storageKind === 'fs' ? 'папка «Файлы» → Codevia Pocket' : s.volatile ? 'временно, не сохраняется' : 'память браузера'}</span></span></div>
+    <button class="setting-row link-row" data-action="backup-all" ${s.projects.length ? '' : 'disabled'}><span class="row-main"><span class="row-title">Резервная копия всех проектов</span>
+      <span class="row-description">Один ZIP. Импортируйте его, чтобы восстановить все проекты</span></span>${icon('share', 'sm')}</button>
     <h2 class="section-heading">О приложении</h2>
+    ${errorLog().length ? `<button class="setting-row link-row" data-action="error-log"><span class="row-main"><span class="row-title">Журнал ошибок</span><span class="row-description">${plural(errorLog().length, 'запись', 'записи', 'записей')} · только на устройстве</span></span>${icon('chevron', 'sm')}</button>` : ''}
     <button class="setting-row link-row" data-action="route" data-route="privacy"><span class="row-main"><span class="row-title">Конфиденциальность</span><span class="row-description">Приложение не собирает данные</span></span>${icon('chevron', 'sm')}</button>
     <button class="setting-row link-row" data-action="route" data-route="licenses"><span class="row-main"><span class="row-title">Лицензии открытого ПО</span></span>${icon('chevron', 'sm')}</button>
     <button class="setting-row link-row" data-action="show-onboarding"><span class="row-main"><span class="row-title">Показать приветствие</span></span>${icon('chevron', 'sm')}</button>

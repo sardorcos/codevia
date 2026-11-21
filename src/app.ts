@@ -13,6 +13,7 @@ import { filesSize } from './storage/repository';
 import { migrateLegacy, openStorage } from './storage';
 import type { Repository } from './storage/repository';
 import { $, esc, icon, toast } from './ui/dom';
+import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
 
@@ -64,6 +65,7 @@ export class App {
     this.s.projects = await this.repo.listProjects();
     this.s.route = !this.s.settings.onboardingDone && !this.s.projects.length ? 'welcome' : 'home';
 
+    installGlobalErrorHandlers((m) => toast(`Ошибка: ${m}`, 'error'));
     this.root.addEventListener('click', (e) => void this.guard(() => this.onClick(e)));
     this.root.addEventListener('input', (e) => this.onInput(e));
     this.root.addEventListener('change', (e) => void this.guard(() => this.onChange(e)));
@@ -91,6 +93,7 @@ export class App {
       await fn();
     } catch (e) {
       console.error(e);
+      recordError(e, 'action');
       this.setBusy('');
       haptic('error');
       toast((e as Error)?.message || 'Что-то пошло не так', 'error');
@@ -266,7 +269,7 @@ export class App {
 
   private async goHome(): Promise<void> {
     await this.flushSaves();
-    if (this.runner.running) this.runner.stop();
+    this.runner.disposeAll();
     this.s.route = 'home';
     this.s.project = null;
     this.s.projects = await this.repo.listProjects();
@@ -279,6 +282,7 @@ export class App {
     await this.flushSaves();
     const meta = this.s.projects.find((m) => m.id === id) ?? (await this.repo.listProjects()).find((m) => m.id === id);
     if (!meta) throw new Error('Проект не найден');
+    if (this.s.project?.id !== id) this.runner.disposeAll();
     const project = await this.repo.openProject(meta);
     const paths = Object.keys(project.files);
     if (!project.entry || !project.files[project.entry]) {
@@ -447,6 +451,9 @@ export class App {
     try {
       const { files, name, skipped, renamed } = await this.readPicked(picked);
       if (!Object.keys(files).length) throw new Error('В архиве нет файлов');
+      this.setBusy('');
+      if (await this.restoreBackup(files)) return;
+      this.setBusy('Импорт…');
       const project = await this.repo.createProject(name, detectLanguage(Object.keys(files)), files);
       this.setBusy('');
       haptic('success');
@@ -510,6 +517,82 @@ export class App {
     } finally {
       this.setBusy('');
     }
+  }
+
+  /** One ZIP with every project in its own folder plus a manifest, so it can be restored in one step. */
+  private async backupAll(): Promise<void> {
+    await this.flushSaves();
+    const metas = await this.repo.listProjects();
+    if (!metas.length) throw new Error('Нет проектов для резервной копии');
+    this.setBusy('Готовлю резервную копию…');
+    try {
+      const all: Files = {};
+      const manifest = { format: 'codevia-backup', version: 1, createdAt: new Date().toISOString(), projects: [] as Array<Record<string, string | undefined>> };
+      for (const meta of metas) {
+        const project = meta.id === this.s.project?.id ? this.s.project : await this.repo.openProject(meta);
+        for (const [path, f] of Object.entries(project.files)) all[`${meta.folder}/${path}`] = f;
+        manifest.projects.push({ folder: meta.folder, name: meta.name, language: meta.language, entry: project.entry });
+      }
+      all['codevia-backup.json'] = textFile(JSON.stringify(manifest, null, 2));
+      const blob = await zipFiles(all);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const r = await shareFile(blob, `codevia-backup-${stamp}.zip`, 'application/zip');
+      if (r === 'downloaded') toast('Резервная копия сохранена', 'success');
+    } finally {
+      this.setBusy('');
+    }
+  }
+
+  /** Restores every project from a backup made by backupAll(). Returns false if `files` is not a backup. */
+  private async restoreBackup(files: Files): Promise<boolean> {
+    const raw = files['codevia-backup.json'];
+    if (!raw?.text) return false;
+    let manifest: { format?: string; projects?: Array<{ folder?: string; name?: string; language?: string; entry?: string }> };
+    try {
+      manifest = JSON.parse(raw.content);
+    } catch {
+      return false;
+    }
+    if (manifest.format !== 'codevia-backup' || !Array.isArray(manifest.projects)) return false;
+    const ok = await confirmSheet({
+      title: 'Резервная копия Codevia',
+      message: `В архиве ${manifest.projects.length} проектов. Восстановить их? Существующие проекты не изменятся — восстановленные появятся рядом.`,
+      confirm: 'Восстановить',
+    });
+    if (!ok) return true;
+    this.setBusy('Восстанавливаю проекты…');
+    let restored = 0;
+    try {
+      for (const entry of manifest.projects) {
+        if (!entry.folder) continue;
+        const prefix = `${entry.folder}/`;
+        const projectFiles: Files = {};
+        for (const [path, f] of Object.entries(files)) if (path.startsWith(prefix)) projectFiles[path.slice(prefix.length)] = f;
+        const lang = entry.language === 'python' || entry.language === 'php' ? entry.language : 'web';
+        const project = await this.repo.createProject(entry.name || entry.folder, lang, projectFiles);
+        if (entry.entry && projectFiles[entry.entry]) await this.repo.setEntry(project, entry.entry);
+        restored++;
+      }
+    } finally {
+      this.setBusy('');
+    }
+    this.s.projects = await this.repo.listProjects();
+    toast(`Восстановлено проектов: ${restored}`, 'success');
+    this.go('home');
+    return true;
+  }
+
+  private async showErrorLog(): Promise<void> {
+    const report = errorReport(V.APP_VERSION);
+    const choice = await openSheet<string>({
+      title: 'Журнал ошибок',
+      body: `<p class="sheet-text">Журнал хранится только на устройстве. Можно отправить его разработчику, чтобы помочь исправить проблему.</p>
+        <pre class="console log-pre">${esc(report)}</pre>
+        <div class="sheet-actions"><button class="btn primary full" data-share>Поделиться журналом</button>
+        <button class="btn secondary full" data-sheet-close>Закрыть</button></div>`,
+      onMount: (root, close) => root.querySelector('[data-share]')!.addEventListener('click', () => close('share')),
+    });
+    if (choice === 'share') await shareFile(report, 'codevia-error-log.txt', 'text/plain;charset=utf-8');
   }
 
   private async renameProject(meta?: ProjectMeta): Promise<void> {
@@ -1122,6 +1205,10 @@ export class App {
       }
       case 'retry-save':
         return this.flushSaves();
+      case 'backup-all':
+        return this.backupAll();
+      case 'error-log':
+        return this.showErrorLog();
     }
   }
 

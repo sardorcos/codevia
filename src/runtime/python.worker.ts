@@ -66,6 +66,9 @@ def __codevia_run(entry, workdir):
             print(line.replace(workdir + '/', ''), end='', file=sys.stderr)
         for line in traceback.format_exception_only(etype, value):
             print(line.replace(workdir + '/', ''), end='', file=sys.stderr)
+        if etype is ModuleNotFoundError:
+            print('\\nПодсказка: доступна стандартная библиотека Python и модули вашего проекта. '
+                  'Сторонние пакеты (numpy, requests и др.) пока не поддерживаются офлайн.', file=sys.stderr)
         return 1
     finally:
         sys.stdout.flush(); sys.stderr.flush()

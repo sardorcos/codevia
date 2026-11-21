@@ -37,8 +37,26 @@ export class Runner {
   private workers = new Map<RuntimeKind, Worker>();
   private active: { kind: RuntimeKind; id: string; finish: (o: RunOutcome) => void; fail: (e: Error) => void } | null = null;
   readonly versions = new Map<RuntimeKind, string>();
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(private assetBase: string) {}
+  constructor(
+    private assetBase: string,
+    /** Runtimes hold 50–150 MB each; free them after this long without use so iOS does not kill the web view. */
+    private idleMs = 3 * 60_000,
+  ) {}
+
+  private touchIdle(): void {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(() => {
+      if (!this.active) this.disposeAll();
+    }, this.idleMs);
+  }
+
+  /** Terminates every runtime worker (used when leaving a project or after inactivity). */
+  disposeAll(): void {
+    if (this.active) this.stop();
+    for (const kind of [...this.workers.keys()]) this.dispose(kind);
+  }
 
   private worker(kind: RuntimeKind, cb?: RunCallbacks): Worker {
     let w = this.workers.get(kind);
@@ -78,6 +96,7 @@ export class Runner {
       case 'done': {
         const a = this.active;
         this.active = null;
+        this.touchIdle();
         a.finish({ exitCode: m.exitCode, ms: m.ms });
         break;
       }
@@ -91,6 +110,9 @@ export class Runner {
   }
 
   preload(kind: RuntimeKind): void {
+    // Only one heavy runtime at a time.
+    for (const other of [...this.workers.keys()]) if (other !== kind && !this.active) this.dispose(other);
+    this.touchIdle();
     this.worker(kind).postMessage({ type: 'preload', base: this.assetBase });
   }
 
@@ -101,6 +123,8 @@ export class Runner {
   run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string } = {}): Promise<RunOutcome> {
     if (this.active) return Promise.reject(new Error('Программа уже выполняется'));
     const id = makeId();
+    for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);
+    this.touchIdle();
     const w = this.worker(kind, cb);
     return new Promise<RunOutcome>((resolve, reject) => {
       this.active = { kind, id, finish: resolve, fail: reject };
