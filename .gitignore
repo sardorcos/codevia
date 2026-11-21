@@ -14,3 +14,4 @@ ios/App/DerivedData/
 *.p12
 fastlane/report.xml
 fastlane/README.md
+public/THIRD_PARTY_LICENSES.txt
