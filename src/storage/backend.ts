@@ -5,6 +5,8 @@ export interface Backend {
   readonly kind: 'idb' | 'fs';
   init(): Promise<void>;
   listMeta(): Promise<ProjectMeta[]>;
+  /** Top-level folders that physically exist (filesystem only; others return []). */
+  listFolders(): Promise<string[]>;
   putMeta(meta: ProjectMeta): Promise<void>;
   deleteProject(meta: ProjectMeta): Promise<void>;
   readFiles(meta: ProjectMeta): Promise<Files>;

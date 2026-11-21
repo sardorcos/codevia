@@ -245,7 +245,7 @@ export function codeView(s: AppState, p: Project): string {
     .join('');
   const saveLabel = s.save === 'saving' ? 'Сохранение…' : s.save === 'error' ? 'Ошибка сохранения' : 'Сохранено';
   return `<div class="pane editor-pane">
-    <div class="file-tabs" role="tablist" aria-label="Открытые файлы">${tabs}</div>
+    <div class="file-tabs" role="group" aria-label="Открытые файлы">${tabs}</div>
     <div class="editor-topline">
       <span class="subtxt mono truncate">${esc(path)}</span>
       <div class="btn-row nowrap">
@@ -256,7 +256,7 @@ export function codeView(s: AppState, p: Project): string {
     </div>
     <div class="editor-host" id="editor-host"></div>
     <div class="editor-status"><span>${esc(extOf(path).toUpperCase() || 'TXT')} · UTF-8</span>
-      <span class="save-state ${s.save}" id="save-state" aria-live="polite">${s.save === 'saved' ? icon('check', 'xs') : ''} ${saveLabel}</span></div>
+      <span class="save-state ${s.save}" id="save-state">${s.save === 'saved' ? icon('check', 'xs') : ''} ${saveLabel}</span></div>
     <div class="keybar" role="toolbar" aria-label="Символы">
       <button class="key-btn" data-action="undo" aria-label="Отменить">↶</button>
       <button class="key-btn" data-action="redo" aria-label="Повторить">↷</button>

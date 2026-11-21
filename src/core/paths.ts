@@ -45,6 +45,11 @@ const MIME: Record<string, string> = {
 export const mimeOf = (p: string): string => MIME[extOf(p)] ?? (isTextPath(p) ? 'text/plain' : 'application/octet-stream');
 
 const MAX_PATH = 400;
+/** Names that collide with Object.prototype members and would break plain-object lookups. */
+const RESERVED = new Set(Object.getOwnPropertyNames(Object.prototype));
+
+/** Makes an archive/picker name acceptable to normalizePath without losing the file. */
+export const sanitizeImportName = (name: string): string => name.replace(/[?#]/g, '_');
 const MAX_SEGMENT = 200;
 
 /**
@@ -59,6 +64,8 @@ export function normalizePath(source: unknown): string {
   if (/[\u0000-\u001f\u007f]/.test(path)) throw new Error('Имя файла содержит недопустимые символы');
   const parts = path.split('/');
   if (parts.some((x) => x === '..' || x === '.' || !x)) throw new Error('Недопустимый путь файла');
+  if (/[?#]/.test(path)) throw new Error('Символы «?» и «#» в именах файлов не поддерживаются');
+  if (parts.some((x) => RESERVED.has(x))) throw new Error('Это имя зарезервировано, выберите другое');
   if (path.length > MAX_PATH || parts.some((x) => x.length > MAX_SEGMENT)) throw new Error('Слишком длинное имя файла');
   return path;
 }
@@ -119,7 +126,7 @@ export function uniquePath(path: string, taken: Iterable<string>): string {
 export function safeFolderName(name: string, taken: Iterable<string>): string {
   const cleaned =
     name
-      .replace(/[/\\:*?"<>|\u0000-\u001f]+/g, ' ')
+      .replace(/[/\\:*?"<>|#%\u0000-\u001f]+/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(/^[.\s]+|[.\s]+$/g, '')
       .slice(0, 80) || 'Проект';

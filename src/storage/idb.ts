@@ -119,6 +119,10 @@ export class IdbBackend implements Backend {
     return this.tx(['files'], 'readwrite', (tx) => void tx.objectStore('files').delete([meta.id, path]));
   }
 
+  async listFolders(): Promise<string[]> {
+    return [];
+  }
+
   async renameFolder(): Promise<void> {
     /* folder names are cosmetic in IndexedDB */
   }

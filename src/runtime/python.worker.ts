@@ -19,21 +19,28 @@ interface PyodideLike {
 }
 
 const post = (m: WorkerMessage) => self.postMessage(m);
-let pyodide: PyodideLike | null = null;
+let pyodidePromise: Promise<PyodideLike> | null = null;
 let runCounter = 0;
 /** Absolute URL of the bundled Pyodide folder, sent by the main thread. */
 let indexURL = '';
 
-async function load(): Promise<PyodideLike> {
-  if (pyodide) return pyodide;
-  post({ type: 'status', text: 'Загрузка Python…' });
-  const url = indexURL;
-  const mod = (await import(/* @vite-ignore */ `${url}pyodide.mjs`)) as {
-    loadPyodide(o: { indexURL: string; fullStdLib?: boolean; stdout?: (s: string) => void }): Promise<PyodideLike>;
-  };
-  pyodide = await mod.loadPyodide({ indexURL: url });
-  post({ type: 'ready', version: pyodide.version });
-  return pyodide;
+function load(): Promise<PyodideLike> {
+  // Cache the promise, not the instance: a preload followed by a quick Run must not start two interpreters.
+  if (!pyodidePromise) {
+    pyodidePromise = (async () => {
+      post({ type: 'status', text: 'Загрузка Python…' });
+      const mod = (await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`)) as {
+        loadPyodide(o: { indexURL: string }): Promise<PyodideLike>;
+      };
+      const py = await mod.loadPyodide({ indexURL });
+      post({ type: 'ready', version: py.version });
+      return py;
+    })();
+    pyodidePromise.catch(() => {
+      pyodidePromise = null;
+    });
+  }
+  return pyodidePromise;
 }
 
 const RUNNER = `

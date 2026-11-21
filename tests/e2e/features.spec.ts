@@ -71,3 +71,43 @@ test('missing Python packages get a helpful hint', async ({ page }) => {
   await page.getByRole('button', { name: 'Запустить' }).click();
   await expect(page.locator('#run-console')).toContainText('Сторонние пакеты', { timeout: 60_000 });
 });
+
+test('a failed save blocks leaving the project until the user decides', async ({ page }) => {
+  await start(page, '?e2e=1');
+  await openProject(page, 'Сайт-портфолио');
+  // Simulate a full disk.
+  await page.evaluate(() => {
+    const app = (globalThis as unknown as { __codevia: { repo: { saveFiles: unknown; __orig?: unknown } } }).__codevia;
+    app.repo.__orig = app.repo.saveFiles;
+    app.repo.saveFiles = () => Promise.reject(new Error('Недостаточно места'));
+  });
+  await page.locator('.row-button', { hasText: 'app.js' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.type('// unsaved');
+  await page.getByRole('button', { name: 'К проектам' }).click();
+  await expect(page.getByRole('dialog', { name: 'Изменения не сохранены' })).toBeVisible();
+  await page.getByRole('button', { name: 'Остаться' }).click();
+  await expect(page.locator('.project-title')).toContainText('Сайт-портфолио');
+  // Space freed: the next attempt saves the kept edits and navigation continues without a prompt.
+  await page.evaluate(() => {
+    const app = (globalThis as unknown as { __codevia: { repo: { saveFiles: unknown; __orig?: unknown } } }).__codevia;
+    app.repo.saveFiles = app.repo.__orig;
+  });
+  await page.getByRole('button', { name: 'К проектам' }).click();
+  await expect(page.getByRole('heading', { name: 'Проекты', exact: true })).toBeVisible();
+  await openProject(page, 'Сайт-портфолио');
+  await page.locator('.row-button', { hasText: 'app.js' }).click();
+  await expect(page.locator('.cm-content')).toContainText('// unsaved');
+});
+
+test('importing a Windows-1251 file keeps its bytes and offers conversion', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'PHP');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Добавить файлы с устройства' }).click();
+  await (await chooser).setFiles({ name: 'old.php', mimeType: 'text/plain', buffer: Buffer.from([0x3c, 0x3f, 0x3d, 0x27, 0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2, 0x27, 0x3b]) });
+  await page.getByRole('button', { name: 'Действия с файлом old.php' }).click();
+  await page.getByRole('button', { name: /Преобразовать в UTF-8/ }).click();
+  await page.getByRole('button', { name: 'Преобразовать', exact: true }).click();
+  await expect(page.locator('.cm-content')).toContainText("<?='Привет';");
+});

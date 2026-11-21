@@ -21,6 +21,24 @@ export function decodeZipName(bytes: Uint8Array, utf8Flag: boolean): string {
   }
 }
 
+const utf8Exact = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+
+/** Decodes UTF-8 exactly (BOM kept, so saving reproduces the original bytes); null if the bytes are not UTF-8. */
+export function decodeUtf8Strict(bytes: Uint8Array): string | null {
+  try {
+    return utf8Exact.decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/** Best guess for legacy text that is not UTF-8: UTF-16 by BOM, otherwise Windows-1251 (common for Russian sites). */
+export function guessLegacyEncoding(bytes: Uint8Array): 'utf-16le' | 'utf-16be' | 'windows-1251' {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
+  return 'windows-1251';
+}
+
 export const encodeUtf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 export const decodeUtf8 = (b: Uint8Array): string => utf8Loose.decode(b);
 

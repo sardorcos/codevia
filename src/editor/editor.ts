@@ -118,6 +118,8 @@ export interface EditorHost {
   goToLine(line: number): void;
   current(): string;
   forget(path: string): void;
+  /** Drops every cached file state (called when switching projects). */
+  reset(): void;
   rename(from: string, to: string): void;
 }
 
@@ -217,6 +219,11 @@ export function createEditor(onChange: (path: string, text: string) => void, wra
     current: () => view.state.doc.toString(),
     forget(path) {
       states.delete(path);
+    },
+    reset() {
+      states.clear();
+      currentPath = '';
+      view.setState(EditorState.create({ doc: '' }));
     },
     rename(from, to) {
       const s = from === currentPath ? view.state : states.get(from);

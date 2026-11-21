@@ -1,6 +1,7 @@
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-import { base64ToBytes, bytesToBase64 } from '../core/bytes';
-import { isJunkPath, isTextPath } from '../core/paths';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { base64ToBytes, bytesToBase64, decodeUtf8, encodeUtf8 } from '../core/bytes';
+import { toProjectFile } from '../core/files';
+import { isJunkPath } from '../core/paths';
 import type { Files, ProjectFile, ProjectMeta, Snapshot, SnapshotMeta } from '../core/types';
 import { isQuotaError, StorageError, type Backend } from './backend';
 
@@ -21,13 +22,10 @@ const wrap = async <T>(p: Promise<T>): Promise<T> => {
   }
 };
 
+/** UTF-8 text stored by this backend (always written as bytes, see writeAny). */
 async function readText(path: string, directory: Directory): Promise<string | null> {
-  try {
-    const r = await Filesystem.readFile({ path, directory, encoding: Encoding.UTF8 });
-    return typeof r.data === 'string' ? r.data : await r.data.text();
-  } catch {
-    return null;
-  }
+  const bytes = await readBinary(path, directory);
+  return bytes ? decodeUtf8(bytes) : null;
 }
 
 async function readBinary(path: string, directory: Directory): Promise<Uint8Array | null> {
@@ -40,21 +38,24 @@ async function readBinary(path: string, directory: Directory): Promise<Uint8Arra
   }
 }
 
-async function list(path: string, directory: Directory): Promise<Array<{ name: string; type: 'file' | 'directory' }>> {
+/** Directory listing; null when the folder cannot be read (missing or error) — never confused with "empty". */
+async function listOrNull(path: string, directory: Directory): Promise<Array<{ name: string; type: 'file' | 'directory' }> | null> {
   try {
     const r = await Filesystem.readdir({ path, directory });
     return r.files.map((f) => ({ name: f.name, type: f.type }));
   } catch {
-    return [];
+    return null;
   }
 }
+const list = async (path: string, directory: Directory) => (await listOrNull(path, directory)) ?? [];
 
+/**
+ * Every write is raw bytes (base64 over the bridge, no `encoding`), so native and web implementations
+ * behave identically and files keep their exact bytes.
+ */
 const writeAny = async (path: string, directory: Directory, file: ProjectFile): Promise<void> => {
-  await wrap<unknown>(
-    file.text
-      ? Filesystem.writeFile({ path, directory, data: file.content, encoding: Encoding.UTF8, recursive: true })
-      : Filesystem.writeFile({ path, directory, data: bytesToBase64(file.data), recursive: true }),
-  );
+  const bytes = file.text ? encodeUtf8(file.content) : file.data;
+  await wrap<unknown>(Filesystem.writeFile({ path, directory, data: bytesToBase64(bytes), recursive: true }));
 };
 
 async function removeQuiet(path: string, directory: Directory, dir = false): Promise<void> {
@@ -77,6 +78,10 @@ export class FsBackend implements Backend {
         /* exists */
       }
     }
+  }
+
+  async listFolders(): Promise<string[]> {
+    return (await list('', DOCS)).filter((f) => f.type === 'directory').map((f) => f.name);
   }
 
   async listMeta(): Promise<ProjectMeta[]> {
@@ -110,12 +115,10 @@ export class FsBackend implements Backend {
         const path = rel ? `${rel}/${entry.name}` : entry.name;
         if (isJunkPath(path)) continue;
         if (entry.type === 'directory') await walk(path);
-        else if (isTextPath(path)) {
-          const text = await readText(`${meta.folder}/${path}`, DOCS);
-          if (text !== null) files[path] = { text: true, content: text };
-        } else {
+        else {
+          // Read bytes and decode in JS: non-UTF-8 text stays intact as binary instead of disappearing.
           const data = await readBinary(`${meta.folder}/${path}`, DOCS);
-          if (data) files[path] = { text: false, data };
+          if (data) files[path] = toProjectFile(path, data);
         }
       }
     };
@@ -129,12 +132,18 @@ export class FsBackend implements Backend {
 
   async deleteFile(meta: ProjectMeta, path: string): Promise<void> {
     await removeQuiet(`${meta.folder}/${path}`, DOCS);
-    // Remove now-empty parent folders so the Files app mirrors the project tree.
+    // Remove now-empty parent folders so the Files app mirrors the project tree. Non-recursive and
+    // only when the listing positively succeeded as empty, so a read error can never delete siblings.
     const parts = path.split('/').slice(0, -1);
     while (parts.length) {
       const dir = `${meta.folder}/${parts.join('/')}`;
-      if ((await list(dir, DOCS)).length) break;
-      await removeQuiet(dir, DOCS, true);
+      const entries = await listOrNull(dir, DOCS);
+      if (entries === null || entries.length) break;
+      try {
+        await Filesystem.rmdir({ path: dir, directory: DOCS, recursive: false });
+      } catch {
+        break;
+      }
       parts.pop();
     }
   }

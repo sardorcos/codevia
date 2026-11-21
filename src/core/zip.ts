@@ -1,6 +1,7 @@
-import { crc32, decodeUtf8, decodeZipName, encodeUtf8 } from './bytes';
-import { isJunkPath, isTextPath, normalizePath, uniquePath } from './paths';
-import { binaryFile, textFile, type Files, LIMITS } from './types';
+import { crc32, decodeZipName, encodeUtf8 } from './bytes';
+import { toProjectFile } from './files';
+import { isJunkPath, normalizePath, sanitizeImportName, uniquePath } from './paths';
+import { type Files, LIMITS } from './types';
 
 export interface UnzipOptions {
   maxEntries?: number;
@@ -100,7 +101,7 @@ export async function unzip(bytes: Uint8Array, opts: UnzipOptions = {}): Promise
     if (flags & 1) throw new ZipError('Зашифрованные ZIP-архивы не поддерживаются');
     let safe: string;
     try {
-      safe = normalizePath(name);
+      safe = normalizePath(sanitizeImportName(name));
     } catch {
       throw new ZipError(`В архиве небезопасный путь: ${name}`);
     }
@@ -119,7 +120,7 @@ export async function unzip(bytes: Uint8Array, opts: UnzipOptions = {}): Promise
 
     const finalPath = uniquePath(safe, Object.keys(files));
     if (finalPath !== safe) renamed.push({ from: safe, to: finalPath });
-    files[finalPath] = isTextPath(finalPath) ? textFile(decodeUtf8(content)) : binaryFile(content);
+    files[finalPath] = toProjectFile(finalPath, content);
   }
   return { files, skipped, renamed };
 }

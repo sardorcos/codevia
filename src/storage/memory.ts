@@ -34,6 +34,10 @@ export class MemoryBackend implements Backend {
   async deleteFile(m: ProjectMeta, path: string) {
     delete this.files.get(m.id)?.[path];
   }
+  async listFolders(): Promise<string[]> {
+    return [];
+  }
+
   async renameFolder() {}
   async putBlob(h: string, f: ProjectFile) {
     this.blobs.set(h, structuredClone(f));

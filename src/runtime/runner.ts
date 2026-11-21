@@ -36,6 +36,8 @@ const toRunFiles = (files: Files, kind: RuntimeKind): RunFile[] =>
 export class Runner {
   private workers = new Map<RuntimeKind, Worker>();
   private active: { kind: RuntimeKind; id: string; finish: (o: RunOutcome) => void; fail: (e: Error) => void } | null = null;
+  /** Callbacks of the current run; preloading never replaces them. */
+  private callbacks: RunCallbacks | null = null;
   readonly versions = new Map<RuntimeKind, string>();
   private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -58,22 +60,27 @@ export class Runner {
     for (const kind of [...this.workers.keys()]) this.dispose(kind);
   }
 
-  private worker(kind: RuntimeKind, cb?: RunCallbacks): Worker {
+  private worker(kind: RuntimeKind): Worker {
     let w = this.workers.get(kind);
     if (!w) {
       w = createWorker(kind);
       w.onerror = (e) => {
         e.preventDefault();
-        this.active?.fail(new Error(e.message || 'Сбой среды выполнения'));
+        const a = this.active?.kind === kind ? this.active : null;
         this.dispose(kind);
+        if (a) {
+          this.active = null;
+          a.fail(new Error(e.message || 'Среда выполнения не загрузилась. Попробуйте ещё раз.'));
+        }
       };
+      w.onmessage = (ev: MessageEvent<WorkerMessage>) => this.handle(kind, ev.data);
       this.workers.set(kind, w);
     }
-    w.onmessage = (ev: MessageEvent<WorkerMessage>) => this.handle(kind, ev.data, cb);
     return w;
   }
 
-  private handle(kind: RuntimeKind, m: WorkerMessage, cb?: RunCallbacks): void {
+  private handle(kind: RuntimeKind, m: WorkerMessage): void {
+    const cb = this.active?.kind === kind ? this.callbacks : null;
     if (m.type === 'ready') {
       this.versions.set(kind, m.version);
       return;
@@ -103,6 +110,7 @@ export class Runner {
       case 'fatal': {
         const a = this.active;
         this.active = null;
+        this.touchIdle();
         a.fail(new Error(m.message));
         break;
       }
@@ -125,7 +133,8 @@ export class Runner {
     const id = makeId();
     for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);
     this.touchIdle();
-    const w = this.worker(kind, cb);
+    const w = this.worker(kind);
+    this.callbacks = cb;
     return new Promise<RunOutcome>((resolve, reject) => {
       this.active = { kind, id, finish: resolve, fail: reject };
       const req: RunRequest = { type: 'run', id, entry, files: toRunFiles(files, kind), base: this.assetBase, ...extra };
