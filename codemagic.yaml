@@ -13,9 +13,10 @@ workflows:
       groups:
         - codevia_signing
       ios_signing:
-        # Team code signing identity (Apple Distribution, with private key) shared by the team's apps.
-        certificates:
-          - monetniy-mir-distribution
+        # Automatic signing: Codemagic picks the team's distribution identity (with private key,
+        # stored in Code signing identities) and fetches/creates the App Store profile via the integration.
+        distribution_type: app_store
+        bundle_identifier: com.codevia.pocket
       node: 22
       xcode: latest
       vars:
@@ -52,19 +53,9 @@ workflows:
       - name: App Store profile for com.codevia.pocket
         script: |
           set -euo pipefail
-          # The account is at Apple's limit of distribution certificates, so reuse the team's
-          # existing one (loaded by ios_signing) and create/fetch an App Store profile bound to it.
-          P12=$(ls "$HOME/Library/MobileDevice/Certificates/"*.p12 | head -1)
-          KEY=/tmp/team_dist_key.pem
-          ( openssl pkcs12 -in "$P12" -nocerts -nodes -passin pass: -out "$KEY" 2>/dev/null \
-            || openssl pkcs12 -legacy -in "$P12" -nocerts -nodes -passin pass: -out "$KEY" ) 
-          chmod 600 "$KEY"
-          openssl pkey -in "$KEY" -noout && echo "team certificate key extracted"
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key=@file:"$KEY" \
-            --create
-          rm -f "$KEY"
+          # Signing files were prepared by ios_signing; show what is installed, then wire them into Xcode.
+          security find-identity -v -p codesigning || true
+          ls "$HOME/Library/MobileDevice/Provisioning Profiles/" || true
           keychain add-certificates
           xcode-project use-profiles --project "$XCODE_PROJECT"
       - name: Build IPA
