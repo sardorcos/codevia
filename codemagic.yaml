@@ -56,7 +56,28 @@ workflows:
           done
           KEY_DIR="$HOME/private_keys"; mkdir -p "$KEY_DIR"
           KEY_PATH="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
-          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"; chmod 600 "$KEY_PATH"
+          # Normalise the integration key into a canonical PKCS#8 PEM (it may arrive with escaped
+          # newlines, CRLF, quotes, or as base64 of the whole file). Only shape info is logged.
+          python3 - "$KEY_PATH" <<'PY'
+          import base64, os, re, sys
+          raw = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"].strip().strip('"').strip("'")
+          raw = raw.replace("\\n", "\n").replace("\r", "")
+          if "BEGIN" not in raw:
+              try:
+                  dec = base64.b64decode(raw, validate=False).decode("utf-8", "ignore")
+                  if "BEGIN" in dec:
+                      raw = dec
+              except Exception:
+                  pass
+          m = re.search(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", raw, re.S)
+          label, body = (m.group(1), m.group(2)) if m else ("PRIVATE KEY", raw)
+          body = re.sub(r"[^A-Za-z0-9+/=]", "", body)
+          print(f"key shape: header={'yes' if m else 'no'} label={label!r} base64_len={len(body)}")
+          pem = f"-----BEGIN {label}-----\n" + "\n".join(body[i:i+64] for i in range(0, len(body), 64)) + f"\n-----END {label}-----\n"
+          fd = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+          os.write(fd, pem.encode()); os.close(fd)
+          PY
+          openssl pkey -in "$KEY_PATH" -noout && echo "key parses as a private key" || { echo "Integration key is not a valid private key"; exit 1; }
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY_PATH"
                 -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER"
                 -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID")
