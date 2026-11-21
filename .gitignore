@@ -15,3 +15,4 @@ ios/App/DerivedData/
 fastlane/report.xml
 fastlane/README.md
 public/THIRD_PARTY_LICENSES.txt
+release/
