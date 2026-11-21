@@ -10,7 +10,7 @@
 | Приложение «Codevia Pocket» в App Store Connect (SKU `codevia-pocket-ios`, основной язык English (US)) | ✅ создано |
 | Ключ App Store Connect API | ⏳ нужно создать |
 | Секреты в GitHub | ⏳ нужно добавить |
-| iOS-проект собирается на macOS (Xcode 26, без подписи) | проверяется в CI, задача `ios-build` |
+| iOS-проект собирается на macOS (Xcode 26.6, Release, без подписи) | ✅ собирается в CI (задача `ios-build`), приложение 28 МБ |
 
 > Основной язык карточки — English (US), а интерфейс приложения русский. При заполнении метаданных добавьте локализацию **Russian**: App Store Connect → приложение → App Information → Localizable Information → «+». Тексты для обеих локализаций лежат в `docs/APP_STORE.md`.
 
