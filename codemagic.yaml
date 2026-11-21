@@ -61,6 +61,14 @@ workflows:
           python3 - "$KEY_PATH" <<'PY'
           import base64, os, re, sys
           raw = os.environ["APP_STORE_CONNECT_PRIVATE_KEY"].strip().strip('"').strip("'")
+          # Codemagic CLI references: "@file:/path/AuthKey.p8" or "@env:OTHER_VAR".
+          for _ in range(3):
+              if raw.startswith("@file:"):
+                  print("key source: @file reference")
+                  raw = open(os.path.expanduser(raw[6:])).read().strip()
+              elif raw.startswith("@env:"):
+                  print("key source: @env reference")
+                  raw = os.environ.get(raw[5:], "").strip()
           raw = raw.replace("\\n", "\n").replace("\r", "")
           if "BEGIN" not in raw:
               try:
