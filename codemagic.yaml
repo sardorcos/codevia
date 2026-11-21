@@ -18,6 +18,7 @@ workflows:
         BUNDLE_ID: com.codevia.pocket
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
+        TEAM_ID: 8PMNK7YN6D
     triggering:
       events:
         - tag
@@ -44,21 +45,46 @@ workflows:
           sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9.]+;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$XCODE_PROJECT/project.pbxproj"
           grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
           grep -m1 "MARKETING_VERSION" "$XCODE_PROJECT/project.pbxproj"
-      - name: Signing
+      - name: Archive with cloud signing
         script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
-            --create
-          keychain add-certificates
-          xcode-project use-profiles --project "$XCODE_PROJECT"
-      - name: Build IPA
-        script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --config Release
+          set -euo pipefail
+          # The account already has the maximum of 3 Apple Distribution certificates (owned by other
+          # apps' keys), so a new key-bound certificate cannot be created. Xcode cloud signing uses an
+          # Apple-managed distribution certificate through the integration's App Store Connect key.
+          for v in APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_PRIVATE_KEY; do
+            [ -n "${!v:-}" ] || { echo "Integration variable $v is not set"; exit 1; }
+          done
+          KEY_DIR="$HOME/private_keys"; mkdir -p "$KEY_DIR"
+          KEY_PATH="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"; chmod 600 "$KEY_PATH"
+          AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY_PATH"
+                -authenticationKeyID "$APP_STORE_CONNECT_KEY_IDENTIFIER"
+                -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID")
+          mkdir -p build/ios/ipa /tmp/xcodebuild_logs
+          set -o pipefail
+          xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath build/ios/CodeviaPocket.xcarchive \
+            DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            "${AUTH[@]}" archive 2>&1 | tee /tmp/xcodebuild_logs/archive.log | grep -E "error:|warning: .*sign|ARCHIVE|Signing Identity|Provisioning Profile" || true
+          test -d build/ios/CodeviaPocket.xcarchive || { tail -n 80 /tmp/xcodebuild_logs/archive.log; exit 1; }
+          cat > build/ios/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/ios/CodeviaPocket.xcarchive \
+            -exportOptionsPlist build/ios/ExportOptions.plist -exportPath build/ios/ipa "${AUTH[@]}" \
+            2>&1 | tee /tmp/xcodebuild_logs/export.log | tail -n 25
+          ls -la build/ios/ipa
+          ls build/ios/ipa/*.ipa
+          rm -f "$KEY_PATH"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
