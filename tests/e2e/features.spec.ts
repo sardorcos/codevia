@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Editor shortcuts: CodeMirror treats iPhone (WebKit) like a Mac, where Mod = ⌘ and Ctrl-A means "line start". */
+const mod = (page: Page) => (page.context().browser()?.browserType().name() === 'webkit' ? 'Meta' : 'Control');
+
 async function start(page: Page, query = '') {
   page.on('pageerror', (e) => {
     throw e;
@@ -19,7 +22,7 @@ test('filesystem backend (used on iOS) persists edits and history across reloads
   await openProject(page, 'Сайт-портфолио');
   await page.locator('.row-button', { hasText: 'app.js' }).click();
   await page.locator('.cm-content').click();
-  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.press(`${mod(page)}+End`);
   await page.keyboard.type('\n// FS-BACKEND');
   await expect(page.locator('#save-state')).toHaveText(/Сохранено/, { timeout: 5000 });
   await page.getByRole('button', { name: 'История версий' }).click();
@@ -65,7 +68,7 @@ test('missing Python packages get a helpful hint', async ({ page }) => {
   await openProject(page, 'Python');
   await page.locator('.row-button', { hasText: 'main.py' }).click();
   await page.locator('.cm-content').click();
-  await page.keyboard.press('ControlOrMeta+a');
+  await page.keyboard.press(`${mod(page)}+a`);
   await page.keyboard.type('import numpy\n');
   await page.locator('.nav-item', { hasText: 'Запуск' }).click();
   await page.getByRole('button', { name: 'Запустить' }).click();

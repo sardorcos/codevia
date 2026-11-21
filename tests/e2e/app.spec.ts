@@ -1,5 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
+/** Editor shortcuts: CodeMirror treats iPhone (WebKit) like a Mac, where Mod = ⌘ and Ctrl-A means "line start". */
+const mod = (page: Page) => (page.context().browser()?.browserType().name() === 'webkit' ? 'Meta' : 'Control');
+
 const previewFrame = (page: Page) => page.frameLocator('#live-preview');
 
 async function startWithSamples(page: Page) {
@@ -57,7 +60,7 @@ test.describe('Codevia Pocket', () => {
     await openProject(page, 'Сайт-портфолио');
     await page.locator('.row-button', { hasText: 'styles.css' }).click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.press(`${mod(page)}+End`);
     await page.keyboard.type('\n/* PERSISTED */');
     await expect(page.locator('#save-state')).toHaveText(/Сохранено/, { timeout: 5000 });
     await page.reload();
@@ -71,7 +74,7 @@ test.describe('Codevia Pocket', () => {
     await openProject(page, 'Сайт-портфолио');
     await page.locator('.row-button', { hasText: 'app.js' }).click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.press(`${mod(page)}+Home`);
     await page.locator('.key-btn[data-value="()"]').click();
     await page.keyboard.type('x');
     await expect(page.locator('.cm-line').first()).toHaveText(/^\(x\)/);
@@ -105,7 +108,7 @@ test.describe('Codevia Pocket', () => {
     await openProject(page, 'Сайт-портфолио');
     await page.locator('.row-button', { hasText: 'app.js' }).click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press(`${mod(page)}+a`);
     await page.keyboard.type('document.title = "</script>" + "ok"; document.body.dataset.ran = "yes";');
     await page.locator('.nav-item', { hasText: 'Просмотр' }).click();
     await expect(previewFrame(page).locator('body[data-ran="yes"]')).toHaveCount(1);
@@ -127,7 +130,7 @@ test.describe('Codevia Pocket', () => {
     await page.locator('.nav-item', { hasText: 'Файлы' }).click();
     await page.locator('.row-button', { hasText: 'main.py' }).click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press(`${mod(page)}+a`);
     await page.keyboard.type('while True:\n    pass\n');
     await page.locator('.nav-item', { hasText: 'Запуск' }).click();
     await page.getByRole('button', { name: 'Запустить' }).click();
@@ -140,7 +143,7 @@ test.describe('Codevia Pocket', () => {
     await openProject(page, 'Python');
     await page.locator('.row-button', { hasText: 'main.py' }).click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press(`${mod(page)}+a`);
     await page.keyboard.type('print(1/0)\n');
     await page.locator('.nav-item', { hasText: 'Запуск' }).click();
     await page.getByRole('button', { name: 'Запустить' }).click();
@@ -224,7 +227,7 @@ test.describe('Codevia Pocket', () => {
     await openProject(page, 'Сайт-портфолио');
     await page.locator('.row-button', { hasText: 'index.html' }).first().click();
     await page.locator('.cm-content').click();
-    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.press(`${mod(page)}+End`);
     await page.keyboard.type('\n<img src="missing.png">');
     await page.locator('.nav-item', { hasText: 'Файлы' }).click();
     await page.getByRole('button', { name: 'Проверка' }).click();
