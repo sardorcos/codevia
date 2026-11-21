@@ -4,8 +4,9 @@
 
 Сборка и загрузка идут через **Codemagic**: приложение `codevia` (`6b01a13d65b613536e1a6b86`), конфигурация — [`codemagic.yaml`](../codemagic.yaml), workflow `ios-testflight`.
 
-- **Подпись:** интеграция App Store Connect `monetniy-mir-asc`. Codemagic сам создаёт или подбирает сертификат распространения и профиль App Store для `com.codevia.pocket`.
-- **Ключ сертификата:** RSA-ключ хранится в защищённой переменной `CERTIFICATE_PRIVATE_KEY` (группа `codevia_signing`) в настройках приложения в Codemagic. В репозитории его нет.
+- **Подпись:** командный сертификат Apple Distribution `monetniy-mir-distribution` из Code signing identities в Codemagic (`environment.ios_signing.certificates`). Профиль App Store «Codevia Pocket App Store» для `com.codevia.pocket` лежит в App Store Connect, скрипт сборки скачивает его через интеграцию `monetniy-mir-asc`.
+- **Если профиль стал недействительным** (например, после отзыва любого сертификата распространения), один раз запустите workflow `ios-signing-bootstrap`: он удалит недействительный профиль и создаст новый со всеми действующими сертификатами.
+- **Проверка статуса:** workflow `testflight-status` (только чтение) показывает состояние обработки сборок в App Store Connect.
 - **Номер сборки:** берётся из `BUILD_NUMBER` Codemagic, версия — из `MARKETING_VERSION` (1.0.0).
 - **Запуск:** тег `v*` (`git tag v1.0.1 && git push origin v1.0.1`), кнопка **Start new build** в Codemagic или API:
   ```bash
@@ -28,8 +29,7 @@ Workflow `.github/workflows/testflight.yml` делает то же самое н
 |---|---|
 | Bundle ID `com.codevia.pocket` в Apple Developer | ✅ зарегистрирован |
 | Приложение «Codevia Pocket» в App Store Connect (SKU `codevia-pocket-ios`, основной язык English (US)) | ✅ создано |
-| Ключ App Store Connect API | ⏳ нужно создать |
-| Секреты в GitHub | ⏳ нужно добавить |
+| Первая сборка в TestFlight | ✅ 1.0.0 (10), VALID, загружена через Codemagic 21.11.2026 |
 | iOS-проект собирается на macOS (Xcode 26.6, Release, без подписи) | ✅ собирается в CI (задача `ios-build`), приложение 28 МБ |
 
 > Основной язык карточки — English (US), а интерфейс приложения русский. При заполнении метаданных добавьте локализацию **Russian**: App Store Connect → приложение → App Information → Localizable Information → «+». Тексты для обеих локализаций лежат в `docs/APP_STORE.md`.
