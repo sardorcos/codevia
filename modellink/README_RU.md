@@ -1,8 +1,10 @@
 # ModelLink 0.4.0 — интерфейс для мобильных устройств и iOS
 
-**Статус: автономный рабочий веб-прототип + исходники интеграции Capacitor/iOS. Не IPA и не замена опубликованного ModelLink 0.2.0.**
+**Статус: iOS-приложение (Capacitor 8) со своим нативным модулем файлов. Сборка и загрузка в TestFlight — через Codemagic, workflow `modellink-testflight` в корневом `codemagic.yaml`.**
 
-Версия 0.4.0 создана как независимое продолжение UX-разработки на основе экранов ModelLink. Исходники опубликованной сборки 0.2.0 в рабочей среде не были доступны; **её крупные CAD-движки сюда не перенесены**. Не устанавливайте 0.4 поверх действующего проекта, пока не объедините исходники и схемы данных.
+- Bundle ID: `com.neverlandplayworks.modellink`, приложение «ModelLink» в App Store Connect (SKU `modellink-ios`).
+- Хранилище: IndexedDB `modellink-mobile-v04` внутри приложения; формат пакетов `.mlink` версии 1.
+- Крупные CAD-движки версии 0.2.0 сюда не входят: DWG/STEP/IFC хранятся и передаются как оригиналы.
 
 ## Главное изменение интерфейса
 
@@ -34,23 +36,35 @@ npm run build         # готовая веб-оболочка в www/
 
 Команда `npm start` использует только стандартный Node.js, установка сторонних пакетов для веб-версии не нужна. Исходники `JSZip 3.10.1` включены в `vendor/` вместе с лицензией MIT. В одной отдельной папке есть файл `ModelLink-0.4.0-preview.html` с самостоятельно собранной веб-версией, однако для стабильного IndexedDB на iOS рекомендуется запуск с HTTPS или через Capacitor.
 
-### Подготовка iOS на Mac
+### iOS
 
-Официальная документация Capacitor v8: https://capacitorjs.com/docs/ios. Требуется macOS + Xcode 26+ (Capacitor v8 поддерживает iOS 15+). Проверьте актуальные требования в день сборки.
+Xcode-проект лежит в `ios/App` (Capacitor 8, Swift Package Manager, iOS 16+, только iPhone).
 
 ```bash
-npm install @capacitor/core@^8 @capacitor/ios@^8 @capacitor/cli@^8
-npm run build
-npx cap add ios
-npx cap sync ios
-npx cap open ios
+npm ci
+npm run ios:sync          # сборка www/ и копирование в ios/App/App/public
+open ios/App/App.xcodeproj
 ```
 
-`cap add ios` создаёт Xcode-проект при наличии зависимостей. Для фирменного идентификатора измените `appId` в `capacitor.config.json` с демонстрационного `com.modellink.mobile` на ваш уникальный bundle ID. Установите свою команду подписания и provisioning profile. Не используйте примеры ID как рабочие App Groups.
+Нативная часть (`ios/App/App/`):
 
-Папка `native-integration-0.3.0/` содержит **настоящий исходный Swift-модуль**, который умеет выбирать документы из «Файлов», принимать Shared files из других приложений, отдавать их JS порциями, показывать Quick Look и передавать через Share Sheet. Для его подключения нужен отдельный этап: добавление Swift-файлов в Xcode target, настройка App Groups, Share Extension, регистрация плагина и проверка API с Capacitor 8. См. `native-integration-0.3.0/docs/INTEGRATION_RU.md`. В веб-версии присутствует совместимый вызов методов через `window.Capacitor.Plugins.ModelLinkNative`, если модуль зарегистрирован.
+- `ModelLinkNativePlugin.swift` — плагин `ModelLinkNative`: системный выбор файлов («Файлы», iCloud Drive), чтение файлов в JS порциями с проверкой SHA-256, экспорт через Share Sheet (AirDrop, «Сохранить в Файлы», почта), Quick Look для PDF, изображений, USDZ (AR) и офисных форматов.
+- `ModelLinkImportStore.swift` / `ModelLinkExportStore.swift` — промежуточные папки импорта и экспорта внутри контейнера приложения.
+- `SceneDelegate.swift` — принимает файлы, открытые в ModelLink из других приложений («Поделиться → ModelLink», AirDrop, «Файлы»). Типы документов и UTI объявлены в `Info.plist`, пакет `.mlink` экспортируется как собственный тип приложения.
+- Share Extension и App Group из пакета 0.3.0 заменены на «Открыть в ModelLink»: тот же сценарий без второй цели подписи.
 
-**Полный iOS-архив Xcode, подписанная IPA и проверка через TestFlight ещё не создавались в этой среде**, так как здесь нет macOS/Xcode и исходников оригинальной сборки 0.2.0.
+Веб-слой обращается к модулю через `registerPlugin('ModelLinkNative')` (`vendor/capacitor-core.js`); в браузере используются обычные `<input type=file>`, Web Share API и скачивание.
+
+### TestFlight
+
+Codemagic → приложение `codevia` → workflow **ModelLink → TestFlight** (`modellink-testflight`), ветка с папкой `modellink/`. Workflow:
+
+1. регистрирует bundle ID и проверяет запись приложения в App Store Connect (`tools/asc_setup.py`);
+2. запускает тесты, собирает веб-часть, `cap sync ios`;
+3. ставит номер сборки из `BUILD_NUMBER`, создаёт или скачивает профиль App Store, подписывает IPA командным сертификатом;
+4. загружает сборку в App Store Connect. Через 5–30 минут она появляется в TestFlight для внутренних тестировщиков.
+
+Версия — `MARKETING_VERSION` в `ios/App/App.xcodeproj/project.pbxproj` и `version` в `package.json`.
 
 ## Миграция из ModelLink 0.2.0
 
@@ -65,7 +79,7 @@ npx cap open ios
 
 - `npm run check`: 9 проверок парсеров, форматов, версий и структуры пакета + проверка синтаксиса.
 - Браузерный интерфейс в Playwright проверен с **тестовой заменой IndexedDB на память**, так как управляемый браузер не разрешает переходить на локальный HTTP-адрес: отображение шести функций в ширине 390 пикселей, создание проекта, импорт SVG, сохранение замечания, 3D OBJ, экспорт и повторный импорт `.mlink`.
-- Полный тест на настоящем iPhone, системная регистрация Share Extension и iOS WebView ещё нужны.
+- Ручная проверка на iPhone по сценарию из `docs/QA_IPHONE_RU.md`: импорт из «Файлов», «Открыть в ModelLink», Quick Look, Share Sheet, жесты.
 
 ## Безопасность и ограничения
 
@@ -81,8 +95,9 @@ npx cap open ios
 - `core/storage.js`: IndexedDB, проекты, файлы, версии, замечания.
 - `core/geometry.js`: DXF/OBJ/STL/GLB базовые парсеры.
 - `core/pack.js`: импорт/экспорт ZIP-пакета `.mlink`.
-- `vendor/`: JSZip и лицензия.
+- `vendor/`: JSZip, `@capacitor/core` (ESM) и лицензии.
 - `www/`: собранные статические ресурсы для Capacitor.
-- `native-integration-0.3.0/`: нативный Swift-плагин, Share Extension, инструкции и тесты.
+- `ios/`: Xcode-проект с нативным модулем.
+- `tools/asc_setup.py`: подготовка App Store Connect для workflow.
 - `tests/`: автоматические тесты Node.js.
 - `scripts/`: сборка, одиночный HTML и локальный сервер.
