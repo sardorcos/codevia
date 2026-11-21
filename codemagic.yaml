@@ -77,3 +77,39 @@ workflows:
         # Upload only: the build appears in TestFlight for internal testers. External testing
         # (Beta App Review) needs test information filled in App Store Connect first.
         submit_to_testflight: false
+
+  # One-off: creates the App Store provisioning profile for com.codevia.pocket. It includes every
+  # active distribution certificate of the team, so it matches whichever identity Codemagic loads
+  # (monetniy-mir-distribution). Safe to re-run: it does nothing if an active profile exists.
+  ios-signing-bootstrap:
+    name: Codevia Pocket — create App Store profile
+    instance_type: mac_mini_m2
+    max_build_duration: 15
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      vars:
+        BUNDLE_ID: com.codevia.pocket
+    scripts:
+      - name: Create App Store profile
+        script: |
+          set -euo pipefail
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier "$BUNDLE_ID" --platform IOS --strict-match-identifier --json \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['id'])")
+          echo "Bundle ID resource: $BID"
+          app-store-connect certificates list --type DISTRIBUTION IOS_DISTRIBUTION --json > /tmp/certs.json
+          python3 - <<'PY'
+          import json
+          for c in json.load(open('/tmp/certs.json')):
+              a = c['attributes']
+              print(f"certificate {c['id']}: {a.get('name')} | {a.get('displayName')} | expires {a.get('expirationDate')} | serial {a.get('serialNumber')}")
+          PY
+          CERT_IDS=$(python3 -c "import json; print(' '.join(c['id'] for c in json.load(open('/tmp/certs.json'))))")
+          ACTIVE=$(app-store-connect bundle-ids profiles "$BID" --json 2>/dev/null \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(sum(1 for p in d if p['attributes'].get('profileType')=='IOS_APP_STORE' and p['attributes'].get('profileState')=='ACTIVE'))" || echo 0)
+          echo "Active App Store profiles: $ACTIVE"
+          if [ "$ACTIVE" = "0" ]; then
+            app-store-connect profiles create "$BID" --type IOS_APP_STORE --certificate-ids $CERT_IDS \
+              --name "Codevia Pocket App Store"
+          fi
+          app-store-connect bundle-ids profiles "$BID"
