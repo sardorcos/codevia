@@ -44,9 +44,12 @@ body {
   background: var(--bg);
   overscroll-behavior: none;
 }
+/* iOS Dynamic Type: main.ts sets --ui-scale from the system text size (1–1.3). */
+:root.dynamic-type .app-shell,
+:root.dynamic-type #sheet-root {
+  zoom: var(--ui-scale);
+}
 body {
-  /* Respects iOS Dynamic Type in WKWebView; falls back to 16px elsewhere. */
-  font: -apple-system-body;
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.45;

@@ -1,6 +1,26 @@
 import { App } from './app';
 import './styles/app.css';
 
+/**
+ * iOS Dynamic Type: WKWebView resolves `font: -apple-system-body` to the user's text size (17px by default).
+ * The UI is laid out in px, so scale it as a whole, capped so the phone layout still fits.
+ */
+function applyDynamicType(): void {
+  const probe = document.createElement('span');
+  probe.style.font = '-apple-system-body';
+  probe.style.position = 'absolute';
+  probe.style.visibility = 'hidden';
+  document.body.append(probe);
+  const size = parseFloat(getComputedStyle(probe).fontSize);
+  probe.remove();
+  const supported = probe.style.font !== '';
+  const scale = supported && size ? Math.min(1.3, Math.max(1, size / 17)) : 1;
+  document.documentElement.style.setProperty('--ui-scale', String(scale));
+  document.documentElement.classList.toggle('dynamic-type', scale > 1);
+}
+applyDynamicType();
+window.addEventListener('resize', applyDynamicType);
+
 const root = document.getElementById('app')!;
 const app = new App(root);
 
