@@ -81,15 +81,16 @@ Codemagic → приложение `codevia` → workflow **ModelLink → TestFl
 3. ставит номер сборки из `BUILD_NUMBER`, создаёт или скачивает профиль App Store, подписывает IPA командным сертификатом;
 4. загружает сборку в App Store Connect. Через 5–30 минут она появляется в TestFlight для внутренних тестировщиков.
 
-Статус на 21.11.2026:
+Статус на 22.11.2026:
 
 | Шаг | Статус |
 |---|---|
 | Bundle ID `com.neverlandplayworks.modellink` | ✅ зарегистрирован через API |
 | Профиль App Store «ModelLink App Store» | ✅ создан |
 | Компиляция и подпись (Xcode 26, Release, Apple Distribution 8PMNK7YN6D) | ✅ `modellink-ios-build`, App.ipa 3,4 МБ |
-| Запись приложения в App Store Connect | ⏳ создаётся вручную: Apple не разрешает `POST /v1/apps` |
-| Загрузка в TestFlight | ⏳ после записи: workflow `modellink-testflight` |
+| Запись приложения в App Store Connect | ✅ ModelLink, Apple ID 6837877822 (создана вручную: Apple не разрешает `POST /v1/apps`) |
+| Загрузка в TestFlight | ✅ 0.4.0 (4), VALID, workflow `modellink-testflight` |
+| Внутреннее тестирование | ✅ группа «ModelLink Internal» (все сборки), владелец аккаунта добавлен — workflow `modellink-testflight-testers` |
 
 Версия — `MARKETING_VERSION` в `ios/App/App.xcodeproj/project.pbxproj` и `version` в `package.json`.
 
