@@ -1,45 +1,55 @@
 # Задание для сессии с Claude in Chrome
 
-Скопируйте текст ниже в сессию, где подключён Claude in Chrome (настоящий Chrome, в котором вы вошли в App Store Connect и GitHub).
+Шаги 1–2 (App Privacy и GitHub Pages) выполнены 22.11.2026. Ссылки на privacy и support открываются: проверено скриптом отправки.
+
+## 3. Две формы соответствия в App Information (блокируют отправку)
+
+App Store Connect не даёт отправить оба приложения на ревью. Ответ API: «App submission blocked. Cannot submit version due to unfulfilled compliance requirement». Не заполнены две формы на уровне App Information:
+- форма о **безопасности** (код Apple `compliance.form.SECURITY…`);
+- форма об **AI-generated content**, то есть о контенте, созданном ИИ (код `compliance.form.AIGENERATE…`).
+
+Через API их заполнить нельзя: только в веб-интерфейсе.
+
+Скопируйте текст ниже в сессию с Claude in Chrome.
 
 ---
 
 Сделай только эти шаги, больше ничего не меняй.
 
-## 1. App Privacy: «Data Not Collected» для двух приложений
+**Где искать формы.** App Store Connect → Apps → **Codevia Pocket**, затем то же для **ZIKR** (`com.neverlandplayworks.zikr`). Открой General → **App Information**. Ищи блоки или баннеры с требованиями, например:
+- «Compliance», «Declarations»;
+- «AI-Generated Content»;
+- «Security».
 
-App Store Connect → Apps:
-- **Codevia Pocket** (`com.codevia.pocket`)
-- **ZIKR** (`com.neverlandplayworks.zikr`)
+Также посмотри страницу версии 1.0.0 (iOS App → 1.0.0 Prepare for Submission) и баннеры вверху страницы приложения. Заполни обе формы и сохрани (Save, Submit или Publish внутри самой формы).
 
-Для каждого приложения:
-1. Открой раздел App Privacy → Get Started (или Edit).
-2. На вопрос «Do you or your third-party partners collect data from this app?» выбери **«No, we do not collect data from this app»** → Save.
-3. Нажми **Publish** вверху страницы.
+**Факты для ответов** (они одинаковы для обоих приложений, если не указано иное):
+- **ИИ.** В приложениях нет функций генеративного ИИ. Они не создают тексты, изображения, звук или видео с помощью ИИ и не обращаются к сервисам ИИ. На вопрос, генерирует ли приложение контент с помощью ИИ, отвечай **«Нет»**.
+- **Аккаунты и сервер.** Нет аккаунтов, входа, серверной части и аналитики. Данные не собираются (App Privacy: Data Not Collected).
+- **Хранение данных.**
+  - Codevia Pocket хранит проекты пользователя только на устройстве.
+  - ZIKR хранит счётчики на устройстве, в App Group для виджетов и в резервной копии iCloud устройства. С Apple Watch он синхронизируется только через WatchConnectivity.
+- **Сеть.**
+  - Сами приложения не делают сетевых запросов.
+  - Python и PHP в Codevia работают локально (WebAssembly внутри приложения).
+  - В предпросмотре Codevia открывается HTML, который написал сам пользователь. Если в этом коде есть внешние ссылки, их загружает песочница WebView, а не приложение.
+- **Шифрование.** Только стандартное шифрование iOS; `ITSAppUsesNonExemptEncryption = NO`.
+- **Платежи и реклама.** Нет встроенных покупок, рекламы и отслеживания.
+- **Безопасность.** Нет передачи данных, хранения паролей и платёжных данных. Обновления приходят только через App Store.
 
-В итоге должно стоять «Data Not Collected» без неопубликованных изменений.
+Если в форме встретится вопрос, на который эти факты не отвечают, остановись и спроси пользователя. Ничего не выдумывай.
 
-Там же проверь Privacy Policy URL:
-- Codevia: `https://sardorcos.github.io/codevia/privacy.html`
-- ZIKR: `https://sardorcos.github.io/zikr/privacy-policy.html`
+**Не делай:**
+- не нажимай «Add for Review» и «Submit for Review»: отправку делает основная сессия через API;
+- не меняй тексты, скриншоты, цену, сборки, сертификаты и ключи.
 
-## 2. GitHub Pages для двух репозиториев
+**В конце** сообщи коротко:
+- как называлась каждая форма и что ответил;
+- для обоих ли приложений сохранено.
 
-`github.com/sardorcos/codevia` и `github.com/sardorcos/zikr` → Settings → Pages → Source: **Deploy from a branch** → **main**, папка **/docs** → Save.
+---
 
-Через 1–3 минуты проверь, что открываются (не 404):
-- https://sardorcos.github.io/codevia/privacy.html
-- https://sardorcos.github.io/codevia/support.html
-- https://sardorcos.github.io/zikr/privacy-policy.html
-- https://sardorcos.github.io/zikr/support.html
+## Выполнено ранее
 
-## Не делай
-
-- Не нажимай «Add for Review» и «Submit for Review»: отправку на ревью делает основная сессия через API.
-- Не меняй цену, тексты, скриншоты, сборки, сертификаты и ключи.
-
-## В конце
-
-Коротко сообщи:
-- опубликован ли App Privacy для обоих приложений;
-- какие из четырёх ссылок открылись.
+1. App Privacy «Data Not Collected» опубликован для обоих приложений.
+2. GitHub Pages включён (main, /docs) в `sardorcos/codevia` и `sardorcos/zikr`.
