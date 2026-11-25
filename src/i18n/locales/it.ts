@@ -1122,4 +1122,106 @@ export default {
   'Введите заголовок': 'Inserisci un titolo',
   'Pull Request #{number} создан': 'Pull request #{number} creata',
   'GitHub не создал Pull Request: в ветке нет новых коммитов относительно {branch}': 'GitHub non ha creato la pull request: il branch non ha nuovi commit rispetto a {branch}',
+  'Уроки': 'Lezioni',
+  'Короткие уроки с заданием и автоматической проверкой. Пишите код в редакторе, затем нажмите «Проверить».':
+    'Lezioni brevi con un esercizio e una verifica automatica. Scrivi il codice nell’editor, poi tocca “Verifica”.',
+  'открыт': 'aperto',
+  '{done} из {total}': '{done} di {total}',
+  'Все курсы': 'Tutti i corsi',
+  'Урок {n} из {total}': 'Lezione {n} di {total}',
+  'пройден': 'completata',
+  'Задание': 'Esercizio',
+  'Подсказка': 'Suggerimento',
+  'Верно! Урок пройден.': 'Giusto! Lezione completata.',
+  'Пока не получилось': 'Non ancora',
+  'В выводе нет: {text}': 'Manca nell’output: {text}',
+  'Проверить': 'Verifica',
+  'Открыть заготовку урока': 'Apri il codice iniziale della lezione',
+  'Начать курс в новом проекте': 'Inizia il corso in un nuovo progetto',
+  'Следующий урок': 'Lezione successiva',
+  'Курс завершён! 🎉': 'Corso completato! 🎉',
+  'Курс открыт. Пишите код и откройте «Инструменты → Уроки», чтобы проверить.': 'Corso aperto. Scrivi il codice e apri “Strumenti → Lezioni” per verificarlo.',
+  'Перед уроком «{name}»': 'Prima della lezione “{name}”',
+  'Проверяю…': 'Verifica in corso…',
+  'Основы HTML и CSS': 'Basi di HTML e CSS',
+  'Страница с нуля: заголовки, ссылки, списки, цвета и раскладка': 'Una pagina da zero: titoli, link, elenchi, colori e layout',
+  'Основы JavaScript': 'Basi di JavaScript',
+  'Вывод, переменные, функции, массивы и ввод': 'Output, variabili, funzioni, array e input',
+  'Основы Python': 'Basi di Python',
+  'print, переменные, условия, циклы и функции': 'print, variabili, condizioni, cicli e funzioni',
+  'Заголовок и абзац': 'Titolo e paragrafo',
+  'HTML описывает структуру страницы тегами. <h1> — главный заголовок, <p> — абзац текста.':
+    'HTML descrive la struttura della pagina con i tag. <h1> è il titolo principale, <p> un paragrafo di testo.',
+  'Добавьте в index.html заголовок <h1> с вашим именем и абзац <p> о себе.':
+    'Aggiungi in index.html un titolo <h1> con il tuo nome e un paragrafo <p> su di te.',
+  'Например: <h1>Анна</h1> и <p>Я учусь программировать.</p>': 'Per esempio: <h1>Giulia</h1> e <p>Sto imparando a programmare.</p>',
+  'Нужен заголовок <h1> с текстом': 'Serve un titolo <h1> con del testo',
+  'Нужен абзац <p> с текстом': 'Serve un paragrafo <p> con del testo',
+  'Ссылка и картинка': 'Link e immagine',
+  '<a href="…"> делает ссылку, <img src="…" alt="…"> показывает картинку. Атрибут alt описывает картинку для тех, кто её не видит.':
+    '<a href="…"> crea un link, <img src="…" alt="…"> mostra un’immagine. L’attributo alt descrive l’immagine per chi non può vederla.',
+  'Добавьте ссылку <a> с атрибутом href и картинку <img> с атрибутами src и alt.':
+    'Aggiungi un link <a> con l’attributo href e un’immagine <img> con gli attributi src e alt.',
+  'Картинку можно взять из интернета или добавить файл в проект: <img src="photo.jpg" alt="Моё фото">':
+    'Puoi prendere un’immagine da internet o aggiungere un file al progetto: <img src="photo.jpg" alt="My photo">',
+  'Нужна ссылка <a> с атрибутом href': 'Serve un link <a> con l’attributo href',
+  'Нужна картинка <img> с атрибутами src и alt': 'Serve un’immagine <img> con gli attributi src e alt',
+  'Список': 'Elenco',
+  '<ul> — маркированный список, каждый пункт — <li>. Для нумерованного списка есть <ol>.':
+    '<ul> è un elenco puntato, ogni voce è un <li>. Per un elenco numerato c’è <ol>.',
+  'Сделайте список <ul> минимум из трёх пунктов <li>: например, ваши любимые фильмы.':
+    'Crea un elenco <ul> con almeno tre voci <li>: per esempio, i tuoi film preferiti.',
+  '<ul>\n  <li>Один</li>\n  <li>Два</li>\n  <li>Три</li>\n</ul>': '<ul>\n  <li>Uno</li>\n  <li>Due</li>\n  <li>Tre</li>\n</ul>',
+  'Нужен список <ul> минимум с тремя <li>': 'Serve un elenco <ul> con almeno tre <li>',
+  'Цвета в CSS': 'Colori in CSS',
+  'CSS задаёт внешний вид: селектор выбирает элементы, а свойства внутри { } меняют их стиль.':
+    'Il CSS definisce l’aspetto: il selettore sceglie gli elementi e le proprietà dentro { } ne cambiano lo stile.',
+  'В style.css задайте фон страницы (background для body) и цвет заголовка (color для h1).':
+    'In style.css imposta lo sfondo della pagina (background per body) e il colore del titolo (color per h1).',
+  'Задайте background для body в style.css': 'Imposta background per body in style.css',
+  'Задайте color для h1 в style.css': 'Imposta color per h1 in style.css',
+  'Раскладка Flexbox': 'Layout con Flexbox',
+  'display: flex выстраивает дочерние элементы в ряд, а gap задаёт расстояние между ними.':
+    'display: flex dispone gli elementi figli in riga e gap imposta lo spazio tra di loro.',
+  'Сделайте блок .cards гибким контейнером: display: flex и gap в style.css.':
+    'Rendi il blocco .cards un contenitore flessibile: display: flex e gap in style.css.',
+  'Нужно display: flex для .cards': 'Serve display: flex per .cards',
+  'Нужно свойство gap для .cards': 'Serve la proprietà gap per .cards',
+  'Первая программа': 'Il tuo primo programma',
+  'console.log печатает значение в консоль. Строки пишутся в кавычках.': 'console.log stampa un valore nella console. Le stringhe si scrivono tra virgolette.',
+  'Напечатайте текст Hello, Codevia!': 'Stampa il testo Hello, Codevia!',
+  'Переменные и шаблонные строки': 'Variabili e template literal',
+  'const сохраняет значение под именем. В строке в обратных кавычках `…` можно подставить ${переменную}.':
+    'const salva un valore con un nome. In una stringa tra backtick `…` puoi inserire una variabile con ${…}.',
+  'Создайте переменную name со значением "Codevia" и напечатайте Hi, Codevia! с помощью шаблонной строки.':
+    'Crea una variabile name con il valore "Codevia" e stampa Hi, Codevia! con un template literal.',
+  'Функции': 'Funzioni',
+  'Функция — именованный кусок кода: принимает параметры и возвращает результат через return.':
+    'Una funzione è un blocco di codice con un nome: riceve parametri e restituisce un risultato con return.',
+  'Напишите функцию sum(a, b), которая возвращает сумму, и напечатайте sum(2, 3).':
+    'Scrivi una funzione sum(a, b) che restituisce la somma e stampa sum(2, 3).',
+  'Массивы': 'Array',
+  'Массив хранит список значений. Метод reduce сворачивает массив в одно значение, например в сумму.':
+    'Un array contiene un elenco di valori. Il metodo reduce riduce l’array a un solo valore, per esempio una somma.',
+  'Напечатайте сумму чисел массива numbers.': 'Stampa la somma dei numeri dell’array numbers.',
+  'Ввод данных': 'Input dei dati',
+  'prompt() спрашивает пользователя и возвращает введённую строку.': 'prompt() fa una domanda all’utente e restituisce il testo inserito.',
+  'Спросите имя через prompt() и напечатайте Hello, <имя>!': 'Chiedi il nome con prompt() e stampa Hello, <name>!',
+  'print() печатает значение. Строки пишутся в кавычках.': 'print() stampa un valore. Le stringhe si scrivono tra virgolette.',
+  'Переменные и арифметика': 'Variabili e aritmetica',
+  'Переменная хранит значение: a = 7. Python считает как калькулятор: + - * /.':
+    'Una variabile contiene un valore: a = 7. Python calcola come una calcolatrice: + - * /.',
+  'Напечатайте произведение переменных a и b.': 'Stampa il prodotto delle variabili a e b.',
+  'Условия': 'Condizioni',
+  'if выполняет блок, только если условие истинно; else — иначе. Остаток от деления: n % 2.':
+    'if esegue un blocco solo se la condizione è vera; altrimenti viene eseguito else. Il resto della divisione: n % 2.',
+  'Напечатайте odd, если n нечётное, и even, если чётное.': 'Stampa odd se n è dispari ed even se è pari.',
+  'Циклы': 'Cicli',
+  'for повторяет блок для каждого значения. range(1, 6) — числа от 1 до 5.': 'for ripete un blocco per ogni valore. range(1, 6) sono i numeri da 1 a 5.',
+  'Напечатайте квадраты чисел от 1 до 5, каждый на новой строке.': 'Stampa i quadrati dei numeri da 1 a 5, ognuno su una nuova riga.',
+  'def создаёт функцию, return возвращает результат. f-строки подставляют значения: f"Hi, {name}!".':
+    'def crea una funzione, return restituisce il risultato. Le f-string inseriscono valori: f"Hi, {name}!".',
+  'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
+    'Scrivi una funzione greet(name) che restituisce Hi, <name>!, e stampa greet("Codevia").',
+  'Этот проект не запускается — у него есть предпросмотр': 'Questo progetto non si esegue: ha un’anteprima',
 } as Record<string, string>;

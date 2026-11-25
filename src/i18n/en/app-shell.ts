@@ -105,4 +105,5 @@ export default {
   'Обработка $_POST, проверка полей и безопасный вывод': 'Handling $_POST, field validation and safe output',
   'Игра «Угадай число» на JS': '“Guess the number” game in JS',
   'Диалог с prompt(), циклы и условия в TypeScript': 'A prompt() dialogue, loops and conditions in TypeScript',
+  'Этот проект не запускается — у него есть предпросмотр': 'This project does not run — it has a preview instead',
 } as Record<string, string>;

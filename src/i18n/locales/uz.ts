@@ -1221,4 +1221,107 @@ export default {
   'Введите заголовок': 'Sarlavha kiriting',
   'Pull Request #{number} создан': '#{number} pull request yaratildi',
   'GitHub не создал Pull Request: в ветке нет новых коммитов относительно {branch}': 'GitHub pull request yaratmadi: tarmoqda {branch} ga nisbatan yangi commit yoʻq',
+  'Уроки': 'Darslar',
+  'Короткие уроки с заданием и автоматической проверкой. Пишите код в редакторе, затем нажмите «Проверить».':
+    'Topshiriq va avtomatik tekshiruvli qisqa darslar. Muharrirda kod yozing, soʻng «Tekshirish» tugmasini bosing.',
+  'открыт': 'ochiq',
+  '{done} из {total}': '{done}/{total}',
+  'Все курсы': 'Barcha kurslar',
+  'Урок {n} из {total}': 'Dars {n}/{total}',
+  'пройден': 'oʻtildi',
+  'Задание': 'Topshiriq',
+  'Подсказка': 'Maslahat',
+  'Верно! Урок пройден.': 'Toʻgʻri! Dars oʻtildi.',
+  'Пока не получилось': 'Hozircha chiqmadi',
+  'В выводе нет: {text}': 'Natijada yoʻq: {text}',
+  'Проверить': 'Tekshirish',
+  'Открыть заготовку урока': 'Dars andozasini ochish',
+  'Начать курс в новом проекте': 'Kursni yangi loyihada boshlash',
+  'Следующий урок': 'Keyingi dars',
+  'Курс завершён! 🎉': 'Kurs yakunlandi! 🎉',
+  'Курс открыт. Пишите код и откройте «Инструменты → Уроки», чтобы проверить.':
+    'Kurs ochildi. Kod yozing va tekshirish uchun «Vositalar → Darslar» boʻlimini oching.',
+  'Перед уроком «{name}»': '«{name}» darsidan oldin',
+  'Проверяю…': 'Tekshirilmoqda…',
+  'Основы HTML и CSS': 'HTML va CSS asoslari',
+  'Страница с нуля: заголовки, ссылки, списки, цвета и раскладка': 'Noldan sahifa: sarlavhalar, havolalar, roʻyxatlar, ranglar va joylashuv',
+  'Основы JavaScript': 'JavaScript asoslari',
+  'Вывод, переменные, функции, массивы и ввод': 'Chiqarish, oʻzgaruvchilar, funksiyalar, massivlar va kiritish',
+  'Основы Python': 'Python asoslari',
+  'print, переменные, условия, циклы и функции': 'print, oʻzgaruvchilar, shartlar, sikllar va funksiyalar',
+  'Заголовок и абзац': 'Sarlavha va xatboshi',
+  'HTML описывает структуру страницы тегами. <h1> — главный заголовок, <p> — абзац текста.':
+    'HTML sahifa tuzilishini teglar bilan tasvirlaydi. <h1> — asosiy sarlavha, <p> — matn xatboshisi.',
+  'Добавьте в index.html заголовок <h1> с вашим именем и абзац <p> о себе.':
+    'index.html fayliga ismingiz yozilgan <h1> sarlavhasi va oʻzingiz haqingizda <p> xatboshisini qoʻshing.',
+  'Например: <h1>Анна</h1> и <p>Я учусь программировать.</p>': 'Masalan: <h1>Dilnoza</h1> va <p>Men dasturlashni oʻrganyapman.</p>',
+  'Нужен заголовок <h1> с текстом': 'Matnli <h1> sarlavhasi kerak',
+  'Нужен абзац <p> с текстом': 'Matnli <p> xatboshisi kerak',
+  'Ссылка и картинка': 'Havola va rasm',
+  '<a href="…"> делает ссылку, <img src="…" alt="…"> показывает картинку. Атрибут alt описывает картинку для тех, кто её не видит.':
+    '<a href="…"> havola yaratadi, <img src="…" alt="…"> rasm koʻrsatadi. alt atributi rasmni koʻra olmaydiganlar uchun uni tasvirlaydi.',
+  'Добавьте ссылку <a> с атрибутом href и картинку <img> с атрибутами src и alt.':
+    'href atributli <a> havolasi va src hamda alt atributli <img> rasmini qoʻshing.',
+  'Картинку можно взять из интернета или добавить файл в проект: <img src="photo.jpg" alt="Моё фото">':
+    'Rasmni internetdan olish yoki loyihaga fayl qoʻshish mumkin: <img src="photo.jpg" alt="My photo">',
+  'Нужна ссылка <a> с атрибутом href': 'href atributli <a> havolasi kerak',
+  'Нужна картинка <img> с атрибутами src и alt': 'src va alt atributli <img> rasmi kerak',
+  'Список': 'Roʻyxat',
+  '<ul> — маркированный список, каждый пункт — <li>. Для нумерованного списка есть <ol>.':
+    '<ul> — markerli roʻyxat, har bir band — <li>. Raqamlangan roʻyxat uchun <ol> bor.',
+  'Сделайте список <ul> минимум из трёх пунктов <li>: например, ваши любимые фильмы.':
+    'Kamida uchta <li> bandidan iborat <ul> roʻyxatini tuzing: masalan, sevimli filmlaringiz.',
+  '<ul>\n  <li>Один</li>\n  <li>Два</li>\n  <li>Три</li>\n</ul>': '<ul>\n  <li>Bir</li>\n  <li>Ikki</li>\n  <li>Uch</li>\n</ul>',
+  'Нужен список <ul> минимум с тремя <li>': 'Kamida uchta <li> boʻlgan <ul> roʻyxati kerak',
+  'Цвета в CSS': 'CSS’da ranglar',
+  'CSS задаёт внешний вид: селектор выбирает элементы, а свойства внутри { } меняют их стиль.':
+    'CSS tashqi koʻrinishni belgilaydi: selektor elementlarni tanlaydi, { } ichidagi xususiyatlar esa ularning uslubini oʻzgartiradi.',
+  'В style.css задайте фон страницы (background для body) и цвет заголовка (color для h1).':
+    'style.css faylida sahifa fonini (body uchun background) va sarlavha rangini (h1 uchun color) belgilang.',
+  'Задайте background для body в style.css': 'style.css faylida body uchun background belgilang',
+  'Задайте color для h1 в style.css': 'style.css faylida h1 uchun color belgilang',
+  'Раскладка Flexbox': 'Flexbox joylashuvi',
+  'display: flex выстраивает дочерние элементы в ряд, а gap задаёт расстояние между ними.':
+    'display: flex ichki elementlarni bir qatorga tizadi, gap esa ular orasidagi masofani belgilaydi.',
+  'Сделайте блок .cards гибким контейнером: display: flex и gap в style.css.':
+    '.cards blokini moslashuvchan konteynerga aylantiring: style.css faylida display: flex va gap.',
+  'Нужно display: flex для .cards': '.cards uchun display: flex kerak',
+  'Нужно свойство gap для .cards': '.cards uchun gap xususiyati kerak',
+  'Первая программа': 'Birinchi dastur',
+  'console.log печатает значение в консоль. Строки пишутся в кавычках.': 'console.log qiymatni konsolga chiqaradi. Satrlar qoʻshtirnoq ichida yoziladi.',
+  'Напечатайте текст Hello, Codevia!': 'Hello, Codevia! matnini chiqaring',
+  'Переменные и шаблонные строки': 'Oʻzgaruvchilar va shablon satrlar',
+  'const сохраняет значение под именем. В строке в обратных кавычках `…` можно подставить ${переменную}.':
+    'const qiymatni nom ostida saqlaydi. Teskari tirnoqlar `…` ichidagi satrga ${oʻzgaruvchi} qoʻyish mumkin.',
+  'Создайте переменную name со значением "Codevia" и напечатайте Hi, Codevia! с помощью шаблонной строки.':
+    'Qiymati "Codevia" boʻlgan name oʻzgaruvchisini yarating va shablon satr yordamida Hi, Codevia! matnini chiqaring.',
+  'Функции': 'Funksiyalar',
+  'Функция — именованный кусок кода: принимает параметры и возвращает результат через return.':
+    'Funksiya — nomlangan kod boʻlagi: parametrlar qabul qiladi va return orqali natija qaytaradi.',
+  'Напишите функцию sum(a, b), которая возвращает сумму, и напечатайте sum(2, 3).':
+    'Yigʻindini qaytaradigan sum(a, b) funksiyasini yozing va sum(2, 3) natijasini chiqaring.',
+  'Массивы': 'Massivlar',
+  'Массив хранит список значений. Метод reduce сворачивает массив в одно значение, например в сумму.':
+    'Massiv qiymatlar roʻyxatini saqlaydi. reduce metodi massivni bitta qiymatga, masalan, yigʻindiga jamlaydi.',
+  'Напечатайте сумму чисел массива numbers.': 'numbers massividagi sonlar yigʻindisini chiqaring.',
+  'Ввод данных': 'Maʼlumot kiritish',
+  'prompt() спрашивает пользователя и возвращает введённую строку.': 'prompt() foydalanuvchidan soʻraydi va kiritilgan satrni qaytaradi.',
+  'Спросите имя через prompt() и напечатайте Hello, <имя>!': 'prompt() orqali ismni soʻrang va Hello, <name>! matnini chiqaring',
+  'print() печатает значение. Строки пишутся в кавычках.': 'print() qiymatni chiqaradi. Satrlar qoʻshtirnoq ichida yoziladi.',
+  'Переменные и арифметика': 'Oʻzgaruvchilar va arifmetika',
+  'Переменная хранит значение: a = 7. Python считает как калькулятор: + - * /.':
+    'Oʻzgaruvchi qiymatni saqlaydi: a = 7. Python kalkulyator kabi hisoblaydi: + - * /.',
+  'Напечатайте произведение переменных a и b.': 'a va b oʻzgaruvchilarining koʻpaytmasini chiqaring.',
+  'Условия': 'Shartlar',
+  'if выполняет блок, только если условие истинно; else — иначе. Остаток от деления: n % 2.':
+    'if blokni faqat shart rost boʻlsa bajaradi; aks holda else bajariladi. Boʻlishdan qoldiq: n % 2.',
+  'Напечатайте odd, если n нечётное, и even, если чётное.': 'n toq boʻlsa odd, juft boʻlsa even matnini chiqaring.',
+  'Циклы': 'Sikllar',
+  'for повторяет блок для каждого значения. range(1, 6) — числа от 1 до 5.': 'for blokni har bir qiymat uchun takrorlaydi. range(1, 6) — 1 dan 5 gacha sonlar.',
+  'Напечатайте квадраты чисел от 1 до 5, каждый на новой строке.': '1 dan 5 gacha sonlarning kvadratlarini har birini yangi qatorda chiqaring.',
+  'def создаёт функцию, return возвращает результат. f-строки подставляют значения: f"Hi, {name}!".':
+    'def funksiya yaratadi, return natijani qaytaradi. f-satrlar qiymatlarni qoʻyadi: f"Hi, {name}!".',
+  'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
+    'Hi, <name>! qaytaradigan greet(name) funksiyasini yozing va greet("Codevia") natijasini chiqaring.',
+  'Этот проект не запускается — у него есть предпросмотр': 'Bu loyiha ishga tushirilmaydi — uning oldindan koʻrishi bor',
 } as Record<string, string>;

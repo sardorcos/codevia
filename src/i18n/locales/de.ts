@@ -1134,4 +1134,108 @@ export default {
   'Введите заголовок': 'Gib einen Titel ein',
   'Pull Request #{number} создан': 'Pull-Request #{number} erstellt',
   'GitHub не создал Pull Request: в ветке нет новых коммитов относительно {branch}': 'GitHub hat den Pull-Request nicht erstellt: Der Branch hat keine neuen Commits gegenüber {branch}',
+  'Уроки': 'Lektionen',
+  'Короткие уроки с заданием и автоматической проверкой. Пишите код в редакторе, затем нажмите «Проверить».':
+    'Kurze Lektionen mit Aufgabe und automatischer Prüfung. Schreib Code im Editor und tippe dann auf „Prüfen“.',
+  'открыт': 'geöffnet',
+  '{done} из {total}': '{done} von {total}',
+  'Все курсы': 'Alle Kurse',
+  'Урок {n} из {total}': 'Lektion {n} von {total}',
+  'пройден': 'abgeschlossen',
+  'Задание': 'Aufgabe',
+  'Подсказка': 'Hinweis',
+  'Верно! Урок пройден.': 'Richtig! Lektion abgeschlossen.',
+  'Пока не получилось': 'Noch nicht ganz',
+  'В выводе нет: {text}': 'Fehlt in der Ausgabe: {text}',
+  'Проверить': 'Prüfen',
+  'Открыть заготовку урока': 'Startcode der Lektion öffnen',
+  'Начать курс в новом проекте': 'Kurs in neuem Projekt starten',
+  'Следующий урок': 'Nächste Lektion',
+  'Курс завершён! 🎉': 'Kurs abgeschlossen! 🎉',
+  'Курс открыт. Пишите код и откройте «Инструменты → Уроки», чтобы проверить.':
+    'Kurs geöffnet. Schreib Code und öffne „Werkzeuge → Lektionen“, um ihn zu prüfen.',
+  'Перед уроком «{name}»': 'Vor der Lektion „{name}“',
+  'Проверяю…': 'Wird geprüft…',
+  'Основы HTML и CSS': 'HTML- und CSS-Grundlagen',
+  'Страница с нуля: заголовки, ссылки, списки, цвета и раскладка': 'Eine Seite von Grund auf: Überschriften, Links, Listen, Farben und Layout',
+  'Основы JavaScript': 'JavaScript-Grundlagen',
+  'Вывод, переменные, функции, массивы и ввод': 'Ausgabe, Variablen, Funktionen, Arrays und Eingabe',
+  'Основы Python': 'Python-Grundlagen',
+  'print, переменные, условия, циклы и функции': 'print, Variablen, Bedingungen, Schleifen und Funktionen',
+  'Заголовок и абзац': 'Überschrift und Absatz',
+  'HTML описывает структуру страницы тегами. <h1> — главный заголовок, <p> — абзац текста.':
+    'HTML beschreibt die Struktur einer Seite mit Tags. <h1> ist die Hauptüberschrift, <p> ein Textabsatz.',
+  'Добавьте в index.html заголовок <h1> с вашим именем и абзац <p> о себе.':
+    'Füge in index.html eine Überschrift <h1> mit deinem Namen und einen Absatz <p> über dich hinzu.',
+  'Например: <h1>Анна</h1> и <p>Я учусь программировать.</p>': 'Zum Beispiel: <h1>Anna</h1> und <p>Ich lerne programmieren.</p>',
+  'Нужен заголовок <h1> с текстом': 'Eine Überschrift <h1> mit Text fehlt',
+  'Нужен абзац <p> с текстом': 'Ein Absatz <p> mit Text fehlt',
+  'Ссылка и картинка': 'Link und Bild',
+  '<a href="…"> делает ссылку, <img src="…" alt="…"> показывает картинку. Атрибут alt описывает картинку для тех, кто её не видит.':
+    '<a href="…"> erstellt einen Link, <img src="…" alt="…"> zeigt ein Bild. Das Attribut alt beschreibt das Bild für alle, die es nicht sehen können.',
+  'Добавьте ссылку <a> с атрибутом href и картинку <img> с атрибутами src и alt.':
+    'Füge einen Link <a> mit dem Attribut href und ein Bild <img> mit den Attributen src und alt hinzu.',
+  'Картинку можно взять из интернета или добавить файл в проект: <img src="photo.jpg" alt="Моё фото">':
+    'Nimm ein Bild aus dem Internet oder füge eine Datei zum Projekt hinzu: <img src="photo.jpg" alt="My photo">',
+  'Нужна ссылка <a> с атрибутом href': 'Ein Link <a> mit dem Attribut href fehlt',
+  'Нужна картинка <img> с атрибутами src и alt': 'Ein Bild <img> mit den Attributen src und alt fehlt',
+  'Список': 'Liste',
+  '<ul> — маркированный список, каждый пункт — <li>. Для нумерованного списка есть <ol>.':
+    '<ul> ist eine Aufzählungsliste, jeder Eintrag ist ein <li>. Für eine nummerierte Liste gibt es <ol>.',
+  'Сделайте список <ul> минимум из трёх пунктов <li>: например, ваши любимые фильмы.':
+    'Erstelle eine Liste <ul> mit mindestens drei Einträgen <li>, zum Beispiel deinen Lieblingsfilmen.',
+  '<ul>\n  <li>Один</li>\n  <li>Два</li>\n  <li>Три</li>\n</ul>': '<ul>\n  <li>Eins</li>\n  <li>Zwei</li>\n  <li>Drei</li>\n</ul>',
+  'Нужен список <ul> минимум с тремя <li>': 'Eine Liste <ul> mit mindestens drei <li> fehlt',
+  'Цвета в CSS': 'Farben in CSS',
+  'CSS задаёт внешний вид: селектор выбирает элементы, а свойства внутри { } меняют их стиль.':
+    'CSS legt das Aussehen fest: Ein Selektor wählt Elemente aus, und die Eigenschaften in { } ändern ihren Stil.',
+  'В style.css задайте фон страницы (background для body) и цвет заголовка (color для h1).':
+    'Lege in style.css den Seitenhintergrund (background für body) und die Farbe der Überschrift (color für h1) fest.',
+  'Задайте background для body в style.css': 'Lege background für body in style.css fest',
+  'Задайте color для h1 в style.css': 'Lege color für h1 in style.css fest',
+  'Раскладка Flexbox': 'Flexbox-Layout',
+  'display: flex выстраивает дочерние элементы в ряд, а gap задаёт расстояние между ними.':
+    'display: flex ordnet Kindelemente in einer Reihe an, und gap legt den Abstand zwischen ihnen fest.',
+  'Сделайте блок .cards гибким контейнером: display: flex и gap в style.css.':
+    'Mach den Block .cards zu einem Flex-Container: display: flex und gap in style.css.',
+  'Нужно display: flex для .cards': 'display: flex für .cards fehlt',
+  'Нужно свойство gap для .cards': 'Die Eigenschaft gap für .cards fehlt',
+  'Первая программа': 'Dein erstes Programm',
+  'console.log печатает значение в консоль. Строки пишутся в кавычках.': 'console.log gibt einen Wert in der Konsole aus. Strings stehen in Anführungszeichen.',
+  'Напечатайте текст Hello, Codevia!': 'Gib den Text Hello, Codevia! aus',
+  'Переменные и шаблонные строки': 'Variablen und Template-Strings',
+  'const сохраняет значение под именем. В строке в обратных кавычках `…` можно подставить ${переменную}.':
+    'const speichert einen Wert unter einem Namen. In einem String in Backticks `…` kannst du mit ${…} eine Variable einsetzen.',
+  'Создайте переменную name со значением "Codevia" и напечатайте Hi, Codevia! с помощью шаблонной строки.':
+    'Erstelle eine Variable name mit dem Wert "Codevia" und gib mit einem Template-String Hi, Codevia! aus.',
+  'Функции': 'Funktionen',
+  'Функция — именованный кусок кода: принимает параметры и возвращает результат через return.':
+    'Eine Funktion ist ein benanntes Stück Code: Sie nimmt Parameter entgegen und gibt mit return ein Ergebnis zurück.',
+  'Напишите функцию sum(a, b), которая возвращает сумму, и напечатайте sum(2, 3).':
+    'Schreib eine Funktion sum(a, b), die die Summe zurückgibt, und gib sum(2, 3) aus.',
+  'Массивы': 'Arrays',
+  'Массив хранит список значений. Метод reduce сворачивает массив в одно значение, например в сумму.':
+    'Ein Array speichert eine Liste von Werten. Die Methode reduce fasst ein Array zu einem einzigen Wert zusammen, etwa zu einer Summe.',
+  'Напечатайте сумму чисел массива numbers.': 'Gib die Summe der Zahlen im Array numbers aus.',
+  'Ввод данных': 'Eingabe',
+  'prompt() спрашивает пользователя и возвращает введённую строку.': 'prompt() stellt dem Nutzer eine Frage und gibt den eingegebenen Text zurück.',
+  'Спросите имя через prompt() и напечатайте Hello, <имя>!': 'Frag mit prompt() nach dem Namen und gib Hello, <name>! aus',
+  'print() печатает значение. Строки пишутся в кавычках.': 'print() gibt einen Wert aus. Strings stehen in Anführungszeichen.',
+  'Переменные и арифметика': 'Variablen und Rechnen',
+  'Переменная хранит значение: a = 7. Python считает как калькулятор: + - * /.':
+    'Eine Variable speichert einen Wert: a = 7. Python rechnet wie ein Taschenrechner: + - * /.',
+  'Напечатайте произведение переменных a и b.': 'Gib das Produkt der Variablen a und b aus.',
+  'Условия': 'Bedingungen',
+  'if выполняет блок, только если условие истинно; else — иначе. Остаток от деления: n % 2.':
+    'if führt einen Block nur aus, wenn die Bedingung wahr ist, sonst wird else ausgeführt. Divisionsrest: n % 2.',
+  'Напечатайте odd, если n нечётное, и even, если чётное.': 'Gib odd aus, wenn n ungerade ist, und even, wenn n gerade ist.',
+  'Циклы': 'Schleifen',
+  'for повторяет блок для каждого значения. range(1, 6) — числа от 1 до 5.':
+    'for wiederholt einen Block für jeden Wert. range(1, 6) sind die Zahlen von 1 bis 5.',
+  'Напечатайте квадраты чисел от 1 до 5, каждый на новой строке.': 'Gib die Quadrate der Zahlen von 1 bis 5 aus, jede in einer neuen Zeile.',
+  'def создаёт функцию, return возвращает результат. f-строки подставляют значения: f"Hi, {name}!".':
+    'def erstellt eine Funktion, return gibt das Ergebnis zurück. f-Strings setzen Werte ein: f"Hi, {name}!".',
+  'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
+    'Schreib eine Funktion greet(name), die Hi, <name>! zurückgibt, und gib greet("Codevia") aus.',
+  'Этот проект не запускается — у него есть предпросмотр': 'Dieses Projekt wird nicht ausgeführt – es hat eine Vorschau',
 } as Record<string, string>;

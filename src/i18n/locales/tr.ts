@@ -1122,4 +1122,106 @@ export default {
   'Введите заголовок': 'Bir başlık girin',
   'Pull Request #{number} создан': '#{number} numaralı pull request oluşturuldu',
   'GitHub не создал Pull Request: в ветке нет новых коммитов относительно {branch}': 'GitHub pull request oluşturmadı: dalda {branch} dalına göre yeni commit yok',
+  'Уроки': 'Dersler',
+  'Короткие уроки с заданием и автоматической проверкой. Пишите код в редакторе, затем нажмите «Проверить».':
+    'Görevli ve otomatik kontrollü kısa dersler. Düzenleyicide kod yazın, ardından “Kontrol et”e dokunun.',
+  'открыт': 'açık',
+  '{done} из {total}': '{done}/{total}',
+  'Все курсы': 'Tüm kurslar',
+  'Урок {n} из {total}': 'Ders {n}/{total}',
+  'пройден': 'tamamlandı',
+  'Задание': 'Görev',
+  'Подсказка': 'İpucu',
+  'Верно! Урок пройден.': 'Doğru! Ders tamamlandı.',
+  'Пока не получилось': 'Henüz olmadı',
+  'В выводе нет: {text}': 'Çıktıda yok: {text}',
+  'Проверить': 'Kontrol et',
+  'Открыть заготовку урока': 'Dersin başlangıç kodunu aç',
+  'Начать курс в новом проекте': 'Kursa yeni bir projede başla',
+  'Следующий урок': 'Sonraki ders',
+  'Курс завершён! 🎉': 'Kurs tamamlandı! 🎉',
+  'Курс открыт. Пишите код и откройте «Инструменты → Уроки», чтобы проверить.': 'Kurs açıldı. Kod yazın ve kontrol etmek için “Araçlar → Dersler”i açın.',
+  'Перед уроком «{name}»': '“{name}” dersinden önce',
+  'Проверяю…': 'Kontrol ediliyor…',
+  'Основы HTML и CSS': 'HTML ve CSS temelleri',
+  'Страница с нуля: заголовки, ссылки, списки, цвета и раскладка': 'Sıfırdan bir sayfa: başlıklar, bağlantılar, listeler, renkler ve yerleşim',
+  'Основы JavaScript': 'JavaScript temelleri',
+  'Вывод, переменные, функции, массивы и ввод': 'Çıktı, değişkenler, fonksiyonlar, diziler ve girdi',
+  'Основы Python': 'Python temelleri',
+  'print, переменные, условия, циклы и функции': 'print, değişkenler, koşullar, döngüler ve fonksiyonlar',
+  'Заголовок и абзац': 'Başlık ve paragraf',
+  'HTML описывает структуру страницы тегами. <h1> — главный заголовок, <p> — абзац текста.':
+    'HTML, sayfanın yapısını etiketlerle tanımlar. <h1> ana başlıktır, <p> ise bir metin paragrafıdır.',
+  'Добавьте в index.html заголовок <h1> с вашим именем и абзац <p> о себе.':
+    'index.html dosyasına adınızı içeren bir <h1> başlığı ve kendinizden bahseden bir <p> paragrafı ekleyin.',
+  'Например: <h1>Анна</h1> и <p>Я учусь программировать.</p>': 'Örneğin: <h1>Ayşe</h1> ve <p>Programlamayı öğreniyorum.</p>',
+  'Нужен заголовок <h1> с текстом': 'Metin içeren bir <h1> başlığı gerekli',
+  'Нужен абзац <p> с текстом': 'Metin içeren bir <p> paragrafı gerekli',
+  'Ссылка и картинка': 'Bağlantı ve resim',
+  '<a href="…"> делает ссылку, <img src="…" alt="…"> показывает картинку. Атрибут alt описывает картинку для тех, кто её не видит.':
+    '<a href="…"> bir bağlantı oluşturur, <img src="…" alt="…"> bir resim gösterir. alt özniteliği, resmi göremeyenler için resmi tanımlar.',
+  'Добавьте ссылку <a> с атрибутом href и картинку <img> с атрибутами src и alt.':
+    'href özniteliğine sahip bir <a> bağlantısı ve src ile alt özniteliklerine sahip bir <img> resmi ekleyin.',
+  'Картинку можно взять из интернета или добавить файл в проект: <img src="photo.jpg" alt="Моё фото">':
+    'İnternetten bir resim kullanabilir veya projeye bir dosya ekleyebilirsiniz: <img src="photo.jpg" alt="My photo">',
+  'Нужна ссылка <a> с атрибутом href': 'href özniteliğine sahip bir <a> bağlantısı gerekli',
+  'Нужна картинка <img> с атрибутами src и alt': 'src ve alt özniteliklerine sahip bir <img> resmi gerekli',
+  'Список': 'Liste',
+  '<ul> — маркированный список, каждый пункт — <li>. Для нумерованного списка есть <ol>.':
+    '<ul> madde işaretli bir listedir, her öğe bir <li>’dir. Numaralı liste için <ol> kullanılır.',
+  'Сделайте список <ul> минимум из трёх пунктов <li>: например, ваши любимые фильмы.':
+    'En az üç <li> öğesi içeren bir <ul> listesi oluşturun: örneğin en sevdiğiniz filmler.',
+  '<ul>\n  <li>Один</li>\n  <li>Два</li>\n  <li>Три</li>\n</ul>': '<ul>\n  <li>Bir</li>\n  <li>İki</li>\n  <li>Üç</li>\n</ul>',
+  'Нужен список <ul> минимум с тремя <li>': 'En az üç <li> içeren bir <ul> listesi gerekli',
+  'Цвета в CSS': 'CSS’te renkler',
+  'CSS задаёт внешний вид: селектор выбирает элементы, а свойства внутри { } меняют их стиль.':
+    'CSS görünümü belirler: seçici öğeleri seçer, { } içindeki özellikler ise onların stilini değiştirir.',
+  'В style.css задайте фон страницы (background для body) и цвет заголовка (color для h1).':
+    'style.css’te sayfa arka planını (body için background) ve başlık rengini (h1 için color) ayarlayın.',
+  'Задайте background для body в style.css': 'style.css’te body için background ayarlayın',
+  'Задайте color для h1 в style.css': 'style.css’te h1 için color ayarlayın',
+  'Раскладка Flexbox': 'Flexbox ile yerleşim',
+  'display: flex выстраивает дочерние элементы в ряд, а gap задаёт расстояние между ними.':
+    'display: flex alt öğeleri bir satıra dizer, gap ise aralarındaki boşluğu belirler.',
+  'Сделайте блок .cards гибким контейнером: display: flex и gap в style.css.': '.cards bloğunu esnek bir kapsayıcı yapın: style.css’te display: flex ve gap.',
+  'Нужно display: flex для .cards': '.cards için display: flex gerekli',
+  'Нужно свойство gap для .cards': '.cards için gap özelliği gerekli',
+  'Первая программа': 'İlk programınız',
+  'console.log печатает значение в консоль. Строки пишутся в кавычках.': 'console.log bir değeri konsola yazdırır. Dizeler tırnak içinde yazılır.',
+  'Напечатайте текст Hello, Codevia!': 'Hello, Codevia! metnini yazdırın',
+  'Переменные и шаблонные строки': 'Değişkenler ve şablon dizeler',
+  'const сохраняет значение под именем. В строке в обратных кавычках `…` можно подставить ${переменную}.':
+    'const bir değeri bir adla saklar. Ters tırnak `…` içindeki bir dizeye ${değişken} ekleyebilirsiniz.',
+  'Создайте переменную name со значением "Codevia" и напечатайте Hi, Codevia! с помощью шаблонной строки.':
+    'Değeri "Codevia" olan name adlı bir değişken oluşturun ve bir şablon dizeyle Hi, Codevia! yazdırın.',
+  'Функции': 'Fonksiyonlar',
+  'Функция — именованный кусок кода: принимает параметры и возвращает результат через return.':
+    'Fonksiyon, adı olan bir kod parçasıdır: parametre alır ve return ile bir sonuç döndürür.',
+  'Напишите функцию sum(a, b), которая возвращает сумму, и напечатайте sum(2, 3).':
+    'Toplamı döndüren bir sum(a, b) fonksiyonu yazın ve sum(2, 3) sonucunu yazdırın.',
+  'Массивы': 'Diziler',
+  'Массив хранит список значений. Метод reduce сворачивает массив в одно значение, например в сумму.':
+    'Dizi, bir değer listesi saklar. reduce yöntemi diziyi tek bir değere, örneğin bir toplama indirger.',
+  'Напечатайте сумму чисел массива numbers.': 'numbers dizisindeki sayıların toplamını yazdırın.',
+  'Ввод данных': 'Veri girişi',
+  'prompt() спрашивает пользователя и возвращает введённую строку.': 'prompt() kullanıcıya soru sorar ve girilen metni döndürür.',
+  'Спросите имя через prompt() и напечатайте Hello, <имя>!': 'prompt() ile adı sorun ve Hello, <name>! yazdırın',
+  'print() печатает значение. Строки пишутся в кавычках.': 'print() bir değeri yazdırır. Dizeler tırnak içinde yazılır.',
+  'Переменные и арифметика': 'Değişkenler ve aritmetik',
+  'Переменная хранит значение: a = 7. Python считает как калькулятор: + - * /.':
+    'Değişken bir değer saklar: a = 7. Python hesap makinesi gibi hesaplar: + - * /.',
+  'Напечатайте произведение переменных a и b.': 'a ve b değişkenlerinin çarpımını yazdırın.',
+  'Условия': 'Koşullar',
+  'if выполняет блок, только если условие истинно; else — иначе. Остаток от деления: n % 2.':
+    'if, bloğu yalnızca koşul doğruysa çalıştırır; değilse else çalışır. Bölmeden kalan: n % 2.',
+  'Напечатайте odd, если n нечётное, и even, если чётное.': 'n tekse odd, çiftse even yazdırın.',
+  'Циклы': 'Döngüler',
+  'for повторяет блок для каждого значения. range(1, 6) — числа от 1 до 5.':
+    'for, her değer için bir bloğu tekrarlar. range(1, 6), 1’den 5’e kadar olan sayılardır.',
+  'Напечатайте квадраты чисел от 1 до 5, каждый на новой строке.': '1’den 5’e kadar sayıların karelerini her biri yeni bir satırda olacak şekilde yazdırın.',
+  'def создаёт функцию, return возвращает результат. f-строки подставляют значения: f"Hi, {name}!".':
+    'def bir fonksiyon oluşturur, return sonucu döndürür. f-dizeler değerleri yerleştirir: f"Hi, {name}!".',
+  'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
+    'Hi, <name>! döndüren bir greet(name) fonksiyonu yazın ve greet("Codevia") sonucunu yazdırın.',
+  'Этот проект не запускается — у него есть предпросмотр': 'Bu proje çalıştırılmaz — onun yerine önizlemesi var',
 } as Record<string, string>;
