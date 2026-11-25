@@ -1,5 +1,3 @@
-import { readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { englishTexts, SUPPORTED_LANGS } from '../../src/i18n';
 
@@ -10,8 +8,8 @@ import { englishTexts, SUPPORTED_LANGS } from '../../src/i18n';
  * - plural entries (English "one|other") have one form per CLDR plural category of the language;
  * - nearly complete coverage (missing keys fall back to English at run time).
  */
-const dir = fileURLToPath(new URL('../../src/i18n/locales/', import.meta.url));
-const files = readdirSync(dir).filter((f) => f.endsWith('.ts'));
+const modules = import.meta.glob<{ default: Record<string, string> }>('../../src/i18n/locales/*.ts', { eager: true });
+const files = Object.keys(modules).map((p) => p.split('/').pop()!);
 const en = englishTexts();
 const keys = Object.keys(en);
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
@@ -19,15 +17,15 @@ const tags = (s: string) => [...s.matchAll(/<\/?([a-z]+)[^>]*>/gi)].map((m) => m
 const isPlural = (key: string) => en[key]!.includes('|');
 
 describe('locale files', () => {
-  it('cover exactly the supported non-base languages', () => {
+  it('cover only supported languages', () => {
     const langs = files.map((f) => f.replace(/\.ts$/, ''));
     for (const l of langs) expect(SUPPORTED_LANGS as readonly string[]).toContain(l);
   });
 
   for (const file of files) {
     const lang = file.replace(/\.ts$/, '');
-    describe(lang, async () => {
-      const dict = ((await import(`../../src/i18n/locales/${file}`)) as { default: Record<string, string> }).default;
+    describe(lang, () => {
+      const dict = modules[`../../src/i18n/locales/${file}`]!.default;
       const categories = new Intl.PluralRules(lang).resolvedOptions().pluralCategories.length;
 
       it('has no unknown keys', () => {
