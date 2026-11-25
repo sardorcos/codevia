@@ -51,6 +51,7 @@ export class App {
   private returnRoute: Route = 'home';
   private outputChars = 0;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+  private livePreviewTimer: ReturnType<typeof setTimeout> | undefined;
   /** Urlencoded body of a form posted in the preview, for the next PHP render. */
   private previewPost: string | null = null;
   private consoleQueue = new Map<string, ConsoleLine[]>();
@@ -81,6 +82,16 @@ export class App {
     this.s.projects = await this.repo.listProjects();
     this.s.route = !this.s.settings.onboardingDone && !this.s.projects.length ? 'welcome' : 'home';
 
+    // iPad, Mac and wide windows: three panes. Split View / Stage Manager resize switches it live.
+    const wideQuery = window.matchMedia('(min-width: 900px) and (min-height: 500px)');
+    this.s.wide = wideQuery.matches;
+    wideQuery.addEventListener('change', (e) => {
+      this.s.wide = e.matches;
+      if (this.s.route === 'workspace') {
+        if (!e.matches && this.s.view === 'files' && this.s.currentPath) this.s.view = 'code';
+        this.render();
+      }
+    });
     installGlobalErrorHandlers((m) => toast(t('Ошибка: {message}', { message: m }), 'error'));
     this.root.addEventListener('click', (e) => void this.guard(() => this.onClick(e)));
     this.root.addEventListener('input', (e) => this.onInput(e));
@@ -107,6 +118,11 @@ export class App {
   /** Language and package downloads for the runtimes (messages they print themselves). */
   private applyRuntimeOptions(): void {
     this.runner.options = { lang: getLang() === 'ru' ? 'ru' : 'en', allowNetwork: this.s.settings.pythonDownloads !== false };
+  }
+
+  /** Whether the live preview is on screen (its own tab on phones, the right pane on wide screens). */
+  private previewVisible(): boolean {
+    return this.s.wide ? this.s.side === 'preview' : this.s.view === 'preview';
   }
 
   private async guard(fn: () => unknown): Promise<void> {
@@ -171,6 +187,7 @@ export class App {
         break;
       case 'workspace':
         if (!p) body = V.home(s);
+        else if (s.wide) body = V.workspaceSplit(s, p);
         else if (s.view === 'files') body = V.filesView(s, p);
         else if (s.view === 'code') body = V.codeView(s, p);
         else if (s.view === 'preview') body = V.previewView(s, p);
@@ -198,7 +215,7 @@ export class App {
     this.root.innerHTML = `<div class="main-column ${s.keyboardOpen ? 'kb-open' : ''} route-${s.route} view-${s.view}">${chrome}${body}${V.bottomnav(s)}</div>`;
     this.root.dataset.scrollKey = scrollKey;
 
-    if (s.route === 'workspace' && p && s.view === 'code') this.mountEditor(p, editorScroll);
+    if (s.route === 'workspace' && p && (s.view === 'code' || s.wide)) this.mountEditor(p, editorScroll);
     if (prevScroll && prevScroll.key === scrollKey) {
       const next = $('.content, .scroll', this.root);
       if (next) next.scrollTop = prevScroll.top;
@@ -212,7 +229,7 @@ export class App {
     } else if (focusKey && !sheetOpen()) {
       $<HTMLElement>(focusKey, this.root)?.focus({ preventScroll: true });
     }
-    if (s.route === 'workspace' && s.view === 'preview' && s.previewPage) void this.ensurePreview();
+    if (s.route === 'workspace' && this.previewVisible() && s.previewPage) void this.ensurePreview();
   }
 
   private mountEditor(p: Project, scrollTop: number): void {
@@ -251,6 +268,13 @@ export class App {
     this.updateSaveIndicator();
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => void this.flushSaves(), SAVE_DELAY);
+    // Side-by-side preview follows typing (after a short pause).
+    if (this.s.wide && this.previewVisible()) {
+      clearTimeout(this.livePreviewTimer);
+      this.livePreviewTimer = setTimeout(() => {
+        if (this.s.route === 'workspace' && this.previewVisible() && this.s.previewPage) void this.ensurePreview();
+      }, 600);
+    }
   }
 
   /** Writes pending edits. Resolves true when nothing is left unsaved. */
@@ -384,6 +408,7 @@ export class App {
       previewPage: '',
       previewQuery: '',
       previewConsole: [],
+      side: (project.language === 'python' || project.language === 'javascript' ? 'run' : 'preview') as AppState['side'],
       fullscreen: false,
       run: { running: false, status: '', output: [], exitCode: null, ms: null, stdin: '' },
       save: 'saved',
@@ -1690,6 +1715,11 @@ export class App {
         return this.openDiagnostics();
       case 'refresh-diagnostics':
         return this.openDiagnostics();
+      case 'side':
+        this.s.side = el.dataset.value === 'run' ? 'run' : 'preview';
+        if (this.s.side === 'preview' && !this.s.previewPage) this.pickPreviewPage();
+        if (this.s.side === 'run' && p && p.language !== 'web') this.runner.preload(p.language as RuntimeKind);
+        return this.render();
       case 'select-mode':
         this.s.selecting = !this.s.selecting;
         this.s.selected = [];
@@ -1822,13 +1852,35 @@ export class App {
       void this.flushSaves().then(() => toast(this.s.save === 'error' ? t('Ошибка сохранения') : t('Сохранено')));
     } else if (mod && e.key === 'Enter' && this.s.route === 'workspace') {
       e.preventDefault();
-      if (this.s.project?.language === 'web' || this.s.view === 'preview') {
+      if (this.s.wide) {
+        if (this.s.side === 'preview') {
+          this.previewDirty = true;
+          void this.ensurePreview();
+        } else void this.guard(() => this.run());
+      } else if (this.s.project?.language === 'web' || this.s.view === 'preview') {
         if (this.s.view !== 'preview') void this.setView('preview');
         else {
           this.previewDirty = true;
           this.reloadPreviewFrame();
         }
       } else void this.guard(() => this.run());
+    } else if (mod && !e.shiftKey && /^[1-4]$/.test(e.key) && this.s.route === 'workspace') {
+      // ⌘1…⌘4: Files, Code, Preview, Run (hardware keyboards on iPad and Mac).
+      e.preventDefault();
+      const view = (['files', 'code', 'preview', 'run'] as const)[Number(e.key) - 1]!;
+      if (this.s.wide && (view === 'preview' || view === 'run')) {
+        this.s.side = view;
+        this.render();
+      } else void this.setView(view);
+    } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f' && this.s.route === 'workspace') {
+      // ⌘⇧F: search in all files.
+      e.preventDefault();
+      if (!this.s.wide) void this.setView('files');
+      requestAnimationFrame(() => $<HTMLInputElement>('#file-search', this.root)?.focus());
+    } else if (mod && e.key.toLowerCase() === 'k' && !sheetOpen()) {
+      // ⌘K: tools.
+      e.preventDefault();
+      void pickTool(!!this.s.project && this.s.route === 'workspace', () => this.toolContext());
     } else if (e.key === 'Escape' && !sheetOpen() && this.s.fullscreen) {
       e.preventDefault();
       this.toggleFullscreen(false);

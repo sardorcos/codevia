@@ -1495,3 +1495,44 @@ mark {
   color: var(--muted);
   font-size: 14px;
 }
+
+/* ---------- Wide layout: iPad, Mac, landscape (files | code | preview/run) ---------- */
+.main-column.route-workspace:has(.split) {
+  max-width: none;
+}
+.split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1.15fr) minmax(0, 1fr);
+  border-top: 1px solid var(--stroke);
+}
+.split > * {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.split-files {
+  border-right: 1px solid var(--stroke);
+  background: var(--surface);
+}
+.split-code {
+  border-right: 1px solid var(--stroke);
+}
+.split-side .side-switch {
+  margin: 8px 12px 0;
+  align-self: flex-start;
+}
+.split .files-pane .toolbar:nth-of-type(2) .chips {
+  display: none;
+}
+.split .keybar {
+  /* A hardware keyboard is the norm on iPad/Mac; keep the bar compact. */
+  max-height: 44px;
+}
+@media (max-width: 1180px) {
+  .split {
+    grid-template-columns: minmax(200px, 230px) minmax(0, 1fr) minmax(0, 0.9fr);
+  }
+}

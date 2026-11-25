@@ -64,7 +64,7 @@ export function topbar(s: AppState): string {
 }
 
 export function bottomnav(s: AppState): string {
-  if (s.route !== 'workspace') return '';
+  if (s.route !== 'workspace' || s.wide) return '';
   const items: Array<[string, string, string]> = [
     ['files', t('Файлы'), 'folder'],
     ['code', t('Код'), 'code'],
@@ -260,6 +260,27 @@ const KEYS: Record<string, string[]> = {
   php: ['<?php', '$', '->', '()', '{}', ';', '=', "''", '[]', '.', '=>'],
   json: ['{}', '[]', '""', ':', ','],
 };
+
+/** Wide screens (iPad, Mac, large phones in landscape): files | code | preview or run. */
+export function workspaceSplit(s: AppState, p: Project): string {
+  const side = s.side;
+  const tabs = (
+    [
+      ['preview', t('Просмотр'), 'eye'],
+      ['run', t('Запуск'), 'terminal'],
+    ] as const
+  )
+    .map(([v, label, ic]) => `<button class="${side === v ? 'active' : ''}" data-action="side" data-value="${v}" aria-pressed="${side === v}">${icon(ic, 'sm')} ${label}</button>`)
+    .join('');
+  return `<div class="split">
+    <aside class="split-files" aria-label="${t('Файлы')}">${filesView(s, p)}</aside>
+    <section class="split-code" aria-label="${t('Код')}">${codeView(s, p)}</section>
+    <section class="split-side" aria-label="${side === 'preview' ? t('Просмотр') : t('Запуск')}">
+      <div class="segmented side-switch" role="group">${tabs}</div>
+      ${side === 'preview' ? previewView(s, p) : runView(s, p)}
+    </section>
+  </div>`;
+}
 
 export function codeView(s: AppState, p: Project): string {
   const path = s.currentPath;

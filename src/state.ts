@@ -24,6 +24,10 @@ export interface AppState {
   /** Multi-select mode in Files and the selected paths. */
   selecting: boolean;
   selected: string[];
+  /** iPad / Mac / landscape: files, code and preview side by side. */
+  wide: boolean;
+  /** Right pane of the wide layout. */
+  side: 'preview' | 'run';
   projectQuery: string;
   previewPage: string;
   previewQuery: string;
@@ -60,6 +64,8 @@ export const initialState = (): AppState => ({
   fileQuery: '',
   selecting: false,
   selected: [],
+  wide: false,
+  side: 'preview',
   projectQuery: '',
   previewPage: '',
   previewQuery: '',
