@@ -324,7 +324,13 @@ export function codeView(s: AppState, p: Project): string {
     <div class="keybar" role="toolbar" aria-label="${t('Символы')}">
       <button class="key-btn" data-action="undo" aria-label="${t('Отменить')}">↶</button>
       <button class="key-btn" data-action="redo" aria-label="${tc('redo', 'Повторить')}">↷</button>
-      <button class="key-btn" data-action="key" data-value="\t" aria-label="${t('Отступ')}">⇥</button>
+      <button class="key-btn" data-action="smart-tab" aria-label="${t('Tab: следующее поле, Emmet или отступ')}">⇥</button>
+      <button class="key-btn key-cmd" data-action="emmet" aria-label="${t('Развернуть Emmet')}">⚡</button>
+      <button class="key-btn key-cmd" data-action="format" aria-label="${t('Форматировать документ')}">✨</button>
+      <button class="key-btn key-cmd ${s.diagErrors ? 'has-errors' : ''}" data-action="next-error" aria-label="${t('Следующая ошибка')}">⚠${s.diagErrors ? `<span class="key-badge">${s.diagErrors}</span>` : ''}</button>
+      <button class="key-btn key-cmd" data-action="definition" aria-label="${t('Перейти к определению')}">⤴</button>
+      <button class="key-btn key-cmd" data-action="symbols" aria-label="${t('Символы файла')}">ƒ</button>
+      <button class="key-btn key-cmd" data-action="comment" aria-label="${t('Закомментировать')}">//</button>
       ${keys.map((k) => `<button class="key-btn" data-action="key" data-value="${esc(k)}" aria-label="${t('Вставить {text}', { text: esc(k) })}">${esc(k.length === 2 && '{}[]()<>""\'\''.includes(k) ? k[0] + ' ' + k[1] : k)}</button>`).join('')}
     </div>
   </div>`;
@@ -505,6 +511,8 @@ export function settingsView(s: AppState, storageKind: string, totalSize: number
     <div class="setting-row"><span class="row-main"><span class="row-title" id="font-label">${t('Размер шрифта кода')}</span><span class="row-description">${st.editorFont} pt</span></span>
       <div class="stepper"><button class="icon-btn" data-action="font" data-delta="-1" aria-label="${t('Уменьшить шрифт')}" ${st.editorFont <= 11 ? 'disabled' : ''}>A−</button>
       <button class="icon-btn" data-action="font" data-delta="1" aria-label="${t('Увеличить шрифт')}" ${st.editorFont >= 24 ? 'disabled' : ''}>A+</button></div></div>
+    <label class="setting-row switch-row"><span class="row-main"><span class="row-title">${t('Форматировать при сохранении')}</span><span class="row-description">${t('Prettier для HTML, CSS, JS, TS, JSON, Markdown и PHP по ⌘S')}</span></span>
+      <input type="checkbox" class="switch" data-setting="formatOnSave" ${st.formatOnSave ? 'checked' : ''}></label>
     <label class="setting-row switch-row"><span class="row-main"><span class="row-title">${t('Перенос длинных строк')}</span><span class="row-description">${t('Удобно на узком экране')}</span></span>
       <input type="checkbox" class="switch" data-setting="wrapLines" ${st.wrapLines ? 'checked' : ''}></label>
     <h2 class="section-heading">${t('Предпросмотр')}</h2>

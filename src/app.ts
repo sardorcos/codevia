@@ -8,6 +8,8 @@ import { defaultEntry, detectLanguage, templateFiles, templateLanguage, type Tem
 import { binaryFile, LIMITS, textFile, type Files, type Project, type ProjectFile, type ProjectMeta } from './core/types';
 import { stripCommonRoot, unzip, zipFiles } from './core/zip';
 import { createEditor, type EditorHost } from './editor/editor';
+import { expandAbbreviation, nextDiagnostic, smartTab, toggleComment, wordAtCursor } from './editor/commands';
+import { buildSymbolIndex, findDefinitions, findReferences, listSymbols, type SymbolIndex } from './editor/symbols';
 import { getLang, plural, setPreferredLang, t, type Lang } from './i18n';
 import { copyText, haptic, initNativeChrome, isNative, pickFiles, shareFile } from './platform/native';
 import { Runner, type RuntimeKind } from './runtime/runner';
@@ -84,7 +86,23 @@ export class App {
   };
 
   constructor(private root: HTMLElement) {
-    this.editor = createEditor((path, text) => this.onEdit(path, text), false);
+    this.editor = createEditor((path, text) => this.onEdit(path, text), false, {
+      onGoToDefinition: (word, _pos, path) => void this.guard(() => this.goToDefinition(word, path)),
+      hasDefinition: (word, path) => findDefinitions(this.symbolIndex(), word, path).length > 0,
+      onDiagnostics: (_path, d) => {
+        if (d.errors === this.s.diagErrors) return;
+        this.s.diagErrors = d.errors;
+        const btn = $('[data-action="next-error"]', this.root);
+        if (btn) {
+          btn.classList.toggle('has-errors', d.errors > 0);
+          btn.innerHTML = `⚠${d.errors ? `<span class="key-badge">${d.errors}</span>` : ''}`;
+        }
+      },
+      prettierrc: () => {
+        const f = this.s.project?.files['.prettierrc'];
+        return f?.text ? f.content : undefined;
+      },
+    });
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
     registerTools([...TOOLS, ...githubTools, createInspectorTool(this.inspectorBridge)]);
     onToolOpen((id) => {
@@ -110,6 +128,7 @@ export class App {
     }
     this.s.settings = await this.repo.loadSettings();
     this.applyRuntimeOptions();
+    this.editor.setOptions({ formatOnSave: this.s.settings.formatOnSave });
     this.editor.setWrap(this.s.settings.wrapLines);
     const adopted = storage.volatile ? 0 : await this.repo.adoptOrphanFolders().catch(() => 0);
     if (adopted) toast(plural(adopted, 'Найдены папки из «Файлов»: добавлено проектов — {count}'), 'success');
@@ -157,6 +176,75 @@ export class App {
   /** Whether the live preview is on screen (its own tab on phones, the right pane on wide screens). */
   private previewVisible(): boolean {
     return this.s.wide ? this.s.side === 'preview' : this.s.view === 'preview';
+  }
+
+  private symbols: SymbolIndex | undefined;
+  private symbolsFor = '';
+
+  /** Definitions index of the open project, rebuilt incrementally (unchanged files are reused). */
+  private symbolIndex(): SymbolIndex {
+    const p = this.s.project;
+    if (!p) return buildSymbolIndex({});
+    if (this.symbolsFor !== p.id) {
+      this.symbols = undefined;
+      this.symbolsFor = p.id;
+    }
+    this.symbols = buildSymbolIndex(p.files, this.symbols);
+    return this.symbols;
+  }
+
+  private jumpTo(path: string, line: number, column = 0): void {
+    this.openFile(path);
+    requestAnimationFrame(() => requestAnimationFrame(() => this.editor.revealPosition(line, column)));
+  }
+
+  private async goToDefinition(word: string, fromPath: string): Promise<void> {
+    if (!word) return;
+    const defs = findDefinitions(this.symbolIndex(), word, fromPath);
+    if (!defs.length) {
+      toast(t('Определение «{name}» не найдено', { name: word }));
+      return;
+    }
+    if (defs.length === 1 || defs[0]!.path === fromPath) {
+      this.jumpTo(defs[0]!.path, defs[0]!.line, defs[0]!.column);
+      return;
+    }
+    const pick = await menuSheet(
+      t('Определения «{name}»', { name: word }),
+      defs.slice(0, 30).map((d, i) => ({ id: String(i), label: `${d.label} — ${d.path}:${d.line}`, icon: 'code' })),
+    );
+    if (pick !== undefined) this.jumpTo(defs[Number(pick)]!.path, defs[Number(pick)]!.line, defs[Number(pick)]!.column);
+  }
+
+  /** Outline of the open file, plus "find all references" of the word at the cursor. */
+  private async symbolMenu(): Promise<void> {
+    const p = this.s.project;
+    const path = this.s.currentPath;
+    if (!p || !path) return;
+    const word = wordAtCursor(this.editor.view);
+    const list = listSymbols(this.symbolIndex(), path);
+    const items = [
+      ...(word ? [{ id: 'refs', label: t('Найти все использования «{name}»', { name: word }), icon: 'search' }] : []),
+      ...list.slice(0, 200).map((d, i) => ({ id: String(i), label: `${d.label} · ${d.line}`, icon: 'code' })),
+    ];
+    if (!items.length) {
+      toast(t('В этом файле нет функций и классов'));
+      return;
+    }
+    const pick = await menuSheet(t('Символы файла'), items, path);
+    if (pick === undefined) return;
+    if (pick === 'refs' && word) {
+      const refs = findReferences(p.files, word, { fromPath: path, limit: 200 });
+      const r = await menuSheet(
+        plural(refs.length, 'Использований: {count}'),
+        refs.map((x, i) => ({ id: String(i), label: `${x.path}:${x.line} — ${x.preview.trim().slice(0, 80)}`, icon: 'file' })),
+        word,
+      );
+      if (r !== undefined) this.jumpTo(refs[Number(r)]!.path, refs[Number(r)]!.line, refs[Number(r)]!.column);
+      return;
+    }
+    const d = list[Number(pick)]!;
+    this.jumpTo(d.path, d.line, d.column);
   }
 
   private async guard(fn: () => unknown): Promise<void> {
@@ -442,6 +530,7 @@ export class App {
       previewPage: '',
       previewQuery: '',
       previewConsole: [],
+      diagErrors: 0,
       side: (project.language === 'python' || project.language === 'javascript' ? 'run' : 'preview') as AppState['side'],
       fullscreen: false,
       run: { running: false, status: '', output: [], exitCode: null, ms: null, stdin: '' },
@@ -1715,6 +1804,33 @@ export class App {
         haptic('light');
         return;
       }
+      case 'smart-tab':
+        smartTab(this.editor.view);
+        haptic('light');
+        return;
+      case 'emmet':
+        if (!expandAbbreviation(this.editor.view)) toast(t('Наберите сокращение Emmet, например div.card>h2+p'));
+        return;
+      case 'format': {
+        const r = await this.editor.format();
+        if (r.error) toast(r.error, 'error');
+        else toast(r.changed ? t('Отформатировано') : t('Уже отформатировано'), 'success');
+        return;
+      }
+      case 'next-error':
+        if (!nextDiagnostic(this.editor.view)) toast(t('Ошибок нет'), 'success');
+        return;
+      case 'definition': {
+        const word = wordAtCursor(this.editor.view);
+        if (word) await this.goToDefinition(word, this.s.currentPath);
+        else toast(t('Поставьте курсор на имя функции или переменной'));
+        return;
+      }
+      case 'symbols':
+        return this.symbolMenu();
+      case 'comment':
+        toggleComment(this.editor.view);
+        return;
       case 'undo':
         return this.editor.undo();
       case 'redo':
@@ -1897,11 +2013,12 @@ export class App {
       return;
     }
     const setting = (t as HTMLElement).dataset.setting;
-    if (setting === 'wrapLines' || setting === 'previewNetwork' || setting === 'pythonDownloads') {
+    if (setting === 'wrapLines' || setting === 'previewNetwork' || setting === 'pythonDownloads' || setting === 'formatOnSave') {
       this.s.settings[setting] = (t as HTMLInputElement).checked;
       if (setting === 'wrapLines') this.editor.setWrap(this.s.settings.wrapLines);
       if (setting === 'previewNetwork') this.previewDirty = true;
       if (setting === 'pythonDownloads') this.applyRuntimeOptions();
+      if (setting === 'formatOnSave') this.editor.setOptions({ formatOnSave: this.s.settings.formatOnSave });
       await this.saveSettings();
     }
   }
@@ -1910,7 +2027,8 @@ export class App {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      void this.flushSaves().then(() => toast(this.s.save === 'error' ? t('Ошибка сохранения') : t('Сохранено')));
+      void (this.s.settings.formatOnSave ? this.editor.formatOnSave().catch(() => null) : Promise.resolve(null))
+        .then(() => this.flushSaves()).then(() => toast(this.s.save === 'error' ? t('Ошибка сохранения') : t('Сохранено')));
     } else if (mod && e.key === 'Enter' && this.s.route === 'workspace') {
       e.preventDefault();
       if (this.s.wide) {

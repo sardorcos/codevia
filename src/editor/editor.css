@@ -1,0 +1,159 @@
+/* Editor features: lint, touch tooltips, Emmet, snippets, colour swatches (dark editor theme). */
+
+/* ---------- lint ---------- */
+.cm-editor .cm-lintRange-error {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l2 -2 l1 0 l2 2 l1 0' stroke='%23ef757e' fill='none' stroke-width='1.1'/%3E%3C/svg%3E");
+}
+.cm-editor .cm-lintRange-warning {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l2 -2 l1 0 l2 2 l1 0' stroke='%23ffcf87' fill='none' stroke-width='1.1'/%3E%3C/svg%3E");
+}
+.cm-editor .cm-gutter-lint {
+  width: 0.9em;
+}
+.cm-editor .cm-gutter-lint .cm-gutterElement {
+  padding: 0 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cm-editor .cm-lint-marker {
+  width: 0.7em;
+  height: 0.7em;
+}
+.cm-editor .cm-tooltip-lint,
+.cm-editor .cm-touch-lint {
+  max-width: min(86vw, 28em);
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.cm-editor .cm-diagnostic {
+  padding: 6px 8px 6px 10px;
+}
+.cm-editor .cm-touch-lint {
+  padding: 2px 0;
+}
+.cm-editor .cm-touch-lint-item {
+  padding: 6px 10px;
+  border-left: 4px solid #ef757e;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cm-editor .cm-touch-lint-item + .cm-touch-lint-item {
+  border-top: 1px solid #2a303a;
+}
+.cm-editor .cm-touch-lint-warning {
+  border-left-color: #ffcf87;
+}
+.cm-editor .cm-touch-lint-info,
+.cm-editor .cm-touch-lint-hint {
+  border-left-color: #40c8f6;
+}
+
+/* ---------- Emmet ---------- */
+.cm-editor .emmet-tracker {
+  text-decoration: underline 1px dashed #9fe3c7;
+  text-underline-offset: 3px;
+}
+.cm-editor .emmet-preview {
+  font-size: 0.85em;
+  max-width: min(86vw, 30em);
+  max-height: 40vh;
+  overflow: auto;
+  padding: 4px 6px;
+  background: #1a1e24;
+}
+/* The preview is a nested read-only editor: undo the main editor's sizing that cascades into it. */
+.cm-editor .emmet-preview .cm-editor {
+  height: auto;
+  background: transparent;
+}
+.cm-editor .emmet-preview .cm-scroller {
+  padding-bottom: 0;
+  line-height: 1.4;
+}
+.cm-editor .emmet-preview .cm-content {
+  padding: 0;
+}
+.cm-editor .emmet-preview .cm-activeLine {
+  background: transparent;
+}
+.cm-editor .emmet-preview_error {
+  color: #ef757e;
+}
+.cm-editor .emmet-wrap-with-abbreviation__content {
+  background: #1a1e24;
+  border: 1px solid #343946;
+  border-top: none;
+}
+.cm-editor .emmet-wrap-with-abbreviation__content input {
+  font-size: 16px; /* keeps iOS from zooming in */
+  min-height: 36px;
+  padding: 4px 8px;
+  color: #f2f4f7;
+  background: #0c1016;
+  border: 1px solid #343946;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.cm-emmet-md-preview {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 0.85em;
+  max-width: min(86vw, 30em);
+  white-space: pre-wrap;
+}
+
+/* ---------- autocomplete ---------- */
+.cm-editor .cm-completionIcon-snippet::after {
+  content: '{ }';
+  font-size: 0.8em;
+}
+.cm-editor .cm-completionIcon-emmet::after {
+  content: 'E';
+  font-weight: 700;
+  color: #9fe3c7;
+  background: none;
+  width: auto;
+  height: auto;
+}
+.cm-editor .cm-snippetField {
+  background-color: rgba(64, 200, 246, 0.14);
+  border-radius: 2px;
+}
+.cm-editor .cm-snippetFieldPosition {
+  border-left: 1.5px solid #40c8f6;
+}
+
+/* ---------- colour swatches ---------- */
+.cm-editor .cm-color-swatch {
+  position: relative;
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin: 0 0.3em 0 0.05em;
+  vertical-align: -0.08em;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  /* Checkerboard behind transparent colours. */
+  background: repeating-conic-gradient(#888 0 25%, #ddd 0 50%) 0 0 / 6px 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cm-editor .cm-color-swatch-fill {
+  position: absolute;
+  inset: 0;
+}
+.cm-editor .cm-color-swatch input[type='color'] {
+  /* The native input covers the swatch (and a bit around it, for an easier tap) but stays invisible. */
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}

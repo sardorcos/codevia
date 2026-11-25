@@ -230,3 +230,36 @@ test('libraries: Bootstrap is added offline in one tap (files copied, tags inser
   expect(html).toMatch(/<link[^>]+libs\/bootstrap\/[^"]+\.css/);
   expect(html).toMatch(/<script[^>]+libs\/bootstrap\/[^"]+\.js/);
 });
+
+test('go to definition jumps from a call in main.py to calculations.py; Emmet expands from the key bar', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'Python');
+  await page.locator('.row-button', { hasText: 'main.py' }).click();
+  await page.locator('.cm-line', { hasText: 'total(orders)' }).click();
+  await page.keyboard.press('End');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowLeft'); // inside "total"
+  await page.locator('.cm-line', { hasText: "print('" }).last().click();
+  await page.locator('.cm-content').evaluate((el) => {
+    // Put the caret inside the word "total" of the call on the sum line.
+    const line = [...el.querySelectorAll('.cm-line')].find((l) => l.textContent?.includes('total(orders)'))!;
+    const text = line.firstChild as Node;
+    const range = document.createRange();
+    const node = [...line.childNodes].map((n) => (n.nodeType === 3 ? n : n.firstChild)).find((n) => n?.textContent?.includes('total')) ?? text;
+    range.setStart(node!, (node!.textContent ?? '').indexOf('total') + 2);
+    range.collapse(true);
+    getSelection()!.removeAllRanges();
+    getSelection()!.addRange(range);
+  });
+  await page.getByRole('button', { name: 'Перейти к определению' }).click();
+  await expect(page.locator('.file-tab.active')).toContainText('calculations.py');
+
+  await page.getByRole('button', { name: 'К проектам' }).click();
+  await openProject(page, 'Сайт-портфолио');
+  await page.locator('.nav-item', { hasText: 'Файлы' }).click();
+  await page.locator('.row-button', { hasText: 'about.html' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press(`${mod(page)}+End`);
+  await page.keyboard.type('\nul>li*3');
+  await page.getByRole('button', { name: 'Развернуть Emmet' }).click();
+  await expect(page.locator('.cm-content')).toContainText('<li></li>');
+});

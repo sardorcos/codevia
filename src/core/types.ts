@@ -70,6 +70,8 @@ export interface Settings {
   previewNetwork: boolean;
   /** Python: download packages that are not built in (Pyodide CDN, PyPI) on first import. */
   pythonDownloads: boolean;
+  /** Format the file with Prettier on ⌘S / Save. */
+  formatOnSave: boolean;
   onboardingDone: boolean;
 }
 
@@ -79,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wrapLines: false,
   previewNetwork: false,
   pythonDownloads: true,
+  formatOnSave: false,
   onboardingDone: false,
 };
 

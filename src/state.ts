@@ -28,6 +28,8 @@ export interface AppState {
   wide: boolean;
   /** Right pane of the wide layout. */
   side: 'preview' | 'run';
+  /** Errors found by the editor's linter in the open file. */
+  diagErrors: number;
   projectQuery: string;
   previewPage: string;
   previewQuery: string;
@@ -66,6 +68,7 @@ export const initialState = (): AppState => ({
   selected: [],
   wide: false,
   side: 'preview',
+  diagErrors: 0,
   projectQuery: '',
   previewPage: '',
   previewQuery: '',
