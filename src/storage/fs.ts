@@ -4,6 +4,7 @@ import { toProjectFile } from '../core/files';
 import { isJunkPath } from '../core/paths';
 import type { Files, ProjectFile, ProjectMeta, Snapshot, SnapshotMeta } from '../core/types';
 import { isQuotaError, StorageError, type Backend } from './backend';
+import { t } from '../i18n';
 
 /**
  * Native storage. Project files live as real files in Documents/<folder> (visible in the Files app,
@@ -17,8 +18,8 @@ const wrap = async <T>(p: Promise<T>): Promise<T> => {
   try {
     return await p;
   } catch (e) {
-    if (isQuotaError(e)) throw new StorageError('На устройстве закончилось место. Освободите память и повторите.', true);
-    throw new StorageError(`Ошибка файловой системы: ${(e as Error)?.message ?? e}`);
+    if (isQuotaError(e)) throw new StorageError(t('На устройстве закончилось место. Освободите память и повторите.'), true);
+    throw new StorageError(t('Ошибка файловой системы: {error}', { error: String((e as Error)?.message ?? e) }));
   }
 };
 

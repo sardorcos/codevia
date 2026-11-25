@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 /** Editor shortcuts: CodeMirror treats iPhone (WebKit) like a Mac, where Mod = ⌘ and Ctrl-A means "line start". */
@@ -63,16 +64,33 @@ test('backup of all projects restores every project', async ({ page }) => {
   await expect(page.locator('#run-entry')).toHaveValue('main.py');
 });
 
-test('missing Python packages get a helpful hint', async ({ page }) => {
+test('unknown Python modules get a helpful hint', async ({ page }) => {
   await start(page);
   await openProject(page, 'Python');
   await page.locator('.row-button', { hasText: 'main.py' }).click();
   await page.locator('.cm-content').click();
   await page.keyboard.press(`${mod(page)}+a`);
-  await page.keyboard.type('import numpy\n');
+  await page.keyboard.type('import codevia_no_such_module\n');
   await page.locator('.nav-item', { hasText: 'Запуск' }).click();
   await page.getByRole('button', { name: 'Запустить' }).click();
-  await expect(page.locator('#run-console')).toContainText('Сторонние пакеты', { timeout: 60_000 });
+  await expect(page.locator('#run-console')).toContainText('ModuleNotFoundError', { timeout: 60_000 });
+  await expect(page.locator('#run-console')).toContainText(/Подсказка|Tip:/);
+});
+
+test('bundled numpy and pandas run offline', async ({ page }) => {
+  const bundled = existsSync('public/pyodide/bundled.json') ? JSON.parse(readFileSync('public/pyodide/bundled.json', 'utf8')).packages : [];
+  test.skip(!bundled.includes('numpy') || !bundled.includes('pandas'), 'Python packages were not bundled in this build (CDN unreachable)');
+  await page.route(/cdn\.jsdelivr\.net|pypi\.org|pythonhosted\.org/, (r) => r.abort());
+  await start(page);
+  await openProject(page, 'Python');
+  await page.locator('.row-button', { hasText: 'main.py' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press(`${mod(page)}+a`);
+  await page.keyboard.type('import numpy as np\nimport pandas as pd\nprint("sum", np.arange(5).sum())\nprint("rows", len(pd.DataFrame({"a": [1, 2, 3]})))\n');
+  await page.locator('.nav-item', { hasText: 'Запуск' }).click();
+  await page.getByRole('button', { name: 'Запустить' }).click();
+  await expect(page.locator('#run-console')).toContainText('sum 10', { timeout: 120_000 });
+  await expect(page.locator('#run-console')).toContainText('rows 3');
 });
 
 test('a failed save blocks leaving the project until the user decides', async ({ page }) => {

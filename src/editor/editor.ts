@@ -29,6 +29,7 @@ import {
 } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { extOf } from '../core/paths';
+import { t as tr } from '../i18n';
 
 const highlight = HighlightStyle.define([
   { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.operatorKeyword], color: '#ffcf87' },
@@ -158,7 +159,7 @@ export function createEditor(onChange: (path: string, text: string) => void, wra
       autocapitalize: 'off',
       autocorrect: 'off',
       spellcheck: 'false',
-      'aria-label': `Код файла ${path}`,
+      'aria-label': tr('Код файла {path}', { path }),
     }),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) onChange(currentPath, u.state.doc.toString());

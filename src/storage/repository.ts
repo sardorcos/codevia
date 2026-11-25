@@ -15,6 +15,7 @@ import {
   type SnapshotMeta,
 } from '../core/types';
 import { StorageError, withTimeout, type Backend } from './backend';
+import { t } from '../i18n';
 
 const WRITE_TIMEOUT = 20_000;
 const now = () => new Date().toISOString();
@@ -63,7 +64,7 @@ export class Repository {
   }
 
   private guard<T>(p: Promise<T>): Promise<T> {
-    return withTimeout(p, WRITE_TIMEOUT, 'Сохранение не завершилось вовремя. Проверьте свободное место.');
+    return withTimeout(p, WRITE_TIMEOUT, t('Сохранение не завершилось вовремя. Проверьте свободное место.'));
   }
 
   async init(): Promise<void> {
@@ -109,14 +110,14 @@ export class Repository {
   createProject(name: string, language: Language, files: Files): Promise<Project> {
     return this.exclusive(async () => {
       const existing = await this.backend.listMeta();
-      if (existing.length >= LIMITS.maxProjects) throw new StorageError(`Можно хранить не более ${LIMITS.maxProjects} проектов`);
+      if (existing.length >= LIMITS.maxProjects) throw new StorageError(t('Можно хранить не более {count} проектов', { count: LIMITS.maxProjects }));
       const size = filesSize(files);
-      if (size > LIMITS.maxProjectBytes) throw new StorageError('Проект слишком большой');
-      if (Object.keys(files).length > LIMITS.maxFilesPerProject) throw new StorageError('В проекте слишком много файлов');
+      if (size > LIMITS.maxProjectBytes) throw new StorageError(t('Проект слишком большой'));
+      if (Object.keys(files).length > LIMITS.maxFilesPerProject) throw new StorageError(t('В проекте слишком много файлов'));
       const stamp = now();
       const meta: ProjectMeta = {
         id: makeId(),
-        name: name.trim().slice(0, 80) || 'Новый проект',
+        name: name.trim().slice(0, 80) || t('Новый проект'),
         language,
         createdAt: stamp,
         updatedAt: stamp,
@@ -159,7 +160,7 @@ export class Repository {
       for (const path of paths) {
         const f = project.files[path];
         if (!f) continue;
-        if (fileSize(f) > LIMITS.maxFileBytes) throw new StorageError(`Файл ${path} слишком большой для сохранения`);
+        if (fileSize(f) > LIMITS.maxFileBytes) throw new StorageError(t('Файл {name} слишком большой для сохранения', { name: path }));
         await this.guard(this.backend.writeFile(project, path, f));
       }
       await this.touch(project);
@@ -171,8 +172,8 @@ export class Repository {
   }
 
   async addFile(project: Project, path: string, file: ProjectFile): Promise<void> {
-    if (Object.prototype.hasOwnProperty.call(project.files, path)) throw new StorageError('Такой файл уже существует');
-    if (Object.keys(project.files).length >= LIMITS.maxFilesPerProject) throw new StorageError('Достигнут лимит файлов');
+    if (Object.prototype.hasOwnProperty.call(project.files, path)) throw new StorageError(t('Такой файл уже существует'));
+    if (Object.keys(project.files).length >= LIMITS.maxFilesPerProject) throw new StorageError(t('Достигнут лимит файлов'));
     project.files[path] = file;
     try {
       await this.saveFiles(project, [path]);
@@ -194,7 +195,7 @@ export class Repository {
     return this.exclusive(async () => {
       const f = project.files[from];
       if (!f) return;
-      if (Object.prototype.hasOwnProperty.call(project.files, to)) throw new StorageError('Файл с таким именем уже существует');
+      if (Object.prototype.hasOwnProperty.call(project.files, to)) throw new StorageError(t('Файл с таким именем уже существует'));
       await this.guard(this.backend.writeFile(project, to, f));
       await this.guard(this.backend.deleteFile(project, from));
       project.files[to] = f;
@@ -206,7 +207,7 @@ export class Repository {
   renameProject(project: Project, name: string): Promise<void> {
     return this.exclusive(async () => {
       const clean = name.trim().slice(0, 80);
-      if (!clean) throw new StorageError('Укажите название');
+      if (!clean) throw new StorageError(t('Укажите название'));
       const oldFolder = project.folder;
       const folder = safeFolderName(clean, (await this.takenFolders(project.id)).filter((f) => f !== oldFolder));
       await this.guard(this.backend.renameFolder(project, folder));
@@ -229,7 +230,7 @@ export class Repository {
   }
 
   async duplicateProject(project: Project): Promise<Project> {
-    const copy = await this.createProject(`${project.name} (копия)`, project.language, structuredClone(project.files));
+    const copy = await this.createProject(t('{name} (копия)', { name: project.name }), project.language, structuredClone(project.files));
     if (project.entry && copy.files[project.entry]) await this.setEntry(copy, project.entry);
     return copy;
   }
@@ -286,14 +287,14 @@ export class Repository {
   restoreSnapshot(project: Project, snapshotId: string): Promise<void> {
     return this.exclusive(async () => {
       const snap = await this.backend.getSnapshot(project.id, snapshotId);
-      if (!snap) throw new StorageError('Версия не найдена');
+      if (!snap) throw new StorageError(t('Версия не найдена'));
       const files: Files = {};
       for (const [path, e] of Object.entries(snap.entries)) {
         const f = await this.backend.getBlob(e.hash, e.text);
-        if (!f) throw new StorageError(`Повреждена версия: нет данных для ${path}`);
+        if (!f) throw new StorageError(t('Повреждена версия: нет данных для {name}', { name: path }));
         files[path] = asKind(f, e.text);
       }
-      await this.createSnapshotUnlocked(project, `Перед восстановлением «${snap.label}»`, 'auto');
+      await this.createSnapshotUnlocked(project, t('Перед восстановлением «{name}»', { name: snap.label }), 'auto');
       await this.replaceFilesUnlocked(project, files);
     });
   }

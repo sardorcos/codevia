@@ -68,7 +68,7 @@ const MSG = {
   pkgFailed: { en: 'Could not load package {name}: {msg}', ru: 'Не удалось загрузить пакет {name}: {msg}' },
   installing: { en: 'Installing {name} (PyPI)…', ru: 'Установка {name} (PyPI)…' },
 } as const;
-const tr = (k: keyof typeof MSG, p: Record<string, string> = {}) =>
+const wmsg = (k: keyof typeof MSG, p: Record<string, string> = {}) =>
   MSG[k][lang].replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
 
 // ---------------------------------------------------------------------------------------------
@@ -167,7 +167,7 @@ function load(): Promise<PyodideLike> {
   // Cache the promise, not the instance: a preload followed by a quick Run must not start two interpreters.
   if (!pyodidePromise) {
     pyodidePromise = (async () => {
-      post({ type: 'status', text: tr('loading') });
+      post({ type: 'status', text: wmsg('loading') });
       const mod = (await import(/* @vite-ignore */ `${indexURL}pyodide.mjs`)) as {
         loadPyodide(o: { indexURL: string; lockFileContents: Lockfile; packageBaseUrl: string; env?: Record<string, string> }): Promise<PyodideLike>;
       };
@@ -334,7 +334,7 @@ async function loadImports(py: PyodideLike, code: string, localModules: Set<stri
     {
       messageCallback: (m) => {
         const name = /Loading ([\w.-]+)/.exec(m)?.[1];
-        if (name) post({ type: 'status', text: tr('loadingPkg', { name }) });
+        if (name) post({ type: 'status', text: wmsg('loadingPkg', { name }) });
       },
       errorCallback: (m) => errors.push(m),
     },
@@ -343,7 +343,7 @@ async function loadImports(py: PyodideLike, code: string, localModules: Set<stri
   // Name the packages that failed: offline (not bundled, network off) gets an actionable hint.
   for (const p of needed) {
     if (!errors.some((m) => m.includes(p.name))) continue;
-    err?.write((bundledNames.has(p.name) || allowNetwork ? tr('pkgFailed', { name: p.name, msg: errors.find((m) => m.includes(p.name)) ?? '' }) : tr('offline', { name: p.name })) + '\n');
+    err?.write((bundledNames.has(p.name) || allowNetwork ? wmsg('pkgFailed', { name: p.name, msg: errors.find((m) => m.includes(p.name)) ?? '' }) : wmsg('offline', { name: p.name })) + '\n');
   }
 }
 
@@ -355,7 +355,7 @@ async function installRequirements(py: PyodideLike, text: string): Promise<void>
     .filter((l) => l && !l.startsWith('-'));
   if (!reqs.length) return;
   await py.loadPackage('micropip');
-  post({ type: 'status', text: tr('installing', { name: reqs.join(', ') }) });
+  post({ type: 'status', text: wmsg('installing', { name: reqs.join(', ') }) });
   await py.runPythonAsync(`import micropip\nawait micropip.install(${JSON.stringify(reqs)})`);
 }
 
@@ -390,7 +390,7 @@ async function run(req: RunRequest): Promise<void> {
   try {
     if (requirements) await installRequirements(py, requirements);
   } catch (e) {
-    err.write(tr('pkgFailed', { name: 'requirements.txt', msg: String((e as Error)?.message ?? e).split('\n').slice(-2).join(' ') }) + '\n');
+    err.write(wmsg('pkgFailed', { name: 'requirements.txt', msg: String((e as Error)?.message ?? e).split('\n').slice(-2).join(' ') }) + '\n');
   }
   try {
     await loadImports(py, code, localModules);
@@ -404,7 +404,7 @@ async function run(req: RunRequest): Promise<void> {
     stdin: () => {
       flushAll();
       if (stdinUsed >= lines.length || (stdinUsed === lines.length - 1 && lines[stdinUsed] === '')) {
-        post({ type: 'stderr', id: req.id, text: tr('stdinEnd') });
+        post({ type: 'stderr', id: req.id, text: wmsg('stdinEnd') });
         return null;
       }
       const line = lines[stdinUsed++]!;
@@ -431,7 +431,7 @@ self.onmessage = (ev: MessageEvent<(RunRequest | { type: 'preload'; lang?: 'en' 
   if (msg.lang) lang = msg.lang;
   if (msg.allowNetwork !== undefined) allowNetwork = msg.allowNetwork;
   if (msg.type === 'preload') {
-    load().catch((e) => post({ type: 'fatal', message: tr('loadFailed', { msg: (e as Error).message }) }));
+    load().catch((e) => post({ type: 'fatal', message: wmsg('loadFailed', { msg: (e as Error).message }) }));
     return;
   }
   run(msg).catch((e) => {

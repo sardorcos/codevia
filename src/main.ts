@@ -1,4 +1,5 @@
 import { App } from './app';
+import { applyDocumentLang, t } from './i18n';
 import './styles/app.css';
 
 /**
@@ -18,6 +19,7 @@ function applyDynamicType(): void {
   document.documentElement.style.setProperty('--ui-scale', String(scale));
   document.documentElement.classList.toggle('dynamic-type', scale > 1);
 }
+applyDocumentLang();
 applyDynamicType();
 window.addEventListener('resize', applyDynamicType);
 
@@ -26,7 +28,7 @@ const app = new App(root);
 
 app.start().catch((e) => {
   console.error(e);
-  root.innerHTML = `<div class="fatal" role="alert"><h1>Не удалось запустить приложение</h1><p></p><button class="btn primary">Перезапустить</button></div>`;
+  root.innerHTML = `<div class="fatal" role="alert"><h1>${t('Не удалось запустить приложение')}</h1><p></p><button class="btn primary">${t('Перезапустить')}</button></div>`;
   root.querySelector('.fatal p')!.textContent = String((e as Error)?.message ?? e);
   root.querySelector('.fatal button')!.addEventListener('click', () => location.reload());
 });

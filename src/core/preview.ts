@@ -1,6 +1,7 @@
 import { bytesToBase64, encodeUtf8, textToBase64 } from './bytes';
 import { isExternalRef, mimeOf, resolveRelative } from './paths';
 import type { Files, ProjectFile } from './types';
+import { t } from '../i18n';
 
 export interface PreviewOptions {
   /** Allow https: resources (CDNs, fonts). Off by default: the preview never touches the network. */
@@ -190,24 +191,34 @@ window.XMLHttpRequest=X})();`;
 /** Runtime injected first into every preview page: console bridge, fetch shim, link navigation, storage fallback. */
 function shimScript(token: string, entry: string, embedded: object): string {
   const json = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
+  const L = json({
+    error: t('Ошибка'),
+    line: t(' (строка '),
+    rejection: t('Необработанная ошибка Promise: '),
+    confirm: t('confirm() в предпросмотре всегда возвращает false: '),
+    prompt: t('prompt() в предпросмотре возвращает null: '),
+    notFound: t('fetch: файл не найден в проекте: '),
+    noFetch: t('fetch недоступен'),
+    forms: t('Отправка форм в предпросмотре отключена'),
+  });
   return `(function(){
-var T=${json(token)},BASE=${json(entry)},FILES=${json(embedded)};
+var T=${json(token)},BASE=${json(entry)},FILES=${json(embedded)},L=${L};
 function post(m){m.token=T;try{parent.postMessage(m,'*')}catch(e){}}
 function fmt(v){try{if(v instanceof Error)return v.name+': '+v.message;if(v&&typeof v==='object')return JSON.stringify(v,null,1);return String(v)}catch(e){return String(v)}}
 ['log','info','warn','error','debug'].forEach(function(k){var o=console[k];console[k]=function(){try{post({type:'console',level:k,args:[].map.call(arguments,fmt)})}catch(e){}return o&&o.apply(console,arguments)}});
-addEventListener('error',function(e){post({type:'console',level:'error',args:[(e.message||'Ошибка')+(e.lineno?' (строка '+e.lineno+')':'')]})});
-addEventListener('unhandledrejection',function(e){post({type:'console',level:'error',args:['Необработанная ошибка Promise: '+fmt(e.reason)]})});
+addEventListener('error',function(e){post({type:'console',level:'error',args:[(e.message||L.error)+(e.lineno?L.line+e.lineno+')':'')]})});
+addEventListener('unhandledrejection',function(e){post({type:'console',level:'error',args:[L.rejection+fmt(e.reason)]})});
 function mem(){var d={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}}
 ['localStorage','sessionStorage'].forEach(function(n){try{window[n].getItem('x')}catch(e){try{Object.defineProperty(window,n,{value:mem(),configurable:true})}catch(_){}}});
 window.alert=function(m){post({type:'alert',message:String(m)})};
-window.confirm=function(m){post({type:'console',level:'warn',args:['confirm() в предпросмотре всегда возвращает false: '+m]});return false};
-window.prompt=function(m){post({type:'console',level:'warn',args:['prompt() в предпросмотре возвращает null: '+m]});return null};
+window.confirm=function(m){post({type:'console',level:'warn',args:[L.confirm+m]});return false};
+window.prompt=function(m){post({type:'console',level:'warn',args:[L.prompt+m]});return null};
 function isExt(u){return /^([a-z][a-z0-9+.-]*:|\\/\\/)/i.test(u)}
 function resolve(ref){var t=String(ref).split(/[?#]/)[0];try{t=decodeURIComponent(t)}catch(e){}if(!t)return null;var parts=t.charAt(0)==='/'?[]:BASE.split('/').slice(0,-1);var segs=t.split('/');for(var i=0;i<segs.length;i++){var s=segs[i];if(!s||s==='.')continue;if(s==='..'){if(!parts.length)return null;parts.pop()}else parts.push(s)}return parts.join('/')||null}
 function b64(d){var s=atob(d),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
 function asUrl(p){var f=FILES[p];if(!f)return null;return 'data:'+f.t+';base64,'+(f.b?f.d:btoa(unescape(encodeURIComponent(f.d))))}
 var of=window.fetch;
-window.fetch=function(input,init){var url=typeof input==='string'?input:(input&&input.url)||String(input);if(typeof input==='string'&&!isExt(url)){var p=resolve(url),f=p&&FILES[p];if(f)return Promise.resolve(new Response(f.b?b64(f.d):f.d,{status:200,headers:{'Content-Type':f.t}}));post({type:'console',level:'warn',args:['fetch: файл не найден в проекте: '+url]});return Promise.resolve(new Response('Not found',{status:404,statusText:'Not Found'}))}return of?of.apply(this,arguments):Promise.reject(new TypeError('fetch недоступен'))};
+window.fetch=function(input,init){var url=typeof input==='string'?input:(input&&input.url)||String(input);if(typeof input==='string'&&!isExt(url)){var p=resolve(url),f=p&&FILES[p];if(f)return Promise.resolve(new Response(f.b?b64(f.d):f.d,{status:200,headers:{'Content-Type':f.t}}));post({type:'console',level:'warn',args:[L.notFound+url]});return Promise.resolve(new Response('Not found',{status:404,statusText:'Not Found'}))}return of?of.apply(this,arguments):Promise.reject(new TypeError(L.noFetch))};
 function fix(el){if(!el||el.nodeType!==1)return;['src','poster'].forEach(function(a){var v=el.getAttribute&&el.getAttribute(a);if(v&&!isExt(v)){var u=asUrl(resolve(v));if(u)el.setAttribute(a,u)}})}
 try{new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==='attributes')fix(m.target);else m.addedNodes.forEach(function(n){fix(n);if(n.querySelectorAll)n.querySelectorAll('[src],[poster]').forEach(fix)})})}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src','poster']})}catch(e){}
 document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h)return;e.preventDefault();if(h.charAt(0)==='#'){var id=h.slice(1),el=id&&(document.getElementById(id)||document.getElementsByName(id)[0]);if(el)el.scrollIntoView({behavior:'smooth'});return}if(isExt(h)){post({type:'external',href:h});return}var q=h.indexOf('?')>=0?h.split('?')[1].split('#')[0]:'';post({type:'navigate',path:resolve(h),query:q})},true);

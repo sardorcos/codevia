@@ -24,7 +24,7 @@ class ExitSignal {
 }
 
 let lang: 'en' | 'ru' = 'en';
-const tr = (k: keyof typeof MSG, p: Record<string, string> = {}) => MSG[k][lang].replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
+const wmsg = (k: keyof typeof MSG, p: Record<string, string> = {}) => MSG[k][lang].replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
 
 /** How many lines `new Function` adds before the body in this engine (for stack line numbers). */
 const lineOffset = (() => {
@@ -125,7 +125,7 @@ function run(req: RunRequest): void {
     if (message) out.write(String(message));
     flush();
     if (stdinUsed >= lines.length || (stdinUsed === lines.length - 1 && lines[stdinUsed] === '')) {
-      err.write(tr('stdinEnd'));
+      err.write(wmsg('stdinEnd'));
       return null;
     }
     const line = lines[stdinUsed++]!;
@@ -232,7 +232,7 @@ function run(req: RunRequest): void {
     const require = (spec: string) => {
       if (spec in builtins) return builtins[spec];
       const target = resolveModule(path, spec, exists);
-      if (!target) throw new Error(tr('notFound', { spec, from: path }));
+      if (!target) throw new Error(wmsg('notFound', { spec, from: path }));
       return load(target, false);
     };
     const body = wrapAsync ? `return (async () => {${code}\n})();` : code;

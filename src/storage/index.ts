@@ -5,6 +5,7 @@ import { FsBackend } from './fs';
 import { IdbBackend } from './idb';
 import { MemoryBackend } from './memory';
 import { Repository } from './repository';
+import { t } from '../i18n';
 
 export interface StorageInit {
   repo: Repository;
@@ -24,7 +25,7 @@ export async function openStorage(): Promise<StorageInit> {
   const repo = new Repository(backend);
   try {
     await repo.init();
-    if (backend instanceof MemoryBackend) return { repo, volatile: true, error: 'Включён временный режим хранения' };
+    if (backend instanceof MemoryBackend) return { repo, volatile: true, error: t('Включён временный режим хранения') };
     void navigator.storage?.persist?.().catch(() => undefined);
     return { repo, volatile: false };
   } catch (e) {
@@ -100,7 +101,7 @@ export async function migrateLegacy(repo: Repository): Promise<number> {
       for (const h of lp.history ?? []) {
         const current = project.files;
         project.files = toFiles(h.files);
-        await repo.createSnapshot(project, h.label || 'Версия из 0.3', 'manual');
+        await repo.createSnapshot(project, h.label || t('Версия из 0.3'), 'manual');
         project.files = current;
       }
       count++;

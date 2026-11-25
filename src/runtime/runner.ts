@@ -1,6 +1,7 @@
 import { makeId } from '../core/bytes';
 import type { Files } from '../core/types';
 import type { RunFile, RunRequest, WorkerMessage } from './protocol';
+import { getLang, t } from '../i18n';
 
 export type RuntimeKind = 'python' | 'php' | 'javascript';
 
@@ -17,6 +18,28 @@ export interface RunOutcome {
   exitCode: number;
   ms: number;
   stopped?: boolean;
+}
+
+/**
+ * Workers write their own messages (status, load errors, hints in stderr) in Russian; they are
+ * translated here so the workers stay language-agnostic. Anything else (program output, runtime
+ * errors) passes through unchanged.
+ */
+export function localizeWorkerText(text: string): string {
+  if (getLang() === 'ru') return text;
+  const m = /^Не удалось загрузить (Python|PHP): ([\s\S]*)$/.exec(text);
+  if (m) return t('Не удалось загрузить {runtime}: {error}', { runtime: m[1]!, error: m[2]! });
+  const known: Array<[string, string]> = [
+    ['Загрузка Python…', t('Загрузка Python…')],
+    ['Загрузка PHP…', t('Загрузка PHP…')],
+    ['input(): поле «Ввод» закончилось — добавьте строки перед запуском.', t('input(): поле «Ввод» закончилось — добавьте строки перед запуском.')],
+    [
+      'Подсказка: доступна стандартная библиотека Python и модули вашего проекта. Сторонние пакеты (numpy, requests и др.) пока не поддерживаются офлайн.',
+      t('Подсказка: доступна стандартная библиотека Python и модули вашего проекта. Сторонние пакеты (numpy, requests и др.) пока не поддерживаются офлайн.'),
+    ],
+  ];
+  for (const [ru, en] of known) if (text.includes(ru)) text = text.split(ru).join(en);
+  return text;
 }
 
 function createWorker(kind: RuntimeKind): Worker {
@@ -78,7 +101,7 @@ export class Runner {
         this.dispose(kind);
         if (a) {
           this.active = null;
-          a.fail(new Error(e.message || 'Среда выполнения не загрузилась. Попробуйте ещё раз.'));
+          a.fail(new Error(e.message || t('Среда выполнения не загрузилась. Попробуйте ещё раз.')));
         }
       };
       w.onmessage = (ev: MessageEvent<WorkerMessage>) => this.handle(kind, ev.data);
@@ -94,7 +117,7 @@ export class Runner {
       return;
     }
     if (m.type === 'status') {
-      cb?.onStatus?.(m.text);
+      cb?.onStatus?.(localizeWorkerText(m.text));
       return;
     }
     if (!this.active || ('id' in m && m.id && m.id !== this.active.id)) return;
@@ -103,7 +126,7 @@ export class Runner {
         cb?.onStdout(m.text);
         break;
       case 'stderr':
-        cb?.onStderr(m.text);
+        cb?.onStderr(localizeWorkerText(m.text));
         break;
       case 'html':
         cb?.onHtml?.(m.html);
@@ -122,7 +145,7 @@ export class Runner {
         const a = this.active;
         this.active = null;
         this.touchIdle();
-        a.fail(new Error(m.message));
+        a.fail(new Error(localizeWorkerText(m.message)));
         break;
       }
     }
@@ -143,7 +166,7 @@ export class Runner {
   }
 
   run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string; post?: string } = {}): Promise<RunOutcome> {
-    if (this.active) return Promise.reject(new Error('Программа уже выполняется'));
+    if (this.active) return Promise.reject(new Error(t('Программа уже выполняется')));
     const id = makeId();
     for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);
     this.touchIdle();
