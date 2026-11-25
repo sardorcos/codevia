@@ -285,3 +285,30 @@ test('interactive input: the program asks, the answer is typed in the console, t
   await page.getByRole('button', { name: 'Отправить' }).click();
   await expect(page.locator('#run-console')).toContainText('Привет, Пётр!', { timeout: 30_000 });
 });
+
+test('gallery: a Vue todo project is created offline with its library and works in the preview', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
+  await start(page);
+  await page.getByRole('button', { name: 'Новый', exact: true }).click();
+  await page.locator('[data-tpl="gallery:vue-todo"]').click();
+  await page.getByRole('button', { name: 'Создать проект' }).click();
+  await expect(page.locator('.project-title')).toContainText('Список дел на Vue');
+  const frame = page.frameLocator('#live-preview');
+  await frame.locator('input:not([type])').fill('Buy milk');
+  await frame.locator('form button').click();
+  await expect(frame.locator('li')).toContainText('Buy milk');
+  await expect(frame.locator('.muted')).toContainText('1 left');
+});
+
+test('gallery: PHP form posts with method=post and shows $_POST safely', async ({ page }) => {
+  await start(page);
+  await page.getByRole('button', { name: 'Новый', exact: true }).click();
+  await page.locator('[data-tpl="gallery:php-form"]').click();
+  await page.getByRole('button', { name: 'Создать проект' }).click();
+  const frame = page.frameLocator('#live-preview');
+  await frame.locator('input[name="name"]').fill('<b>Ann</b>');
+  await frame.locator('textarea[name="message"]').fill('Hello there');
+  await frame.getByRole('button', { name: 'Send' }).click();
+  await expect(frame.locator('.ok')).toContainText('Thanks, <b>Ann</b>!', { timeout: 30_000 });
+  await expect(frame.locator('.ok strong b')).toHaveCount(0);
+});

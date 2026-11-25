@@ -2,6 +2,7 @@ import { formatBytes, guessLegacyEncoding, makeId } from './core/bytes';
 import { toProjectFile } from './core/files';
 import { reportText, scanProject } from './core/diagnostics';
 import { diffLines, diffStats, withContext } from './core/diff';
+import { GALLERY, galleryFiles, galleryTemplate } from './core/gallery';
 import { basename, extOf, fileKind, isJunkPath, isTextPath, normalizePath, sanitizeImportName, uniquePath } from './core/paths';
 import { buildPreview, needsTranspile } from './core/preview';
 import { defaultEntry, detectLanguage, templateFiles, templateLanguage, type TemplateId } from './core/templates';
@@ -591,8 +592,8 @@ export class App {
   }
 
   private async newProject(): Promise<void> {
-    let template: TemplateId = 'web';
-    const result = await openSheet<{ name: string; template: TemplateId }>({
+    let template: TemplateId | `gallery:${string}` = 'web';
+    const result = await openSheet<{ name: string; template: TemplateId | `gallery:${string}` }>({
       title: t('Новый проект'),
       body: `<form class="stack" id="new-project-form" novalidate>
         <div class="field"><label class="field-label" for="np-name">${t('Название')}</label>
@@ -614,13 +615,20 @@ export class App {
             )
             .join('')}
         </div></div>
+        <div class="field"><span class="field-label" id="np-gallery-label">${t('Готовые проекты')}</span>
+        <div class="gallery-list" role="radiogroup" aria-labelledby="np-gallery-label">
+          ${GALLERY.map(
+            (g) =>
+              `<button type="button" class="template gallery-item" role="radio" aria-checked="false" data-tpl="gallery:${g.id}">${icon(g.icon)}<strong>${esc(t(g.title))}</strong><span>${esc(t(g.description))}</span></button>`,
+          ).join('')}
+        </div></div>
         <button class="btn primary full" type="submit">${t('Создать проект')}</button></form>`,
       initialFocus: '#np-name',
       onMount: (root, close) => {
         root.addEventListener('click', (e) => {
           const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tpl]');
           if (!b) return;
-          template = b.dataset.tpl as TemplateId;
+          template = b.dataset.tpl as TemplateId | `gallery:${string}`;
           root.querySelectorAll('[data-tpl]').forEach((x) => {
             x.classList.toggle('active', x === b);
             x.setAttribute('aria-checked', String(x === b));
@@ -629,17 +637,31 @@ export class App {
         root.querySelector('form')!.addEventListener('submit', (e) => {
           e.preventDefault();
           const name = (root.querySelector('#np-name') as HTMLInputElement).value.trim();
-          const fallback = { web: t('Мой сайт'), python: t('Python-проект'), php: t('PHP-проект'), javascript: t('JS-проект'), empty: t('Новый проект') }[template];
+          const gal = template.startsWith('gallery:') ? galleryTemplate(template.slice(8)) : undefined;
+          const fallback = gal ? t(gal.title) : { web: t('Мой сайт'), python: t('Python-проект'), php: t('PHP-проект'), javascript: t('JS-проект'), empty: t('Новый проект') }[template as TemplateId];
           close({ name: name || fallback, template });
         });
       },
     });
     if (!result) return;
-    const project = await this.repo.createProject(result.name, templateLanguage(result.template), templateFiles(result.template, result.name));
+    if (result.template.startsWith('gallery:')) {
+      const gal = galleryTemplate(result.template.slice(8));
+      if (!gal) return;
+      this.setBusy(t('Создаю проект…'));
+      const files = await galleryFiles(gal).finally(() => this.setBusy(''));
+      const created = await this.repo.createProject(result.name, gal.language, files);
+      haptic('success');
+      this.s.projects = await this.repo.listProjects();
+      await this.openProject(created.id);
+      await this.setView(gal.view);
+      return;
+    }
+    const tid = result.template as TemplateId;
+    const project = await this.repo.createProject(result.name, templateLanguage(tid), templateFiles(tid, result.name));
     haptic('success');
     this.s.projects = await this.repo.listProjects();
     await this.openProject(project.id);
-    if (result.template !== 'empty') await this.setView(result.template === 'web' ? 'preview' : 'code');
+    if (tid !== 'empty') await this.setView(tid === 'web' ? 'preview' : 'code');
     else await this.setView('code');
   }
 

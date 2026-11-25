@@ -31,7 +31,7 @@ describe('preview runtime shim', () => {
     const { w, messages } = runPage({
       'index.html': textFile('<form id="g" action="result.php"><input name="q" value="a b"></form><form id="p" method="post" action="save.php"><input name="n" value="1"></form>'),
     });
-    const fire = (id: string) => w.document.getElementById(id)!.dispatchEvent(new (w.document.defaultView as unknown as { Event: typeof Event }).Event('submit', { cancelable: true }));
+    const fire = (id: string) => w.document.getElementById(id)!.dispatchEvent(new (w.document.defaultView as unknown as { Event: typeof Event }).Event('submit', { cancelable: true, bubbles: true }));
     fire('g');
     fire('p');
     const nav = messages.filter((m) => m.type === 'navigate');
@@ -55,5 +55,20 @@ describe('preview runtime shim', () => {
     });
     const src = /<script src="data:text\/javascript;base64,([^"]+)"/.exec(html)![1]!;
     expect(Buffer.from(src, 'base64').toString()).toBe('const n = 1; console.log(n);');
+  });
+});
+
+describe('pages that handle links and forms themselves', () => {
+  it('leaves JS-handled submissions and clicks alone (Vue @submit.prevent, SPA routers)', () => {
+    const { w, messages } = runPage({
+      'index.html': textFile(
+        '<form id="f"><input name="q" value="x"></form><a id="a" href="other.html">x</a><script>document.getElementById("f").addEventListener("submit",function(e){e.preventDefault();document.body.dataset.handled="1"});document.getElementById("a").addEventListener("click",function(e){e.preventDefault()})</script>',
+      ),
+    });
+    const win = w.document.defaultView as unknown as { Event: typeof Event; MouseEvent: typeof MouseEvent };
+    w.document.getElementById('f')!.dispatchEvent(new win.Event('submit', { cancelable: true, bubbles: true }));
+    w.document.getElementById('a')!.dispatchEvent(new win.MouseEvent('click', { cancelable: true, bubbles: true }));
+    expect(w.document.body.dataset.handled).toBe('1');
+    expect(messages.filter((m) => m.type === 'navigate')).toEqual([]);
   });
 });

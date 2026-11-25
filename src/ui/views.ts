@@ -365,7 +365,7 @@ export function previewView(s: AppState, p: Project): string {
       <button class="icon-btn" data-action="refresh-preview" aria-label="${t('Обновить предпросмотр')}">${icon('refresh')}</button>
       <button class="icon-btn" data-action="toggle-fullscreen" aria-label="${s.fullscreen ? t('Выйти из полноэкранного режима') : t('Во весь экран')}">${icon(s.fullscreen ? 'close' : 'expand')}</button>
     </div>
-    <div class="browser-pane"><iframe id="live-preview" title="${t('Предпросмотр {name}', { name: esc(s.previewPage) })}" sandbox="allow-scripts" referrerpolicy="no-referrer" src="./preview-host.html"></iframe></div>
+    <div class="browser-pane"><iframe id="live-preview" title="${t('Предпросмотр {name}', { name: esc(s.previewPage) })}" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" src="./preview-host.html"></iframe></div>
     ${consolePanel(s.previewConsole, 'preview-console', !s.consoleOpen)}
     ${!s.settings.previewNetwork ? `<div class="mini-info"><span class="grow">${t('Офлайн: внешние CDN и шрифты отключены')}</span><button class="link-btn" data-action="settings">${t('Изменить')}</button></div>` : ''}
   </div>`;

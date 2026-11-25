@@ -1607,3 +1607,15 @@ mark {
   flex: 1;
   min-width: 0;
 }
+
+/* Ready-made projects in the New project sheet */
+.gallery-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 560px) {
+  .gallery-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
