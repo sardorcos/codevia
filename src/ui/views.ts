@@ -3,6 +3,7 @@ import { basename, dirname, extOf, fileKind, isTextPath } from '../core/paths';
 import { searchProject } from '../core/search';
 import type { Language, Project, ProjectMeta } from '../core/types';
 import type { AppState, ConsoleLine } from '../state';
+import { fileSize } from '../storage/repository';
 import { fmtNumber, LANG_NAMES, plural, preferredLang, SUPPORTED_LANGS, t, tc, type RuForms } from '../i18n';
 import { esc, fmtDate, fmtDateTime, icon } from './dom';
 import { errorLog } from './errors';
@@ -188,18 +189,25 @@ export function filesView(s: AppState, p: Project): string {
   const rows = paths
     .map((path) => {
       const dir = dirname(path);
-      const header = dir !== lastDir ? `<div class="dir-header" role="presentation">${icon('folder', 'sm')} ${esc(dir ? dir + '/' : t('Корень проекта'))}</div>` : '';
+      const header =
+        dir !== lastDir
+          ? dir
+            ? `<button class="dir-header dir-button" data-action="folder-menu" data-dir="${esc(dir)}" aria-label="${t('Действия с папкой {name}', { name: esc(dir) })}">${icon('folder', 'sm')} ${esc(dir + '/')} ${icon('more', 'sm')}</button>`
+            : `<div class="dir-header" role="presentation">${icon('folder', 'sm')} ${esc(t('Корень проекта'))}</div>`
+          : '';
       lastDir = dir;
       const f = p.files[path]!;
-      const size = f.text ? new TextEncoder().encode(f.content).length : f.data.byteLength;
+      const size = fileSize(f);
       const isEntry = p.entry === path;
-      return `${header}<div class="row" role="listitem">
-        <button class="row-button" data-action="open-file" data-path="${esc(path)}">
+      const checked = s.selecting && s.selected.includes(path);
+      return `${header}<div class="row ${checked ? 'selected' : ''}" role="listitem">
+        ${s.selecting ? `<input type="checkbox" class="select-box" data-action="toggle-select" data-path="${esc(path)}" ${checked ? 'checked' : ''} aria-label="${t('Выбрать {name}', { name: esc(path) })}">` : ''}
+        <button class="row-button" data-action="${s.selecting ? 'toggle-select' : 'open-file'}" data-path="${esc(path)}">
           ${fileBadge(path)}
           <span class="row-main"><span class="row-title mono">${esc(basename(path))}${isEntry ? ` <span class="pill cyan">${t('запуск')}</span>` : ''}</span>
           <span class="row-description">${formatBytes(size)}</span></span>
         </button>
-        <button class="icon-btn row-action" data-action="file-menu" data-path="${esc(path)}" aria-label="${t('Действия с файлом {name}', { name: esc(path) })}">${icon('more', 'sm')}</button>
+        ${s.selecting ? '' : `<button class="icon-btn row-action" data-action="file-menu" data-path="${esc(path)}" aria-label="${t('Действия с файлом {name}', { name: esc(path) })}">${icon('more', 'sm')}</button>`}
       </div>`;
     })
     .join('');
@@ -211,10 +219,19 @@ export function filesView(s: AppState, p: Project): string {
     </div>
     <div class="toolbar">
       <div class="chips" role="group" aria-label="${t('Фильтр файлов')}">${chips}</div>
+      <button class="btn ghost tiny" data-action="select-mode" aria-pressed="${s.selecting}">${icon('check', 'sm')} ${s.selecting ? t('Готово') : t('Выбрать')}</button>
       <button class="btn ghost tiny" data-action="diagnostics">${icon('shield', 'sm')} ${t('Проверка')}</button>
     </div>
     <div class="list scroll" role="list" id="file-list">${rows || (q.length >= 2 ? '' : `<div class="empty-state">${q ? t('Ничего не найдено') : t('В проекте нет файлов')}</div>`)}${contentHits(p, s.fileQuery.trim())}</div>
-    <div class="pane-foot"><span>${plural(Object.keys(p.files).length, FILES)} · ${formatBytes(p.size)}</span></div>
+    ${
+      s.selecting
+        ? `<div class="select-bar" role="toolbar" aria-label="${t('Действия с выбранными файлами')}">
+        <span class="select-count">${plural(s.selected.length, 'Выбрано: {count}')}</span>
+        <button class="btn ghost tiny" data-action="select-all">${t('Все')}</button>
+        <button class="btn secondary tiny" data-action="bulk-move" ${s.selected.length ? '' : 'disabled'}>${icon('folder', 'sm')} ${t('Переместить')}</button>
+        <button class="btn danger tiny" data-action="bulk-delete" ${s.selected.length ? '' : 'disabled'}>${icon('trash', 'sm')} ${t('Удалить')}</button></div>`
+        : `<div class="pane-foot"><span>${plural(Object.keys(p.files).length, FILES)} · ${formatBytes(p.size)}</span></div>`
+    }
   </div>`;
 }
 

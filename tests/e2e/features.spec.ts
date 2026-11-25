@@ -172,3 +172,30 @@ test('file history shows a diff against the current text and restores one file',
   await page.locator('.row-button', { hasText: 'main.py' }).click();
   await expect(page.locator('.cm-content')).toContainText('from calculations import total');
 });
+
+test('multi-select moves files into a folder, then the folder is renamed and deleted with one undo version', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'Python');
+  await page.locator('.nav-item', { hasText: 'Файлы' }).click();
+  await page.getByRole('button', { name: 'Выбрать', exact: true }).click();
+  await page.locator('.row-button', { hasText: 'calculations.py' }).click();
+  await page.locator('.row-button', { hasText: 'README.md' }).click();
+  await expect(page.locator('.select-count')).toContainText('2');
+  await page.getByRole('button', { name: 'Переместить' }).click();
+  await page.locator('#prompt-input').fill('lib');
+  await page.getByRole('button', { name: 'Переместить' }).last().click();
+  await expect(page.locator('.dir-button', { hasText: 'lib/' })).toBeVisible();
+
+  await page.locator('.dir-button', { hasText: 'lib/' }).click();
+  await page.getByRole('button', { name: 'Переименовать или переместить папку' }).click();
+  await page.locator('#prompt-input').fill('src/lib');
+  await page.getByRole('button', { name: 'Сохранить' }).click();
+  await expect(page.locator('.dir-button', { hasText: 'src/lib/' })).toBeVisible();
+
+  await page.locator('.dir-button', { hasText: 'src/lib/' }).click();
+  await page.getByRole('button', { name: /Удалить папку/ }).click();
+  await page.getByRole('button', { name: 'Удалить', exact: true }).click();
+  await expect(page.locator('.dir-button', { hasText: 'src/lib/' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'История версий' }).click();
+  await expect(page.locator('.row', { hasText: 'Перед удалением файлов: 2' })).toBeVisible();
+});

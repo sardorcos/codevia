@@ -21,6 +21,9 @@ export interface AppState {
   tabs: string[];
   fileFilter: 'all' | 'code' | 'assets';
   fileQuery: string;
+  /** Multi-select mode in Files and the selected paths. */
+  selecting: boolean;
+  selected: string[];
   projectQuery: string;
   previewPage: string;
   previewQuery: string;
@@ -55,6 +58,8 @@ export const initialState = (): AppState => ({
   tabs: [],
   fileFilter: 'all',
   fileQuery: '',
+  selecting: false,
+  selected: [],
   projectQuery: '',
   previewPage: '',
   previewQuery: '',

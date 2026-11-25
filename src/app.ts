@@ -50,6 +50,7 @@ export class App {
   private editorPath = '';
   private returnRoute: Route = 'home';
   private outputChars = 0;
+  private searchTimer: ReturnType<typeof setTimeout> | undefined;
   /** Urlencoded body of a form posted in the preview, for the next PHP render. */
   private previewPost: string | null = null;
   private consoleQueue = new Map<string, ConsoleLine[]>();
@@ -918,10 +919,10 @@ export class App {
     }
   }
 
-  private async newFile(): Promise<void> {
+  private async newFile(folder = ''): Promise<void> {
     const p = this.s.project;
     if (!p) return;
-    const suggestion = p.language === 'python' ? 'utils.py' : p.language === 'php' ? 'page.php' : 'page.html';
+    const suggestion = folder + (p.language === 'python' ? 'utils.py' : p.language === 'php' ? 'page.php' : p.language === 'javascript' ? 'utils.ts' : 'page.html');
     const value = await promptSheet({
       title: t('Новый файл'),
       label: t('Имя файла (можно с папкой)'),
@@ -965,6 +966,138 @@ export class App {
     if (this.s.previewPage === from) this.s.previewPage = to;
     this.previewDirty = true;
     this.render();
+  }
+
+  /** Moves files: one automatic version first, then renames with all bookkeeping (tabs, entry, preview). */
+  private async movePaths(pairs: Array<[string, string]>, label: string): Promise<void> {
+    const p = this.s.project;
+    if (!p || !pairs.length) return;
+    const targets = new Set<string>();
+    for (const [from, to] of pairs) {
+      if (from === to) continue;
+      if ((p.files[to] && !pairs.some(([f]) => f === to)) || targets.has(to)) throw new Error(t('Файл уже существует: {name}', { name: to }));
+      targets.add(to);
+    }
+    await this.flushSaves();
+    await this.repo.createSnapshot(p, label, 'auto');
+    for (const [from, to] of pairs) {
+      if (from === to) continue;
+      await this.repo.renameFile(p, from, to);
+      this.editor.forget(from);
+      if (this.editorPath === from) this.editorPath = '';
+      this.s.tabs = this.s.tabs.map((x) => (x === from ? to : x));
+      if (this.s.currentPath === from) this.s.currentPath = to;
+      if (p.entry === from) await this.repo.setEntry(p, to);
+      if (this.s.previewPage === from) this.s.previewPage = to;
+    }
+    this.previewDirty = true;
+    this.s.selecting = false;
+    this.s.selected = [];
+    this.render();
+  }
+
+  /** Deletes several files as one change (one version, so the whole action can be undone). */
+  private async deletePaths(paths: string[]): Promise<void> {
+    const p = this.s.project;
+    if (!p || !paths.length) return;
+    const ok = await confirmSheet({
+      title: plural(paths.length, 'Удалить файлы: {count}?'),
+      message: t('Перед удалением сохранится версия проекта — файлы можно будет вернуть из истории.'),
+      confirm: t('Удалить'),
+      danger: true,
+    });
+    if (!ok) return;
+    await this.flushSaves();
+    await this.repo.createSnapshot(p, plural(paths.length, 'Перед удалением файлов: {count}'), 'auto');
+    for (const path of paths) {
+      if (!p.files[path]) continue;
+      await this.repo.deleteFile(p, path);
+      this.editor.forget(path);
+      if (this.editorPath === path) this.editorPath = '';
+    }
+    this.s.tabs = this.s.tabs.filter((x) => p.files[x]);
+    if (!p.files[this.s.currentPath]) this.s.currentPath = this.s.tabs[0] ?? '';
+    if (p.entry && !p.files[p.entry]) {
+      const next = defaultEntry(Object.keys(p.files), p.language);
+      if (next) await this.repo.setEntry(p, next);
+    }
+    if (this.s.previewPage && !p.files[this.s.previewPage]) this.pickPreviewPage();
+    this.previewDirty = true;
+    this.s.selecting = false;
+    this.s.selected = [];
+    haptic('warning');
+    toast(t('Файлы удалены. Вернуть можно в истории версий.'));
+    this.render();
+  }
+
+  private async movePathsToFolder(paths: string[]): Promise<void> {
+    if (!paths.length) return;
+    const folder = await promptSheet({
+      title: t('Переместить в папку'),
+      label: t('Папка (пусто — корень проекта)'),
+      value: '',
+      confirm: t('Переместить'),
+      mono: true,
+      validate: (v) => {
+        if (!v.trim()) return null;
+        try {
+          normalizePath(v.trim().replace(/\/+$/, '') + '/x');
+          return null;
+        } catch (e) {
+          return (e as Error).message;
+        }
+      },
+    });
+    if (folder === undefined || folder === null) return;
+    const dir = folder.trim().replace(/\/+$/, '');
+    await this.movePaths(
+      paths.map((from) => [from, dir ? `${dir}/${basename(from)}` : basename(from)]),
+      plural(paths.length, 'Перед перемещением файлов: {count}'),
+    );
+  }
+
+  private async folderMenu(dir: string): Promise<void> {
+    const p = this.s.project;
+    if (!p) return;
+    const inside = Object.keys(p.files).filter((x) => x.startsWith(dir + '/'));
+    const choice = await menuSheet(dir + '/', [
+      { id: 'new', label: t('Создать файл в папке'), icon: 'plus' },
+      { id: 'rename', label: t('Переименовать или переместить папку'), icon: 'edit' },
+      { id: 'select', label: t('Выбрать файлы папки'), icon: 'check' },
+      { id: 'delete', label: plural(inside.length, 'Удалить папку ({count})'), icon: 'trash', danger: true },
+    ]);
+    if (choice === 'new') return this.newFile(`${dir}/`);
+    if (choice === 'select') {
+      this.s.selecting = true;
+      this.s.selected = inside;
+      return this.render();
+    }
+    if (choice === 'delete') return this.deletePaths(inside);
+    if (choice === 'rename') {
+      const value = await promptSheet({
+        title: t('Переименовать папку'),
+        label: t('Новый путь папки'),
+        value: dir,
+        confirm: t('Сохранить'),
+        mono: true,
+        validate: (v) => {
+          try {
+            normalizePath(v.trim().replace(/\/+$/, '') + '/x');
+            return null;
+          } catch (e) {
+            return (e as Error).message;
+          }
+        },
+      });
+      if (!value) return;
+      const next = value.trim().replace(/\/+$/, '');
+      if (next === dir) return;
+      if (next.startsWith(dir + '/')) throw new Error(t('Нельзя переместить папку внутрь самой себя'));
+      await this.movePaths(
+        inside.map((from) => [from, next + from.slice(dir.length)]),
+        t('Перед переименованием папки {name}', { name: dir }),
+      );
+    }
   }
 
   private async deleteFile(path: string): Promise<void> {
@@ -1557,6 +1690,27 @@ export class App {
         return this.openDiagnostics();
       case 'refresh-diagnostics':
         return this.openDiagnostics();
+      case 'select-mode':
+        this.s.selecting = !this.s.selecting;
+        this.s.selected = [];
+        return this.render();
+      case 'toggle-select': {
+        const path = el.dataset.path!;
+        const set = new Set(this.s.selected);
+        if (set.has(path)) set.delete(path);
+        else set.add(path);
+        this.s.selected = [...set];
+        return this.render();
+      }
+      case 'select-all':
+        if (p) this.s.selected = this.s.selected.length === Object.keys(p.files).length ? [] : Object.keys(p.files);
+        return this.render();
+      case 'bulk-delete':
+        return this.deletePaths(this.s.selected);
+      case 'bulk-move':
+        return this.movePathsToFolder(this.s.selected);
+      case 'folder-menu':
+        return this.folderMenu(el.dataset.dir!);
       case 'tools':
         await this.flushSaves();
         return pickTool(!!this.s.project && this.s.route === 'workspace', () => this.toolContext());
@@ -1614,8 +1768,10 @@ export class App {
         this.render();
         break;
       case 'file-search':
+        // Content search runs over every file: wait for a pause in typing (audit 3, R14).
         this.s.fileQuery = t.value;
-        this.render();
+        clearTimeout(this.searchTimer);
+        this.searchTimer = setTimeout(() => this.render(), 160);
         break;
       case 'run-stdin':
         this.s.run.stdin = t.value;
