@@ -159,6 +159,15 @@ async function ipad(locale) {
   const { ctx, page } = await session(locale, 'ipad');
   await page.goto(`${BASE}?lang=${locale.split('-')[0]}&e2e=1`);
   await page.locator('.row-button').first().waitFor();
+  // Python first, on a fresh project screen (Run is the default side pane for Python).
+  if (!process.env.SKIP_PY) {
+    await open(page, await sampleIndex(page, /python/i));
+    await typeFile(page, 'main.py', PY_CHART);
+    await page.evaluate(() => globalThis.__codevia.render());
+    await run(page, 'month');
+    shots.ipadPython = await page.screenshot();
+    await home(page);
+  }
   await open(page, await sampleIndex(page, /portfolio|портфолио/i));
   await page.locator('.split-files .row-button', { hasText: 'index.html' }).click();
   await page.waitForTimeout(1500);
@@ -173,20 +182,9 @@ async function ipad(locale) {
   await tools(page, 'libraries');
   await page.waitForTimeout(800);
   shots.ipadLibs = await page.screenshot();
-  await page.locator('.tool-layer [data-tool-close]').click();
-  await home(page);
-
-  if (!process.env.SKIP_PY) {
-    await open(page, await sampleIndex(page, /python/i));
-    await typeFile(page, 'main.py', PY_CHART);
-    // Python projects open with Run in the side pane and main.py in the editor.
-    await page.locator('.split').waitFor();
-    await page.evaluate(() => globalThis.__codevia.render());
-    await run(page, 'month');
-    shots.ipadPython = await page.screenshot();
-  }
   await ctx.close();
-  return shots;
+  // Store order: split view first.
+  return { ipadSplit: shots.ipadSplit, ...(shots.ipadPython ? { ipadPython: shots.ipadPython } : {}), ipadInspector: shots.ipadInspector, ipadLibs: shots.ipadLibs };
 }
 
 async function frame(png, [title, sub], device) {
