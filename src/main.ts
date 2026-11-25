@@ -1,5 +1,5 @@
 import { App } from './app';
-import { applyDocumentLang, t } from './i18n';
+import { applyDocumentLang, initI18n, t } from './i18n';
 import './styles/app.css';
 
 /**
@@ -26,12 +26,16 @@ window.addEventListener('resize', applyDynamicType);
 const root = document.getElementById('app')!;
 const app = new App(root);
 
-app.start().catch((e) => {
+// The dictionary of the interface language (other than English/Russian) loads before the first render.
+initI18n()
+  .then(() => applyDocumentLang())
+  .then(() => app.start())
+  .catch((e) => {
   console.error(e);
   root.innerHTML = `<div class="fatal" role="alert"><h1>${t('Не удалось запустить приложение')}</h1><p></p><button class="btn primary">${t('Перезапустить')}</button></div>`;
   root.querySelector('.fatal p')!.textContent = String((e as Error)?.message ?? e);
   root.querySelector('.fatal button')!.addEventListener('click', () => location.reload());
-});
+  });
 
 if (import.meta.env.DEV || new URLSearchParams(location.search).has('e2e')) {
   (globalThis as unknown as { __codevia: App }).__codevia = app;

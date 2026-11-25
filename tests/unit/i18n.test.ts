@@ -6,7 +6,7 @@ import { formatBytes } from '../../src/core/bytes';
 import { templateFiles } from '../../src/core/templates';
 import { localizeWorkerText } from '../../src/runtime/runner';
 import { en } from '../../src/i18n/en';
-import { detectLang, getLang, plural, setLang, t, tc } from '../../src/i18n';
+import { detectLang, englishTexts, getLang, matchLang, pickPluralForm, plural, setLang, t, tc } from '../../src/i18n';
 
 const FILES = { one: '{count} файл', few: '{count} файла', many: '{count} файлов' };
 
@@ -19,15 +19,19 @@ afterEach(() => {
 describe('detectLang', () => {
   const nav = (languages: string[]) => vi.stubGlobal('navigator', { languages, language: languages[0] });
 
-  it('uses Russian for ru and languages Russian readers commonly set', () => {
-    for (const l of ['ru', 'ru-RU', 'uk-UA', 'be', 'kk-KZ', 'uz']) {
+  it('uses Russian for ru and be, and the own language for the other supported ones', () => {
+    for (const l of ['ru', 'ru-RU', 'be']) {
       nav([l]);
       expect(detectLang(), l).toBe('ru');
+    }
+    for (const [l, want] of [['uk-UA', 'uk'], ['kk-KZ', 'kk'], ['uz', 'uz'], ['fr-FR', 'fr'], ['de', 'de'], ['ja-JP', 'ja']] as const) {
+      nav([l]);
+      expect(detectLang(), l).toBe(want);
     }
   });
 
   it('defaults to English', () => {
-    for (const l of ['en-US', 'fr-FR', 'de', 'rue', 'ukr']) {
+    for (const l of ['en-US', 'rue', 'ukr', 'xx-YY']) {
       nav([l]);
       expect(detectLang(), l).toBe('en');
     }
@@ -202,10 +206,11 @@ describe('every literal key used in src/ is translated', () => {
   const root = fileURLToPath(new URL('../../src', import.meta.url));
   // python.worker.ts is translated on the main thread (runtime/runner.ts).
   const skip = new Set(['runtime/python.worker.ts', 'i18n/en.ts']);
+  const isDictionary = (rel: string) => rel.startsWith('i18n/en/') || rel.startsWith('i18n/locales/');
   const files = (readdirSync(root, { recursive: true }) as string[])
     .filter((f) => f.endsWith('.ts'))
     .map((f) => join(root, f))
-    .filter((f) => !skip.has(relative(root, f).split('\\').join('/')));
+    .filter((f) => !skip.has(relative(root, f).split('\\').join('/')) && !isDictionary(relative(root, f).split('\\').join('/')));
 
   const LIT = String.raw`'((?:\\.|[^'\\])*)'|"((?:\\.|[^"\\])*)"|\`((?:\\.|[^\`\\$])*)\``;
   const patterns = [
@@ -229,7 +234,29 @@ describe('every literal key used in src/ is translated', () => {
   });
 
   it('has an English text for each key', () => {
-    const missing = [...used].filter(([key]) => !Object.prototype.hasOwnProperty.call(en, key)).map(([key, file]) => `${file}: ${key}`);
+    const all = englishTexts();
+    const missing = [...used].filter(([key]) => !Object.prototype.hasOwnProperty.call(all, key)).map(([key, file]) => `${file}: ${key}`);
     expect(missing).toEqual([]);
+  });
+});
+
+describe('more languages', () => {
+  it('matches system languages to supported ones', () => {
+    expect(matchLang('pt-PT')).toBe('pt-BR');
+    expect(matchLang('zh-CN')).toBe('zh-Hans');
+    expect(matchLang('zh-TW')).toBeNull();
+    expect(matchLang('uk-UA')).toBe('uk');
+    expect(matchLang('be-BY')).toBe('ru');
+    expect(matchLang('xx')).toBeNull();
+  });
+
+  it('picks plural forms by CLDR category order', () => {
+    expect(pickPluralForm(1, 'a|b', 'en-US')).toBe('a');
+    expect(pickPluralForm(5, 'a|b', 'en-US')).toBe('b');
+    expect(pickPluralForm(3, '件', 'ja')).toBe('件');
+    // Ukrainian: one|few|many|other
+    expect(pickPluralForm(1, 'файл|файли|файлів|файлу', 'uk')).toBe('файл');
+    expect(pickPluralForm(3, 'файл|файли|файлів|файлу', 'uk')).toBe('файли');
+    expect(pickPluralForm(7, 'файл|файли|файлів|файлу', 'uk')).toBe('файлів');
   });
 });

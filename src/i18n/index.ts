@@ -1,19 +1,57 @@
-import { en } from './en';
+import { en as enCore } from './en';
 
 /**
- * Interface language. Russian text is the key (so the Russian UI needs no lookup) and `en.ts` maps it
- * to English. English is the default; Russian is used when the system language is Russian (or one that
- * Russian-reading users commonly set).
+ * Interface language. Russian text is the key (so the Russian UI needs no lookup).
+ * - `en.ts` (plus feature files in `./en/*.ts`) maps it to English, the default and the fallback.
+ * - `./locales/<lang>.ts` map it to the other languages; they are loaded on start by initI18n().
  */
-export type Lang = 'en' | 'ru';
+export const SUPPORTED_LANGS = ['en', 'ru', 'es', 'de', 'fr', 'it', 'pt-BR', 'tr', 'uk', 'uz', 'kk', 'zh-Hans', 'ja', 'ko'] as const;
+export type Lang = (typeof SUPPORTED_LANGS)[number];
 export type Params = Record<string, string | number>;
 
+/** Names shown in the language picker (each in its own language). */
+export const LANG_NAMES: Record<Lang, string> = {
+  en: 'English',
+  ru: 'Русский',
+  es: 'Español',
+  de: 'Deutsch',
+  fr: 'Français',
+  it: 'Italiano',
+  'pt-BR': 'Português (Brasil)',
+  tr: 'Türkçe',
+  uk: 'Українська',
+  uz: 'Oʻzbekcha',
+  kk: 'Қазақша',
+  'zh-Hans': '简体中文',
+  ja: '日本語',
+  ko: '한국어',
+};
+
 const STORAGE_KEY = 'codevia.lang';
-const RU_LIKE = /^(ru|uk|be|kk|uz)\b/i;
 
-const asLang = (v: unknown): Lang | null => (v === 'ru' || v === 'en' ? v : null);
+/** English texts: the core dictionary plus one file per feature (keeps parallel work conflict-free). */
+const en: Record<string, string> = { ...enCore };
+for (const mod of Object.values(import.meta.glob<{ default: Record<string, string> }>('./en/*.ts', { eager: true }))) {
+  Object.assign(en, mod.default);
+}
+const localeLoaders = import.meta.glob<{ default: Record<string, string> }>('./locales/*.ts');
+let dict: Record<string, string> | null = null;
 
-/** `?lang=ru|en`, then `localStorage['codevia.lang']`, then the system language. */
+/** Maps a BCP 47 tag to a supported language: exact, then by base language (pt → pt-BR, zh → zh-Hans, be → ru). */
+export function matchLang(tag: string): Lang | null {
+  const t = tag.trim();
+  if (!t) return null;
+  const exact = SUPPORTED_LANGS.find((l) => l.toLowerCase() === t.toLowerCase());
+  if (exact) return exact;
+  const base = t.split(/[-_]/)[0]!.toLowerCase();
+  if (base === 'be') return 'ru';
+  if (base === 'zh') return /hant|tw|hk|mo/i.test(t) ? null : 'zh-Hans';
+  return SUPPORTED_LANGS.find((l) => l.split('-')[0]!.toLowerCase() === base) ?? null;
+}
+
+const asLang = (v: unknown): Lang | null => (typeof v === 'string' ? (SUPPORTED_LANGS as readonly string[]).includes(v) ? (v as Lang) : null : null);
+
+/** `?lang=…`, then the language chosen in Settings, then the system languages in order. */
 export function detectLang(): Lang {
   try {
     const q = asLang(new URLSearchParams(globalThis.location?.search ?? '').get('lang'));
@@ -29,8 +67,10 @@ export function detectLang(): Lang {
   }
   try {
     const nav = globalThis.navigator;
-    const first = nav?.languages?.[0] ?? nav?.language ?? '';
-    if (RU_LIKE.test(first)) return 'ru';
+    for (const tag of nav?.languages?.length ? nav.languages : [nav?.language ?? '']) {
+      const m = matchLang(tag);
+      if (m) return m;
+    }
   } catch {
     /* no navigator */
   }
@@ -41,18 +81,53 @@ let current: Lang | null = null;
 
 export const getLang = (): Lang => (current ??= detectLang());
 
-/** Overrides the language (tests); `null` detects it again. */
+/** Overrides the language (tests); `null` detects it again. Call initI18n() afterwards for other languages. */
 export function setLang(lang: Lang | null): void {
   current = lang;
+  dict = null;
 }
 
-export const locale = (): string => (getLang() === 'ru' ? 'ru-RU' : 'en-US');
+/** Remembers the language picked in Settings (applied on the next start). `null` follows the system. */
+export function setPreferredLang(lang: Lang | null): void {
+  try {
+    if (lang) globalThis.localStorage?.setItem(STORAGE_KEY, lang);
+    else globalThis.localStorage?.removeItem(STORAGE_KEY);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+export function preferredLang(): Lang | null {
+  try {
+    return asLang(globalThis.localStorage?.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** Loads the dictionary of the current language (no-op for English and Russian). */
+export async function initI18n(): Promise<void> {
+  const lang = getLang();
+  if (lang === 'en' || lang === 'ru') return;
+  const load = localeLoaders[`./locales/${lang}.ts`];
+  if (!load) return;
+  try {
+    dict = (await load()).default;
+  } catch {
+    dict = null; // English fallback
+  }
+}
+
+export const locale = (): string => (getLang() === 'ru' ? 'ru-RU' : getLang() === 'en' ? 'en-US' : getLang());
 
 const warned = new Set<string>();
 
+const has = (o: Record<string, string>, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+
 function lookup(key: string): string | undefined {
   if (getLang() === 'ru') return key;
-  if (Object.prototype.hasOwnProperty.call(en, key)) return en[key];
+  if (dict && has(dict, key)) return dict[key];
+  if (has(en, key)) return en[key];
   if (import.meta.env?.DEV && !warned.has(key)) {
     warned.add(key);
     console.warn(`[i18n] missing English text for: ${key}`);
@@ -96,11 +171,32 @@ function ruForm(n: number, f: RuForms): string {
 export function plural(n: number, forms: RuForms | string, params?: Params): string {
   const ru = typeof forms === 'string' ? { one: forms, few: forms, many: forms } : forms;
   const all = { count: n, ...params };
-  const english = getLang() === 'en' ? lookup(ru.many) : undefined;
-  if (english === undefined) return fill(ruForm(n, ru), all);
-  const [one, other = one] = english.split('|') as [string, string?];
-  return fill(n === 1 ? one : other, all);
+  const text = getLang() === 'ru' ? undefined : lookup(ru.many);
+  if (text === undefined) return fill(ruForm(n, ru), all);
+  return fill(pickPluralForm(n, text, dict && has(dict, ru.many) ? locale() : 'en-US'), all);
 }
+
+const CATEGORY_ORDER = ['zero', 'one', 'two', 'few', 'many', 'other'];
+
+/**
+ * Picks a form from `a|b|…`: the forms follow the language's CLDR plural categories in the order
+ * zero, one, two, few, many, other (English: one|other; Japanese: other; Ukrainian: one|few|many|other).
+ */
+export function pickPluralForm(n: number, text: string, loc: string): string {
+  const forms = text.split('|');
+  if (forms.length === 1) return forms[0]!;
+  try {
+    const rules = new Intl.PluralRules(loc);
+    const cats = rules.resolvedOptions().pluralCategories.slice().sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b));
+    const i = cats.indexOf(rules.select(n));
+    return forms[Math.min(i < 0 ? forms.length - 1 : i, forms.length - 1)]!;
+  } catch {
+    return n === 1 ? forms[0]! : forms[forms.length - 1]!;
+  }
+}
+
+/** All English texts (core + feature files), for tests and the translation tooling. */
+export const englishTexts = (): Readonly<Record<string, string>> => en;
 
 export const fmtNumber = (n: number, opts?: Intl.NumberFormatOptions): string => new Intl.NumberFormat(locale(), opts).format(n);
 
