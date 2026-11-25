@@ -30,6 +30,7 @@ function fakeCtx(project: Project | null) {
     openExternal: vi.fn(),
     haptic: vi.fn(),
     close: vi.fn(),
+    runProject: vi.fn(async () => ({ stdout: '', stderr: '', exitCode: 0 })),
   };
   return ctx;
 }

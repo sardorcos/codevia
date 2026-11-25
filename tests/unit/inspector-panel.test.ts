@@ -63,6 +63,7 @@ function setup(opts: { connected?: boolean } = {}) {
     toast: vi.fn(),
     haptic: vi.fn(),
     close: vi.fn(),
+    runProject: vi.fn(async () => ({ stdout: '', stderr: '', exitCode: 0 })),
   } as unknown as ToolContext & { openFile: ReturnType<typeof vi.fn>; toast: ReturnType<typeof vi.fn> };
   const root = document.createElement('div');
   document.body.append(root);

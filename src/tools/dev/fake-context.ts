@@ -135,6 +135,9 @@ export function createFakeContext(opts: FakeContextOptions = {}): { ctx: ToolCon
     close() {
       opts.onClose?.();
     },
+    async runProject() {
+      return { stdout: '', stderr: '', exitCode: 0 };
+    },
   };
   return { ctx, log, project: () => project };
 }

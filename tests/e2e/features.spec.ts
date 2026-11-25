@@ -312,3 +312,31 @@ test('gallery: PHP form posts with method=post and shows $_POST safely', async (
   await expect(frame.locator('.ok')).toContainText('Thanks, <b>Ann</b>!', { timeout: 30_000 });
   await expect(frame.locator('.ok strong b')).toHaveCount(0);
 });
+
+test('lessons: start the Python course, fail the check, write the answer, pass and move on', async ({ page }) => {
+  await start(page);
+  await page.getByRole('button', { name: 'Инструменты' }).click();
+  await page.locator('[data-tool="learn"]').click();
+  await page.locator('[data-course="python"]').click();
+  await page.locator('[data-lesson="py-1"]').click();
+  await page.getByRole('button', { name: 'Начать курс в новом проекте' }).click();
+  await expect(page.locator('.project-title')).toContainText('Основы Python');
+
+  await page.getByRole('button', { name: 'Инструменты' }).click();
+  await page.locator('[data-tool="learn"]').click();
+  await page.getByRole('button', { name: 'Проверить' }).click();
+  await expect(page.locator('.learn-result.bad')).toBeVisible({ timeout: 60_000 });
+
+  await page.locator('.tool-layer [data-tool-close]').click();
+  await page.locator('.nav-item', { hasText: 'Файлы' }).click();
+  await page.locator('.row-button', { hasText: 'main.py' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press(`${mod(page)}+a`);
+  await page.keyboard.type('print("Hello, Codevia!")\n');
+  await page.getByRole('button', { name: 'Инструменты' }).click();
+  await page.locator('[data-tool="learn"]').click();
+  await page.getByRole('button', { name: 'Проверить' }).click();
+  await expect(page.locator('.learn-result.ok')).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: /Следующий урок/ }).click();
+  await expect(page.locator('.learn-h')).toContainText('Переменные и арифметика');
+});

@@ -34,6 +34,9 @@ export interface ToolContext {
   haptic(kind?: 'light' | 'success' | 'warning' | 'error'): void;
   /** Closes the tool panel. */
   close(): void;
+  /** Runs the open project's entry file (Python / JavaScript) without touching the Run screen and
+   *  returns its output; used by lessons to check results. Rejects while another program runs. */
+  runProject(opts?: { stdin?: string; timeoutMs?: number }): Promise<{ stdout: string; stderr: string; exitCode: number }>;
 }
 
 export interface Tool {

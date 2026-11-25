@@ -1,0 +1,102 @@
+.learn-root {
+  height: 100%;
+  overflow: auto;
+}
+.learn-pad {
+  padding: 12px 16px 32px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.learn-h {
+  margin: 8px 0 6px;
+  font-size: 22px;
+}
+.learn-step {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.learn-task {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-weak);
+}
+.learn-task p {
+  margin: 4px 0 0;
+}
+.learn-hint summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  color: var(--accent);
+  cursor: pointer;
+}
+.learn-hint pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  white-space: pre-wrap;
+  font-size: 13px;
+}
+.learn-result {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+}
+.learn-result.ok {
+  background: rgba(96, 215, 175, 0.15);
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.learn-result.bad {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.learn-result ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.learn-err {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.85;
+}
+.learn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.learn-final {
+  width: 100%;
+  font-weight: 650;
+}
+.learn-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel2);
+  font-size: 13px;
+  flex: none;
+}
+.learn-lessons {
+  padding: 0;
+  margin: 8px 0 0;
+  list-style: none;
+}
+.learn-meter {
+  width: 44px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--p), var(--panel2) var(--p));
+  flex: none;
+}

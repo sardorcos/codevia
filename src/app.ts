@@ -25,6 +25,7 @@ import * as V from './ui/views';
 import { closeTool, onToolOpen, openTool, pickTool, registeredTools, registerTools, setToolPeek } from './ui/tool-host';
 import { githubTools } from './tools/github';
 import { TOOLS } from './tools';
+import { learnTool } from './tools/learn';
 import { createInspectorTool, type InspectorBridge, type InspectorRequest, type PreviewMessage } from './tools/inspector';
 import type { ToolContext } from './tools/types';
 
@@ -105,7 +106,7 @@ export class App {
       },
     });
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
-    registerTools([...TOOLS, ...githubTools, createInspectorTool(this.inspectorBridge)]);
+    registerTools([learnTool, ...TOOLS, ...githubTools, createInspectorTool(this.inspectorBridge)]);
     onToolOpen((id) => {
       // The inspector works on the live preview: make sure it is on screen behind/beside the panel.
       if (id !== 'inspector' || !this.s.project) return;
@@ -1710,6 +1711,23 @@ export class App {
       },
       haptic: (kind = 'light') => haptic(kind),
       close: () => closeTool(),
+      runProject: async (opts = {}) => {
+        const p = need();
+        if (p.language !== 'python' && p.language !== 'javascript' && p.language !== 'php') throw new Error(t('Этот проект не запускается — у него есть предпросмотр'));
+        if (this.runner.running) throw new Error(t('Программа уже выполняется'));
+        await this.flushSaves();
+        const entry = p.entry && p.files[p.entry] ? p.entry : defaultEntry(Object.keys(p.files), p.language);
+        if (!entry) throw new Error(t('Нет файла для запуска'));
+        let stdout = '';
+        let stderr = '';
+        const timer = setTimeout(() => this.runner.stop(), opts.timeoutMs ?? 30_000);
+        try {
+          const r = await this.runner.run(p.language as RuntimeKind, p.files, entry, { onStdout: (x) => (stdout += x), onStderr: (x) => (stderr += x), onHtml: (h) => (stdout += h) }, { stdin: opts.stdin ?? '' });
+          return { stdout, stderr, exitCode: r.exitCode };
+        } finally {
+          clearTimeout(timer);
+        }
+      },
     };
   }
 
