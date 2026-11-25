@@ -15,4 +15,17 @@ export default {
     'If you connect GitHub, the access token is kept in the iOS Keychain on this device only and is sent only to github.com. Project code goes to your repository only when you tap Push. You can disconnect in the app settings and on github.com.',
   'TypeScript и JSX': 'TypeScript and JSX',
   'Встроенные пакеты Python (полные тексты лицензий — ниже)': 'Built-in Python packages (full licence texts below)',
+  Инструменты: 'Tools',
+  'Сначала откройте проект': 'Open a project first',
+  'История файла': 'File history',
+  'Читаю историю…': 'Reading history…',
+  'У этого файла ещё нет сохранённых версий. Версии создаются при «Сохранить версию» и автоматически перед изменениями.':
+    'This file has no saved versions yet. Versions are made with “Save version” and automatically before changes.',
+  'Версия повреждена или удалена': 'The version is damaged or was deleted',
+  'Сравнение версии «{label}» с текущим файлом: −{removed} / +{added}': 'Version “{label}” compared with the current file: −{removed} / +{added}',
+  'Без изменений: {count}': '{count} unchanged line|{count} unchanged lines',
+  'Двоичный файл: {size}': 'Binary file: {size}',
+  'Восстановить эту версию': 'Restore this version',
+  'Перед восстановлением {name}': 'Before restoring {name}',
+  'Файл восстановлен: {name}': 'File restored: {name}',
 } as Record<string, string>;

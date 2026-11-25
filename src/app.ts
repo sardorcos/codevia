@@ -1,6 +1,7 @@
 import { formatBytes, guessLegacyEncoding, makeId } from './core/bytes';
 import { toProjectFile } from './core/files';
 import { reportText, scanProject } from './core/diagnostics';
+import { diffLines, diffStats, withContext } from './core/diff';
 import { basename, extOf, fileKind, isJunkPath, isTextPath, normalizePath, sanitizeImportName, uniquePath } from './core/paths';
 import { buildPreview, needsTranspile } from './core/preview';
 import { defaultEntry, detectLanguage, templateFiles, templateLanguage, type TemplateId } from './core/templates';
@@ -18,6 +19,8 @@ import { $, esc, fmtDateTime, icon, toast } from './ui/dom';
 import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
+import { closeTool, pickTool } from './ui/tool-host';
+import type { ToolContext } from './tools/types';
 
 const SAVE_DELAY = 700;
 const MAX_OUTPUT_CHARS = 400_000;
@@ -787,6 +790,7 @@ export class App {
         { id: 'open', label: p.files[path]!.text ? t('Открыть в редакторе') : t('Просмотреть'), icon: p.files[path]!.text ? 'code' : 'eye' },
         ...(!p.files[path]!.text && isTextPath(path) ? [{ id: 'convert', label: t('Преобразовать в UTF-8 для редактирования'), icon: 'edit' }] : []),
         { id: 'rename', label: t('Переименовать или переместить'), icon: 'edit' },
+        { id: 'history', label: t('История файла'), icon: 'clock' },
         ...(runnable ? [{ id: 'entry', label: t('Сделать файлом запуска'), icon: 'flag' }] : []),
         { id: 'share', label: t('Поделиться файлом'), icon: 'share' },
         { id: 'delete', label: t('Удалить файл'), icon: 'trash', danger: true },
@@ -796,6 +800,7 @@ export class App {
     if (choice === 'open') this.openFile(path);
     else if (choice === 'convert') await this.convertToUtf8(path);
     else if (choice === 'rename') await this.renameFile(path);
+    else if (choice === 'history') await this.fileHistory(path);
     else if (choice === 'entry') {
       await this.repo.setEntry(p, path);
       this.s.previewPage = /\.(html?|php)$/i.test(path) ? path : this.s.previewPage;
@@ -806,6 +811,75 @@ export class App {
       const f = p.files[path]!;
       await shareFile(f.text ? f.content : f.data, basename(path), f.text ? 'text/plain;charset=utf-8' : 'application/octet-stream');
     } else if (choice === 'delete') await this.deleteFile(path);
+  }
+
+  /** Versions of one file from the project history: view, compare with the current text, restore. */
+  private async fileHistory(path: string): Promise<void> {
+    const p = this.s.project;
+    if (!p) return;
+    await this.flushSaves();
+    this.setBusy(t('Читаю историю…'));
+    const versions = await this.repo.fileVersions(p, path).finally(() => this.setBusy(''));
+    const current = p.files[path];
+    if (!versions.length) {
+      toast(t('У этого файла ещё нет сохранённых версий. Версии создаются при «Сохранить версию» и автоматически перед изменениями.'));
+      return;
+    }
+    const pick = await openSheet<string>({
+      title: t('История файла'),
+      wide: true,
+      body: `<div class="subtxt mono sheet-sub">${esc(path)}</div><div class="list" role="list">${versions
+        .map(
+          (v, i) => `<button class="row-button" role="listitem" data-version="${i}">${icon('clock')}<span class="row-main"><span class="row-title">${esc(v.snapshot.label)}</span>
+            <span class="row-description">${esc(fmtDateTime(v.snapshot.at))} · ${formatBytes(v.size)}</span></span>${icon('chevron', 'sm')}</button>`,
+        )
+        .join('')}</div>`,
+      onMount: (root, close) =>
+        root.addEventListener('click', (e) => {
+          const b = (e.target as HTMLElement).closest<HTMLElement>('[data-version]');
+          if (b) close(b.dataset.version);
+        }),
+    });
+    if (pick === undefined) return;
+    const v = versions[Number(pick)]!;
+    const old = await this.repo.readVersionFile(v.hash, v.text);
+    if (!old) throw new Error(t('Версия повреждена или удалена'));
+    const oldText = old.text ? old.content : null;
+    const curText = current?.text ? current.content : null;
+    let body: string;
+    if (oldText !== null && curText !== null) {
+      const lines = diffLines(oldText, curText);
+      const stats = diffStats(lines);
+      body = `<p class="subtxt">${esc(t('Сравнение версии «{label}» с текущим файлом: −{removed} / +{added}', { label: v.snapshot.label, removed: stats.removed, added: stats.added }))}</p>
+        <pre class="diff-view mono">${withContext(lines, 3)
+          .map((l) =>
+            l.kind === 'skip'
+              ? `<span class="diff-skip">⋯ ${esc(plural(l.count, 'Без изменений: {count}'))}</span>`
+              : `<span class="diff-${l.kind}">${l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '} ${esc(l.text)}</span>`,
+          )
+          .join('\n')}</pre>`;
+    } else body = `<p class="subtxt">${esc(t('Двоичный файл: {size}', { size: formatBytes(v.size) }))}</p>`;
+    const action = await openSheet<string>({
+      title: v.snapshot.label,
+      wide: true,
+      body: `${body}<div class="sheet-actions"><button class="btn secondary" data-close-with="cancel">${t('Закрыть')}</button><button class="btn primary" data-close-with="restore">${t('Восстановить эту версию')}</button></div>`,
+      onMount: (root, close) =>
+        root.addEventListener('click', (e) => {
+          const b = (e.target as HTMLElement).closest<HTMLElement>('[data-close-with]');
+          if (b) close(b.dataset.closeWith);
+        }),
+    });
+    if (action !== 'restore') return;
+    await this.repo.createSnapshot(p, t('Перед восстановлением {name}', { name: basename(path) }), 'auto');
+    if (p.files[path]) {
+      p.files[path] = old;
+      this.editor.forget(path);
+      await this.repo.saveFile(p, path);
+    } else await this.repo.addFile(p, path, old);
+    this.previewDirty = true;
+    toast(t('Файл восстановлен: {name}', { name: basename(path) }), 'success');
+    haptic('success');
+    this.render();
   }
 
   private async convertToUtf8(path: string): Promise<void> {
@@ -1192,6 +1266,89 @@ export class App {
     }
   }
 
+  // ------------------------------------------------------------------ tools
+
+  /** The app side of the tool contract (src/tools/types.ts). */
+  toolContext(): ToolContext {
+    const need = () => {
+      const p = this.s.project;
+      if (!p) throw new Error(t('Сначала откройте проект'));
+      return p;
+    };
+    const afterChange = () => {
+      this.previewDirty = true;
+      const p = this.s.project;
+      if (p) {
+        // Tabs of files that no longer exist are closed.
+        this.s.tabs = this.s.tabs.filter((x) => p.files[x]);
+        if (this.s.currentPath && !p.files[this.s.currentPath]) this.s.currentPath = this.s.tabs[0] ?? '';
+      }
+      this.render();
+    };
+    return {
+      project: () => this.s.project,
+      activeFile: () => this.s.currentPath || null,
+      writeFiles: async (files, opts = {}) => {
+        const p = need();
+        await this.flushSaves();
+        if (opts.snapshotLabel) await this.repo.createSnapshot(p, opts.snapshotLabel, 'auto');
+        const paths = Object.keys(files);
+        for (const path of paths) {
+          if (p.files[path]) {
+            p.files[path] = files[path]!;
+            this.editor.forget(path);
+          } else await this.repo.addFile(p, path, files[path]!);
+        }
+        await this.repo.saveFiles(p, paths);
+        for (const path of opts.remove ?? []) if (p.files[path]) await this.repo.deleteFile(p, path);
+        afterChange();
+      },
+      replaceAllFiles: async (files, label) => {
+        const p = need();
+        await this.flushSaves();
+        await this.repo.createSnapshot(p, label, 'auto');
+        await this.repo.replaceFiles(p, files);
+        this.editor.reset();
+        afterChange();
+      },
+      updateMeta: async (patch) => {
+        const p = need();
+        if (patch.name !== undefined && patch.name !== p.name) await this.repo.renameProject(p, patch.name);
+        const { name: _n, ...rest } = patch;
+        if (Object.keys(rest).length) await this.repo.updateMeta(p, rest);
+        this.s.projects = await this.repo.listProjects();
+        this.render();
+      },
+      createProject: async (name, language, files, meta) => {
+        const project = await this.repo.createProject(name, language, files);
+        if (meta && Object.keys(meta).length) await this.repo.updateMeta(project, meta);
+        this.s.projects = await this.repo.listProjects();
+        closeTool();
+        await this.openProject(project.id);
+      },
+      openFile: (path, line) => {
+        const p = this.s.project;
+        if (!p?.files[path]) return;
+        closeTool();
+        this.s.route = 'workspace';
+        this.openFile(path);
+        if (line) requestAnimationFrame(() => this.editor.goToLine(line));
+      },
+      toast: (message, kind = 'info') => toast(message, kind),
+      confirm: (o) => confirmSheet({ title: o.title, message: esc(o.message ?? ''), confirm: o.ok, danger: o.destructive }),
+      prompt: async (o) => (await promptSheet({ title: o.title, label: o.label, value: o.value ?? '', confirm: o.ok })) ?? null,
+      share: async (data, filename, mime) => {
+        await shareFile(data, filename, mime);
+      },
+      openExternal: (url) => {
+        if (!/^https?:\/\//i.test(url)) return;
+        window.open(url, '_blank', 'noopener');
+      },
+      haptic: (kind = 'light') => haptic(kind),
+      close: () => closeTool(),
+    };
+  }
+
   // ------------------------------------------------------------------ history & diagnostics
 
   private async openHistory(): Promise<void> {
@@ -1400,6 +1557,9 @@ export class App {
         return this.openDiagnostics();
       case 'refresh-diagnostics':
         return this.openDiagnostics();
+      case 'tools':
+        await this.flushSaves();
+        return pickTool(!!this.s.project && this.s.route === 'workspace', () => this.toolContext());
       case 'open-issue': {
         const path = el.dataset.path!;
         const line = Number(el.dataset.line) || 0;

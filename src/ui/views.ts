@@ -41,13 +41,15 @@ export function topbar(s: AppState): string {
       <button class="icon-btn" data-action="go-home" aria-label="${t('К проектам')}">${icon('back')}</button>
       <button class="project-title" data-action="rename-project" aria-label="${t('Переименовать проект {name}', { name: esc(p.name) })}"><span class="truncate">${esc(p.name)}</span></button>
       <div class="top-actions">
+        <button class="icon-btn" data-action="tools" aria-label="${t('Инструменты')}">${icon('sliders')}</button>
         <button class="icon-btn" data-action="history" aria-label="${t('История версий')}">${icon('clock')}</button>
         <button class="icon-btn" data-action="project-menu" aria-label="${t('Действия с проектом')}">${icon('more')}</button>
       </div></header>`;
   }
   if (s.route === 'home') {
     return `<header class="topbar"><div class="brand" aria-label="Codevia Pocket">codevia<span>.</span></div>
-      <div class="top-actions"><button class="icon-btn" data-action="settings" aria-label="${t('Настройки')}">${icon('settings')}</button></div></header>`;
+      <div class="top-actions"><button class="icon-btn" data-action="tools" aria-label="${t('Инструменты')}">${icon('sliders')}</button>
+      <button class="icon-btn" data-action="settings" aria-label="${t('Настройки')}">${icon('settings')}</button></div></header>`;
   }
   const titles: Record<string, string> = {
     history: t('История версий'),

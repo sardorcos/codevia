@@ -1376,3 +1376,80 @@ mark {
   border-radius: 8px;
   background: #fff;
 }
+
+/* ---------- Tool panels (HTTP client, JSON, colours, GitHub, inspector…) ---------- */
+.tool-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tool-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--stroke);
+}
+.tool-title {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  text-align: center;
+}
+.tool-head-spacer {
+  width: 44px;
+}
+.tool-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* iPad / Mac: the tool docks on the right and the app keeps working beside it. */
+@media (min-width: 1024px) {
+  .tool-layer {
+    left: auto;
+    width: min(46vw, 640px);
+    border-left: 1px solid var(--stroke);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+  }
+  html.tool-docked #app {
+    margin-right: min(46vw, 640px);
+  }
+}
+
+/* Line diff (file history, source control) */
+.diff-view {
+  max-height: 55vh;
+  overflow: auto;
+  margin: 8px 0 12px;
+  padding: 8px 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.diff-view > span {
+  display: block;
+  padding: 0 10px;
+}
+.diff-add {
+  background: rgba(96, 215, 175, 0.14);
+  color: #a8f0d6;
+}
+.diff-del {
+  background: rgba(255, 138, 146, 0.14);
+  color: #ffc0c5;
+}
+.diff-skip {
+  color: var(--weak);
+  font-style: italic;
+}

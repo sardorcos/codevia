@@ -147,3 +147,28 @@ test('JavaScript/TypeScript project runs with imports, JSON, timers and prompt()
   await expect(out).toContainText('Привет, Анна!');
   await expect(page.locator('.run-status')).toContainText('кодом 0');
 });
+
+test('file history shows a diff against the current text and restores one file', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'Python');
+  // Version 1 of main.py is captured by an automatic version before deleting another file.
+  await page.locator('.nav-item', { hasText: 'Файлы' }).click();
+  await page.getByRole('button', { name: 'Действия с файлом README.md' }).click();
+  await page.getByRole('button', { name: 'Удалить файл' }).click();
+  await page.getByRole('button', { name: 'Удалить', exact: true }).click();
+  // Edit main.py.
+  await page.locator('.row-button', { hasText: 'main.py' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press(`${mod(page)}+a`);
+  await page.keyboard.type('print("changed")\n');
+  await page.locator('.nav-item', { hasText: 'Файлы' }).click();
+  await page.getByRole('button', { name: 'Действия с файлом main.py' }).click();
+  await page.getByRole('button', { name: 'История файла' }).click();
+  await page.locator('[data-version="0"]').click();
+  await expect(page.locator('.diff-view .diff-add')).toContainText('print("changed")');
+  await expect(page.locator('.diff-view .diff-del').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Восстановить эту версию' }).click();
+  await expect(page.locator('#toast')).toContainText('Файл восстановлен');
+  await page.locator('.row-button', { hasText: 'main.py' }).click();
+  await expect(page.locator('.cm-content')).toContainText('from calculations import total');
+});

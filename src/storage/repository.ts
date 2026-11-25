@@ -224,6 +224,12 @@ export class Repository {
     });
   }
 
+  /** Saves changed metadata fields of the project (e.g. its GitHub link). */
+  updateMeta(project: Project, patch: Partial<Pick<ProjectMeta, 'github' | 'entry' | 'language'>>): Promise<void> {
+    Object.assign(project, patch);
+    return this.exclusive(() => this.guard(this.backend.putMeta(metaOf(project))));
+  }
+
   setEntry(project: Project, entry: string): Promise<void> {
     project.entry = entry;
     return this.exclusive(() => this.guard(this.backend.putMeta(metaOf(project))));
@@ -297,6 +303,34 @@ export class Repository {
       await this.createSnapshotUnlocked(project, t('Перед восстановлением «{name}»', { name: snap.label }), 'auto');
       await this.replaceFilesUnlocked(project, files);
     });
+  }
+
+  /**
+   * Versions of one file across the project's history, newest first: one entry per distinct content
+   * (consecutive snapshots with the same content collapse into the newest of them).
+   */
+  async fileVersions(project: Project, path: string): Promise<{ snapshot: SnapshotMeta; hash: string; size: number; text: boolean }[]> {
+    const metas = await this.backend.listSnapshots(project.id); // oldest first
+    const out: { snapshot: SnapshotMeta; hash: string; size: number; text: boolean }[] = [];
+    let prev = '';
+    for (const meta of metas) {
+      const snap = await this.backend.getSnapshot(project.id, meta.id);
+      const e = snap?.entries[path];
+      if (!e) {
+        prev = '';
+        continue;
+      }
+      if (e.hash === prev) out[out.length - 1] = { snapshot: meta, hash: e.hash, size: e.size, text: e.text };
+      else out.push({ snapshot: meta, hash: e.hash, size: e.size, text: e.text });
+      prev = e.hash;
+    }
+    return out.reverse();
+  }
+
+  /** Content of one file as stored in a version (null when the version or file is gone). */
+  async readVersionFile(hash: string, text: boolean): Promise<ProjectFile | null> {
+    const f = await this.backend.getBlob(hash, text);
+    return f ? asKind(f, text) : null;
   }
 
   deleteSnapshot(projectId: string, id: string): Promise<void> {
