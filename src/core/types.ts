@@ -17,7 +17,25 @@ export interface ProjectMeta {
   size: number;
   /** File started by Run / opened by Preview. */
   entry?: string;
+  /** Link to a GitHub repository, set by clone / first push (see docs/GITHUB.md). */
+  github?: GitHubLink;
   schema: 2;
+}
+
+/** Sync state of a project linked to a GitHub repository. Paths are project-relative. */
+export interface GitHubLink {
+  owner: string;
+  repo: string;
+  branch: string;
+  /** SHA of the commit the project was last synced with. */
+  baseCommit: string;
+  /** Git blob SHA-1 of every tracked file at `baseCommit`: path → sha. */
+  baseTree: Record<string, string>;
+  /** Git file modes that differ from the regular `100644` (e.g. `100755`), so pushes keep them. */
+  modes?: Record<string, string>;
+  /** Folder inside the repository that the project maps to (monorepos), without slashes at the ends. */
+  subdir?: string;
+  pagesUrl?: string;
 }
 
 export interface Project extends ProjectMeta {
