@@ -39,9 +39,16 @@ export function haptic(kind: 'light' | 'success' | 'warning' | 'error' = 'light'
 export async function shareFile(data: Blob | Uint8Array | string, filename: string, mime: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: mime });
   if (isNative()) {
-    const bytes = new Uint8Array(await blob.arrayBuffer());
     const path = `exports/${Date.now()}-${filename}`;
-    const { uri } = await Filesystem.writeFile({ path, data: bytesToBase64(bytes), directory: Directory.Cache, recursive: true });
+    // Written in 3 MB slices (a multiple of 3 bytes, so each base64 chunk decodes on its own): a big
+    // backup never exists as one giant base64 string crossing the bridge (audit 3, R11).
+    const CHUNK = 3 * 1024 * 1024;
+    let uri = '';
+    for (let off = 0; off === 0 || off < blob.size; off += CHUNK) {
+      const data = bytesToBase64(new Uint8Array(await blob.slice(off, off + CHUNK).arrayBuffer()));
+      if (off === 0) uri = (await Filesystem.writeFile({ path, data, directory: Directory.Cache, recursive: true })).uri;
+      else await Filesystem.appendFile({ path, data, directory: Directory.Cache });
+    }
     try {
       await Share.share({ title: filename, files: [uri] });
       return 'shared';
