@@ -2,6 +2,7 @@ import { bytesToBase64, encodeUtf8, textToBase64 } from './bytes';
 import { isExternalRef, mimeOf, resolveRelative } from './paths';
 import type { Files, ProjectFile } from './types';
 import { t } from '../i18n';
+import { inspectorAgent } from '../tools/inspector/agent';
 
 export interface PreviewOptions {
   /** Allow https: resources (CDNs, fonts). Off by default: the preview never touches the network. */
@@ -188,6 +189,13 @@ X.prototype.abort=function(){if(this._real)this._real.abort();this._aborted=true
 X.prototype.send=function(body){if(this._real){this._real.responseType=this.responseType;this._real.timeout=this.timeout;this._real.send(body);return}var s=this;setTimeout(function(){if(s._aborted)return;var f=s._p&&FILES[s._p];s.responseURL=s._u;if(!f){s.status=404;s.statusText='Not Found';s.responseText='Not found';s.response=s.responseType===''||s.responseType==='text'?'Not found':null;post({type:'console',level:'warn',args:['XMLHttpRequest: '+s._u+' (404)']})}else{s.status=200;s.statusText='OK';s._t=f.t;var text=f.b?null:f.d;var rt=s.responseType;if(rt==='json'){try{s.response=JSON.parse(text===null?new TextDecoder().decode(b64(f.d)):text)}catch(_){s.response=null}}else if(rt==='arraybuffer'){s.response=f.b?b64(f.d).buffer:new TextEncoder().encode(text).buffer}else if(rt==='blob'){s.response=new Blob([f.b?b64(f.d):text],{type:f.t})}else{s.responseText=text===null?new TextDecoder().decode(b64(f.d)):text;s.response=s.responseText}}s.readyState=2;s._fire('readystatechange');s.readyState=3;s._fire('readystatechange');s.readyState=4;s._fire('readystatechange');s._fire(s.status===200?'load':'load');s._fire('loadend')},0)};
 window.XMLHttpRequest=X})();`;
 
+/**
+ * Web inspector agent (src/tools/inspector/agent.ts), serialized into the shim. It records fetch/XHR into a
+ * small ring buffer and otherwise stays idle until the inspector panel sends `inspect:enable`.
+ * It runs after XHR_SHIM so it wraps the project-aware fetch() and XMLHttpRequest.
+ */
+const INSPECTOR_SHIM = `try{(${inspectorAgent.toString()})({T:T,BASE:BASE,FILES:FILES,post:post,resolve:resolve,isExt:isExt,shim:document.currentScript})}catch(e){}`;
+
 /** Runtime injected first into every preview page: console bridge, fetch shim, link navigation, storage fallback. */
 function shimScript(token: string, entry: string, embedded: object): string {
   const json = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
@@ -224,6 +232,7 @@ try{new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==='attrib
 document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h)return;e.preventDefault();if(h.charAt(0)==='#'){var id=h.slice(1),el=id&&(document.getElementById(id)||document.getElementsByName(id)[0]);if(el)el.scrollIntoView({behavior:'smooth'});return}if(isExt(h)){post({type:'external',href:h});return}var q=h.indexOf('?')>=0?h.split('?')[1].split('#')[0]:'';post({type:'navigate',path:resolve(h),query:q})},true);
 document.addEventListener('submit',function(e){e.preventDefault();var f=e.target;if(!f||!f.getAttribute)return;var act=f.getAttribute('action')||BASE;if(isExt(act)){post({type:'external',href:act});return}var fd;try{fd=new FormData(f,e.submitter||undefined)}catch(_){fd=new FormData(f)}var ps=[];fd.forEach(function(v,k){if(typeof v==='string')ps.push(encodeURIComponent(k)+'='+encodeURIComponent(v))});var body=ps.join('&');var m=(f.getAttribute('method')||'get').toLowerCase();post(m==='post'?{type:'navigate',path:resolve(act),query:'',post:body}:{type:'navigate',path:resolve(act),query:body})},true);
 ${XHR_SHIM}
+${INSPECTOR_SHIM}
 try{if(window.navigation)navigation.addEventListener('navigate',function(e){if(!e.cancelable||e.hashChange||e.downloadRequest)return;var u=e.destination&&e.destination.url;if(!u||u.indexOf('about:')===0)return;e.preventDefault();try{var x=new URL(u);if(/^https?:$/.test(x.protocol)&&x.origin!==location.origin){post({type:'external',href:u});return}var bd=String(document.baseURI).split(/[?#]/)[0].replace(/[^/]*$/,''),clean=u.split('#')[0].split('?')[0],rel=clean.indexOf(bd)===0?clean.slice(bd.length):clean.split('/').pop();post({type:'navigate',path:resolve(rel),query:x.search.slice(1)})}catch(_){}})}catch(e){}
 })();`;
 }
@@ -251,6 +260,8 @@ export function buildPreview(files: Files, entry: string, html: string, opts: Pr
         const style = doc.createElement('style');
         const media = link.getAttribute('media');
         if (media) style.setAttribute('media', media);
+        // Lets the inspector trace matched rules back to their file.
+        if (target) style.setAttribute('data-codevia-src', target);
         style.textContent = escapeRawText(css, 'style');
         link.replaceWith(style);
       } else if (target) b.missing.add(target);
