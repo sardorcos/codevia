@@ -21,6 +21,8 @@ export interface RunRequest {
   lang?: 'en' | 'ru';
   /** Python: allow downloading packages that are not bundled (Pyodide CDN, PyPI via micropip). */
   allowNetwork?: boolean;
+  /** Runtime messages already translated by the app (any interface language); keys as in the workers' MSG tables. */
+  messages?: Record<string, string>;
 }
 
 export type WorkerMessage =

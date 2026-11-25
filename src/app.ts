@@ -170,7 +170,23 @@ export class App {
 
   /** Language and package downloads for the runtimes (messages they print themselves). */
   private applyRuntimeOptions(): void {
-    this.runner.options = { lang: getLang() === 'ru' ? 'ru' : 'en', allowNetwork: this.s.settings.pythonDownloads !== false };
+    this.runner.options = {
+      lang: getLang() === 'ru' ? 'ru' : 'en',
+      allowNetwork: this.s.settings.pythonDownloads !== false,
+      // Messages the runtimes print themselves, in the interface language ({placeholders} filled by the worker).
+      messages: {
+        loading: t('Загрузка Python…'),
+        loadingPkg: t('Загрузка {name}…'),
+        stdinEnd: t('input(): поле «Ввод» закончилось — добавьте строки перед запуском.') + '\n',
+        loadFailed: t('Не удалось загрузить Python: {msg}'),
+        offline: t('Пакет «{name}» не встроен в приложение. Включите «Загружать пакеты Python» в настройках и подключитесь к интернету — он скачается один раз и дальше будет работать офлайн.'),
+        pkgFailed: t('Не удалось загрузить пакет {name}: {msg}'),
+        installing: t('Установка {name} (PyPI)…'),
+        promptEnd: t('prompt(): поле «Ввод» закончилось — добавьте строки перед запуском.') + '\n',
+        hint: t('Подсказка: доступны стандартная библиотека, пакеты из «Настройки → Пакеты Python» и модули проекта. Другие пакеты PyPI перечислите в requirements.txt.'),
+        notFound: t("Модуль '{spec}' не найден (из {from}). Доступны файлы проекта и встроенные fs, path, util, events; пакеты npm на устройстве не установлены."),
+      },
+    };
   }
 
   /** Whether the live preview is on screen (its own tab on phones, the right pane on wide screens). */

@@ -73,4 +73,15 @@ export default {
   'Поставьте курсор на имя функции или переменной': 'Put the cursor on a function or variable name',
   'Форматировать при сохранении': 'Format on save',
   'Prettier для HTML, CSS, JS, TS, JSON, Markdown и PHP по ⌘S': 'Prettier for HTML, CSS, JS, TS, JSON, Markdown and PHP on ⌘S',
+  'Загрузка {name}…': 'Loading {name}…',
+  'prompt(): поле «Ввод» закончилось — добавьте строки перед запуском.': 'prompt(): the Input field has no more lines — add lines before running.',
+  'Не удалось загрузить Python: {msg}': 'Could not load Python: {msg}',
+  'Пакет «{name}» не встроен в приложение. Включите «Загружать пакеты Python» в настройках и подключитесь к интернету — он скачается один раз и дальше будет работать офлайн.':
+    'Package “{name}” is not built into the app. Turn on “Download Python packages” in Settings and connect to the internet — it downloads once and then works offline.',
+  'Не удалось загрузить пакет {name}: {msg}': 'Could not load package {name}: {msg}',
+  'Установка {name} (PyPI)…': 'Installing {name} (PyPI)…',
+  'Подсказка: доступны стандартная библиотека, пакеты из «Настройки → Пакеты Python» и модули проекта. Другие пакеты PyPI перечислите в requirements.txt.':
+    'Tip: the standard library, the packages listed in Settings → Python, and your project modules are available. For other PyPI packages, list them in requirements.txt.',
+  "Модуль '{spec}' не найден (из {from}). Доступны файлы проекта и встроенные fs, path, util, events; пакеты npm на устройстве не установлены.":
+    "Cannot find module '{spec}' (from {from}). Project files and the built-ins fs, path, util and events are available; npm packages are not installed on the device.",
 } as Record<string, string>;

@@ -52,6 +52,7 @@ function createWorker(kind: RuntimeKind): Worker {
 export interface RuntimeOptions {
   lang?: 'en' | 'ru';
   allowNetwork?: boolean;
+  messages?: Record<string, string>;
 }
 
 const toRunFiles = (files: Files, kind: RuntimeKind): RunFile[] =>

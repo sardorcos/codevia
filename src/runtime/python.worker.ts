@@ -68,8 +68,9 @@ const MSG = {
   pkgFailed: { en: 'Could not load package {name}: {msg}', ru: 'Не удалось загрузить пакет {name}: {msg}' },
   installing: { en: 'Installing {name} (PyPI)…', ru: 'Установка {name} (PyPI)…' },
 } as const;
+let overrides: Record<string, string> = {};
 const wmsg = (k: keyof typeof MSG, p: Record<string, string> = {}) =>
-  MSG[k][lang].replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
+  (overrides[k] ?? MSG[k][lang]).replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
 
 // ---------------------------------------------------------------------------------------------
 // Package cache: wheels downloaded from the CDN are kept in IndexedDB, so a package needs the
@@ -367,6 +368,7 @@ async function run(req: RunRequest): Promise<void> {
   const started = performance.now();
   if (req.lang) lang = req.lang;
   if (req.allowNetwork !== undefined) allowNetwork = req.allowNetwork;
+  if (req.messages) overrides = req.messages;
   const py = await load();
   currentId = req.id;
   out = new OutputBatcher((text) => post({ type: 'stdout', id: req.id, text }));
@@ -420,7 +422,7 @@ async function run(req: RunRequest): Promise<void> {
   const fn = py.globals.get('__codevia_run') as (entry: string, workdir: string, hint: string) => number;
   let exitCode: number;
   try {
-    exitCode = Number(fn(`${WORKDIR}/${req.entry}`, WORKDIR, HINT[lang])) || 0;
+    exitCode = Number(fn(`${WORKDIR}/${req.entry}`, WORKDIR, overrides.hint ?? HINT[lang])) || 0;
   } finally {
     flushAll();
     // Free the copy right away: big data files must not stay in the worker's memory between runs.
@@ -434,6 +436,7 @@ self.onmessage = (ev: MessageEvent<(RunRequest | { type: 'preload'; lang?: 'en' 
   if (msg.base) indexURL = msg.base;
   if (msg.lang) lang = msg.lang;
   if (msg.allowNetwork !== undefined) allowNetwork = msg.allowNetwork;
+  if ((msg as { messages?: Record<string, string> }).messages) overrides = (msg as { messages: Record<string, string> }).messages;
   if (msg.type === 'preload') {
     load().catch((e) => post({ type: 'fatal', message: wmsg('loadFailed', { msg: (e as Error).message }) }));
     return;

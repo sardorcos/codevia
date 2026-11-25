@@ -13,7 +13,7 @@ const MSG = {
     en: "Cannot find module '{spec}' (from {from}). Project files and the built-ins fs, path, util and events are available; npm packages are not installed on the device.",
     ru: "Модуль '{spec}' не найден (из {from}). Доступны файлы проекта и встроенные fs, path, util, events; пакеты npm на устройстве не установлены.",
   },
-  stdinEnd: {
+  promptEnd: {
     en: 'prompt(): the Input field has no more lines — add lines before running.\n',
     ru: 'prompt(): поле «Ввод» закончилось — добавьте строки перед запуском.\n',
   },
@@ -24,7 +24,8 @@ class ExitSignal {
 }
 
 let lang: 'en' | 'ru' = 'en';
-const wmsg = (k: keyof typeof MSG, p: Record<string, string> = {}) => MSG[k][lang].replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
+let overrides: Record<string, string> = {};
+const wmsg = (k: keyof typeof MSG, p: Record<string, string> = {}) => (overrides[k] ?? MSG[k][lang]).replace(/\{(\w+)\}/g, (_, n: string) => p[n] ?? '');
 
 /** How many lines `new Function` adds before the body in this engine (for stack line numbers). */
 const lineOffset = (() => {
@@ -40,6 +41,7 @@ const lineOffset = (() => {
 function run(req: RunRequest): void {
   const started = performance.now();
   if (req.lang) lang = req.lang;
+  if (req.messages) overrides = req.messages;
   const out = new OutputBatcher((text) => post({ type: 'stdout', id: req.id, text }));
   const err = new OutputBatcher((text) => post({ type: 'stderr', id: req.id, text }));
   const flush = () => {
@@ -125,7 +127,7 @@ function run(req: RunRequest): void {
     if (message) out.write(String(message));
     flush();
     if (stdinUsed >= lines.length || (stdinUsed === lines.length - 1 && lines[stdinUsed] === '')) {
-      err.write(wmsg('stdinEnd'));
+      err.write(wmsg('promptEnd'));
       return null;
     }
     const line = lines[stdinUsed++]!;
