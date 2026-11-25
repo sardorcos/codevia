@@ -73,8 +73,11 @@ async function run(req: RunRequest): Promise<void> {
   const bootstrap = `<?php
 $__q = ${phpString(req.query ?? '')};
 parse_str($__q, $_GET);
-$_REQUEST = $_GET;
-$_SERVER['REQUEST_METHOD'] = 'GET';
+$__p = ${phpString(req.post ?? '')};
+parse_str($__p, $_POST);
+$_REQUEST = array_merge($_GET, $_POST);
+$_SERVER['REQUEST_METHOD'] = ${phpString(req.post !== undefined ? 'POST' : 'GET')};
+if ($__p !== '') { $_SERVER['CONTENT_TYPE'] = 'application/x-www-form-urlencoded'; $_SERVER['CONTENT_LENGTH'] = (string) strlen($__p); }
 $_SERVER['QUERY_STRING'] = $__q;
 $_SERVER['SCRIPT_NAME'] = $_SERVER['PHP_SELF'] = ${phpString('/' + req.entry)};
 $_SERVER['REQUEST_URI'] = ${phpString('/' + req.entry)} . ($__q !== '' ? '?' . $__q : '');

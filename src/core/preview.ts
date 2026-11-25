@@ -9,7 +9,12 @@ export interface PreviewOptions {
   token: string;
   /** Budget for files embedded for fetch()/dynamic images. */
   embedBudget?: number;
+  /** Strips TypeScript/JSX from .ts/.tsx/.jsx scripts (loaded lazily by the app when needed). */
+  transpile?: (path: string, code: string) => string;
 }
+
+/** Scripts the preview must transpile before running. */
+export const needsTranspile = (path: string) => /\.(tsx?|jsx|mts)$/i.test(path);
 
 export interface PreviewResult {
   html: string;
@@ -46,8 +51,24 @@ class Builder {
   missing = new Set<string>();
   private cssCache = new Map<string, string>();
   private moduleCache = new Map<string, string>();
+  /** One data: URL per asset path: a gallery referencing an image 20 times encodes it once (R10). */
+  private assetCache = new Map<string, string>();
 
-  constructor(private files: Files) {}
+  constructor(
+    private files: Files,
+    private transpile?: (path: string, code: string) => string,
+  ) {}
+
+  /** Source of a script file, transpiled when it is TypeScript/JSX. */
+  scriptSource(path: string, code: string): string {
+    if (!needsTranspile(path) || !this.transpile) return code;
+    try {
+      return this.transpile(path, code);
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e).replace(/[\\'\n\r]/g, ' ');
+      return `console.error('${path}: ${msg}')`;
+    }
+  }
 
   private lookup(from: string, ref: string): { path: string; file: ProjectFile } | null {
     if (!ref || isExternalRef(ref)) return null;
@@ -63,7 +84,13 @@ class Builder {
 
   asset(from: string, ref: string): string | null {
     const hit = this.lookup(from, ref);
-    return hit ? dataUrl(hit.path, hit.file) : null;
+    if (!hit) return null;
+    let url = this.assetCache.get(hit.path);
+    if (!url) {
+      url = dataUrl(hit.path, hit.file);
+      this.assetCache.set(hit.path, url);
+    }
+    return url;
   }
 
   css(from: string, css: string, depth = 0): string {
@@ -93,7 +120,7 @@ class Builder {
     if (this.moduleCache.has(path)) return this.moduleCache.get(path)!;
     if (stack.includes(path)) return null;
     const next = [...stack, path];
-    const code = f.content.replace(
+    const code = this.scriptSource(path, f.content).replace(
       /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])((?:\.{1,2}\/|\/)[^"']+)\2/g,
       (whole, lead: string, q: string, ref: string) => {
         const target = resolveRelative(path, ref);
@@ -102,7 +129,7 @@ class Builder {
           this.missing.add(target);
           return whole;
         }
-        const url = /\.(m?js|jsx|ts)$/i.test(target) ? this.module(target, next) : this.asset(path, ref);
+        const url = /\.(m?js|jsx|tsx?|mts)$/i.test(target) ? this.module(target, next) : this.asset(path, ref);
         return url ? `${lead}${q}${url}${q}` : whole;
       },
     );
@@ -128,14 +155,37 @@ function embeddedFiles(files: Files, budget: number): Record<string, { t: string
   const out: Record<string, { t: string; b: 0 | 1; d: string }> = {};
   let used = 0;
   const entries = Object.entries(files).sort(([, a], [, b]) => Number(b.text) - Number(a.text));
+  // Binaries (images for dynamically created <img>, data files) get at most a third of the budget:
+  // they are base64-encoded and copied on every rebuild of the page (R10).
+  let usedBinary = 0;
   for (const [path, f] of entries) {
     const size = fileBytes(f).length;
     if (size > 2 * 1024 * 1024 || used + size > budget) continue;
+    if (!f.text && usedBinary + size > budget / 3) continue;
     used += size;
+    if (!f.text) usedBinary += size;
     out[path] = f.text ? { t: mimeOf(path), b: 0, d: f.content } : { t: mimeOf(path), b: 1, d: bytesToBase64(f.data) };
   }
   return out;
 }
+
+/**
+ * XMLHttpRequest for project files ($.getJSON, axios, old tutorials), served from FILES like fetch().
+ * Requests to other hosts go to the real XHR (still subject to the preview CSP).
+ */
+const XHR_SHIM = `(function(){var RX=window.XMLHttpRequest;if(!RX)return;function X(){this.readyState=0;this.status=0;this.statusText='';this.responseText='';this.response=null;this.responseType='';this.responseURL='';this._h={};this._l={};this._real=null;this.timeout=0;this.withCredentials=false;this.upload={addEventListener:function(){}}}
+X.UNSENT=0;X.OPENED=1;X.HEADERS_RECEIVED=2;X.LOADING=3;X.DONE=4;
+X.prototype.open=function(m,u,a){this._m=m;this._u=String(u);this._p=isExt(this._u)?null:resolve(this._u);if(this._p===null&&isExt(this._u)){var r=this._real=new RX(),s=this;r.onreadystatechange=function(){s.readyState=r.readyState;if(r.readyState===4){s.status=r.status;s.statusText=r.statusText;s.response=r.response;try{s.responseText=r.responseText}catch(_){}}s._fire('readystatechange')};r.onload=function(){s._fire('load');s._fire('loadend')};r.onerror=function(){s._fire('error');s._fire('loadend')};r.open(m,u,a!==false);return}this.readyState=1;this._fire('readystatechange')};
+X.prototype.setRequestHeader=function(k,v){if(this._real)this._real.setRequestHeader(k,v)};
+X.prototype.overrideMimeType=function(){};
+X.prototype.getResponseHeader=function(k){if(this._real)return this._real.getResponseHeader(k);return String(k).toLowerCase()==='content-type'&&this._t?this._t:null};
+X.prototype.getAllResponseHeaders=function(){if(this._real)return this._real.getAllResponseHeaders();return this._t?'content-type: '+this._t+'\\r\\n':''};
+X.prototype.addEventListener=function(t,f){(this._l[t]=this._l[t]||[]).push(f)};
+X.prototype.removeEventListener=function(t,f){this._l[t]=(this._l[t]||[]).filter(function(x){return x!==f})};
+X.prototype._fire=function(t){var e={type:t,target:this,currentTarget:this,lengthComputable:false,loaded:0,total:0};if(typeof this['on'+t]==='function')try{this['on'+t](e)}catch(err){setTimeout(function(){throw err})}(this._l[t]||[]).forEach(function(f){try{f.call(this,e)}catch(err){setTimeout(function(){throw err})}},this)};
+X.prototype.abort=function(){if(this._real)this._real.abort();this._aborted=true};
+X.prototype.send=function(body){if(this._real){this._real.responseType=this.responseType;this._real.timeout=this.timeout;this._real.send(body);return}var s=this;setTimeout(function(){if(s._aborted)return;var f=s._p&&FILES[s._p];s.responseURL=s._u;if(!f){s.status=404;s.statusText='Not Found';s.responseText='Not found';s.response=s.responseType===''||s.responseType==='text'?'Not found':null;post({type:'console',level:'warn',args:['XMLHttpRequest: '+s._u+' (404)']})}else{s.status=200;s.statusText='OK';s._t=f.t;var text=f.b?null:f.d;var rt=s.responseType;if(rt==='json'){try{s.response=JSON.parse(text===null?new TextDecoder().decode(b64(f.d)):text)}catch(_){s.response=null}}else if(rt==='arraybuffer'){s.response=f.b?b64(f.d).buffer:new TextEncoder().encode(text).buffer}else if(rt==='blob'){s.response=new Blob([f.b?b64(f.d):text],{type:f.t})}else{s.responseText=text===null?new TextDecoder().decode(b64(f.d)):text;s.response=s.responseText}}s.readyState=2;s._fire('readystatechange');s.readyState=3;s._fire('readystatechange');s.readyState=4;s._fire('readystatechange');s._fire(s.status===200?'load':'load');s._fire('loadend')},0)};
+window.XMLHttpRequest=X})();`;
 
 /** Runtime injected first into every preview page: console bridge, fetch shim, link navigation, storage fallback. */
 function shimScript(token: string, entry: string, embedded: object): string {
@@ -161,7 +211,9 @@ window.fetch=function(input,init){var url=typeof input==='string'?input:(input&&
 function fix(el){if(!el||el.nodeType!==1)return;['src','poster'].forEach(function(a){var v=el.getAttribute&&el.getAttribute(a);if(v&&!isExt(v)){var u=asUrl(resolve(v));if(u)el.setAttribute(a,u)}})}
 try{new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==='attributes')fix(m.target);else m.addedNodes.forEach(function(n){fix(n);if(n.querySelectorAll)n.querySelectorAll('[src],[poster]').forEach(fix)})})}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['src','poster']})}catch(e){}
 document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href');if(!h)return;e.preventDefault();if(h.charAt(0)==='#'){var id=h.slice(1),el=id&&(document.getElementById(id)||document.getElementsByName(id)[0]);if(el)el.scrollIntoView({behavior:'smooth'});return}if(isExt(h)){post({type:'external',href:h});return}var q=h.indexOf('?')>=0?h.split('?')[1].split('#')[0]:'';post({type:'navigate',path:resolve(h),query:q})},true);
-document.addEventListener('submit',function(e){e.preventDefault();post({type:'console',level:'warn',args:['Отправка форм в предпросмотре отключена']})},true);
+document.addEventListener('submit',function(e){e.preventDefault();var f=e.target;if(!f||!f.getAttribute)return;var act=f.getAttribute('action')||BASE;if(isExt(act)){post({type:'external',href:act});return}var fd;try{fd=new FormData(f,e.submitter||undefined)}catch(_){fd=new FormData(f)}var ps=[];fd.forEach(function(v,k){if(typeof v==='string')ps.push(encodeURIComponent(k)+'='+encodeURIComponent(v))});var body=ps.join('&');var m=(f.getAttribute('method')||'get').toLowerCase();post(m==='post'?{type:'navigate',path:resolve(act),query:'',post:body}:{type:'navigate',path:resolve(act),query:body})},true);
+${XHR_SHIM}
+try{if(window.navigation)navigation.addEventListener('navigate',function(e){if(!e.cancelable||e.hashChange||e.downloadRequest)return;var u=e.destination&&e.destination.url;if(!u||u.indexOf('about:')===0)return;e.preventDefault();try{var x=new URL(u);if(/^https?:$/.test(x.protocol)&&x.origin!==location.origin){post({type:'external',href:u});return}var bd=String(document.baseURI).split(/[?#]/)[0].replace(/[^/]*$/,''),clean=u.split('#')[0].split('?')[0],rel=clean.indexOf(bd)===0?clean.slice(bd.length):clean.split('/').pop();post({type:'navigate',path:resolve(rel),query:x.search.slice(1)})}catch(_){}})}catch(e){}
 })();`;
 }
 
@@ -175,7 +227,7 @@ function hasDoctype(html: string): boolean {
  * relative paths (./, ../, /) are resolved against the page, and the runtime shim is injected.
  */
 export function buildPreview(files: Files, entry: string, html: string, opts: PreviewOptions): PreviewResult {
-  const b = new Builder(files);
+  const b = new Builder(files, opts.transpile);
   const doc = new DOMParser().parseFromString(html, 'text/html');
 
   for (const link of Array.from(doc.querySelectorAll('link[href]'))) {
@@ -212,7 +264,9 @@ export function buildPreview(files: Files, entry: string, html: string, opts: Pr
         if (target) b.missing.add(target);
         continue;
       }
-      const url = isModule ? b.module(target) : `data:text/javascript;base64,${textToBase64((files[target] as { content: string }).content)}`;
+      const url = isModule
+        ? b.module(target)
+        : `data:text/javascript;base64,${textToBase64(b.scriptSource(target, (files[target] as { content: string }).content))}`;
       if (url) script.setAttribute('src', url);
     } else if (isModule && script.textContent) {
       // Inline modules: rewrite relative imports, keep the code inline.

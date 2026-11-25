@@ -142,7 +142,7 @@ export class Runner {
     return this.active !== null;
   }
 
-  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string } = {}): Promise<RunOutcome> {
+  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string; post?: string } = {}): Promise<RunOutcome> {
     if (this.active) return Promise.reject(new Error('Программа уже выполняется'));
     const id = makeId();
     for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);

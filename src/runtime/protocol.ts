@@ -13,6 +13,8 @@ export interface RunRequest {
   stdin?: string;
   /** PHP only: query string for $_GET. */
   query?: string;
+  /** PHP only: urlencoded form body for $_POST (form method=post in the preview). */
+  post?: string;
   /** Absolute URL of bundled runtime assets (Pyodide). */
   base?: string;
   /** Interface language for messages produced by the runtime itself. */
