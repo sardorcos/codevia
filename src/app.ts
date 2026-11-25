@@ -1578,7 +1578,8 @@ export class App {
       haptic('error');
     } finally {
       this.s.run.running = false;
-      if (this.s.route === 'workspace' && this.s.view === 'run') this.render();
+      // The run screen is a tab on phones and the side pane on iPad/Mac.
+      if (this.s.route === 'workspace' && (this.s.view === 'run' || (this.s.wide && this.s.side === 'run'))) this.render();
     }
   }
 
