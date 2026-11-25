@@ -3,7 +3,7 @@ export type BinaryFile = { text: false; data: Uint8Array };
 export type ProjectFile = TextFile | BinaryFile;
 export type Files = Record<string, ProjectFile>;
 
-export type Language = 'web' | 'python' | 'php';
+export type Language = 'web' | 'python' | 'php' | 'javascript';
 
 export interface ProjectMeta {
   id: string;

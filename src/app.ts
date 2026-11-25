@@ -441,7 +441,7 @@ export class App {
         root.querySelector('form')!.addEventListener('submit', (e) => {
           e.preventDefault();
           const name = (root.querySelector('#np-name') as HTMLInputElement).value.trim();
-          const fallback = { web: t('Мой сайт'), python: t('Python-проект'), php: t('PHP-проект'), empty: t('Новый проект') }[template];
+          const fallback = { web: t('Мой сайт'), python: t('Python-проект'), php: t('PHP-проект'), javascript: t('JS-проект'), empty: t('Новый проект') }[template];
           close({ name: name || fallback, template });
         });
       },

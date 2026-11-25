@@ -129,23 +129,57 @@ a { color: #1677a6; }
   'README.md': textFile(`# ${name}\n\n${t('PHP-проект. «Запуск» выполняет index.php и показывает результат.')}\n`),
 });
 
+const javascript = (name: string): Files => ({
+  'main.ts': textFile(`import { total, formatMoney } from './lib/orders';
+import orders from './data/orders.json';
+
+interface Order {
+  amount: number;
+}
+
+console.log('${name}');
+console.log('${t('Заказов:')}', orders.length);
+console.log('${t('Сумма заказов:')}', formatMoney(total(orders as Order[])));
+console.table(orders);
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+await wait(300);
+
+const name = prompt('${t('Как вас зовут? ')}');
+console.log(\`${t('Привет, {name}!').replace('{name}', '\${name}')}\`);
+`),
+  'lib/orders.js': textFile(`/** ${t('Возвращает сумму поля amount.')} */
+export function total(orders) {
+  return orders.reduce((sum, o) => sum + o.amount, 0);
+}
+
+export const formatMoney = (n) => new Intl.NumberFormat().format(n);
+`),
+  'data/orders.json': textFile(JSON.stringify([{ amount: 2700000 }, { amount: 1650000 }], null, 2) + '\n'),
+  'README.md': textFile(`# ${name}\n\n${t('JavaScript/TypeScript-проект. Откройте «Запуск» и нажмите «Запустить». Строка ввода передаётся в prompt().')}\n`),
+});
+
 export type TemplateId = Language | 'empty';
 
 export function templateFiles(template: TemplateId, name: string): Files {
   if (template === 'python') return python(name);
   if (template === 'php') return php(name);
+  if (template === 'javascript') return javascript(name);
   if (template === 'empty') return { 'index.html': textFile(`<!doctype html>\n<html lang="${getLang()}">\n<head>\n  <meta charset="utf-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1" />\n  <title>${name}</title>\n</head>\n<body>\n\n</body>\n</html>\n`) };
   return web(name);
 }
 
-export const templateLanguage = (t: TemplateId): Language => (t === 'python' || t === 'php' ? t : 'web');
+export const templateLanguage = (t: TemplateId): Language => (t === 'python' || t === 'php' || t === 'javascript' ? t : 'web');
 
 export function detectLanguage(paths: string[]): Language {
   const py = paths.filter((p) => p.endsWith('.py')).length;
   const php = paths.filter((p) => /\.(php|phtml)$/.test(p)).length;
   const html = paths.filter((p) => /\.html?$/.test(p)).length;
+  const scripts = paths.filter((p) => /\.(m?[jt]s|cjs|tsx?|jsx)$/.test(p) && !p.includes('node_modules/')).length;
   if (php && php >= py) return 'php';
   if (py && py > html) return 'python';
+  // A Node-style project: scripts and no page to preview (package.json or a main/index script).
+  if (!html && scripts && (paths.includes('package.json') || paths.some((p) => /^(main|index|app)\.(m?[jt]s|cjs)$/.test(p)))) return 'javascript';
   return 'web';
 }
 
@@ -156,5 +190,6 @@ export function defaultEntry(paths: string[], language: Language): string | unde
     names.map((n) => paths.filter((p) => p.endsWith('/' + n)).sort((a, b) => a.length - b.length)[0]).find(Boolean);
   if (language === 'python') return by(['main.py', 'app.py', '__main__.py']) ?? paths.find((p) => p.endsWith('.py'));
   if (language === 'php') return by(['index.php']) ?? paths.find((p) => p.endsWith('.php'));
+  if (language === 'javascript') return by(['main.ts', 'main.js', 'index.ts', 'index.js', 'app.ts', 'app.js', 'main.mjs', 'index.mjs']) ?? paths.find((p) => /\.(m?[jt]s|cjs)$/.test(p));
   return by(['index.html', 'index.htm']) ?? paths.find((p) => /\.html?$/.test(p));
 }
