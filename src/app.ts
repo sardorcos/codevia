@@ -430,6 +430,7 @@ export class App {
               ['web', t('Сайт'), 'HTML, CSS, JS', 'code'],
               ['python', 'Python', t('Скрипт и данные'), 'terminal'],
               ['php', 'PHP', t('Страница на PHP 8.3'), 'server'],
+              ['javascript', 'JavaScript', t('Node-подобный запуск, TypeScript'), 'code'],
               ['empty', t('Пустой'), t('Один index.html'), 'file'],
             ] as const
           )
@@ -474,6 +475,7 @@ export class App {
       ['web', t('Сайт-портфолио')],
       ['python', t('Python · расчёты')],
       ['php', t('PHP · приветствие')],
+      ['javascript', t('JavaScript · заказы')],
     ] as const) {
       await this.repo.createProject(name, templateLanguage(tpl), templateFiles(tpl, name));
     }

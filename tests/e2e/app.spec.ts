@@ -27,7 +27,7 @@ test.describe('Codevia Pocket', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Код в кармане' })).toBeVisible();
     await page.getByRole('button', { name: 'Начать с примеров' }).click();
-    await expect(page.locator('.row-button')).toHaveCount(3);
+    await expect(page.locator('.row-button')).toHaveCount(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // Every web project row shows its badge (regression: "</>" used to vanish).
     await expect(page.locator('.file-ext.html').first()).toHaveText('</>');

@@ -58,7 +58,7 @@ test('backup of all projects restores every project', async ({ page }) => {
   await page.getByRole('button', { name: 'Импорт' }).click();
   await (await chooser).setFiles(file!);
   await page.getByRole('button', { name: 'Восстановить' }).click();
-  await expect(page.locator('.list .row-button')).toHaveCount(6);
+  await expect(page.locator('.list .row-button')).toHaveCount(8);
   await page.locator('.row-button', { hasText: 'Python' }).first().click();
   await page.locator('.nav-item', { hasText: 'Запуск' }).click();
   await expect(page.locator('#run-entry')).toHaveValue('main.py');
@@ -131,4 +131,19 @@ test('importing a Windows-1251 file keeps its bytes and offers conversion', asyn
   await page.getByRole('button', { name: /Преобразовать в UTF-8/ }).click();
   await page.getByRole('button', { name: 'Преобразовать', exact: true }).click();
   await expect(page.locator('.cm-content')).toContainText("<?='Привет';");
+});
+
+test('JavaScript/TypeScript project runs with imports, JSON, timers and prompt()', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'JavaScript');
+  await page.locator('.nav-item', { hasText: 'Запуск' }).click();
+  await expect(page.locator('#run-entry')).toHaveValue('main.ts');
+  await page.locator('summary', { hasText: 'prompt()' }).click();
+  await page.locator('#run-stdin').fill('Анна');
+  await page.getByRole('button', { name: 'Запустить' }).click();
+  const out = page.locator('#run-console');
+  await expect(out).toContainText('Сумма заказов:', { timeout: 30_000 });
+  await expect(out).toContainText('(index)');
+  await expect(out).toContainText('Привет, Анна!');
+  await expect(page.locator('.run-status')).toContainText('кодом 0');
 });

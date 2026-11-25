@@ -13,9 +13,15 @@ const FILES: RuForms = { one: '{count} файл', few: '{count} файла', man
 const PROJECTS: RuForms = { one: '{count} проект', few: '{count} проекта', many: '{count} проектов' };
 const ENTRIES: RuForms = { one: '{count} запись', few: '{count} записи', many: '{count} записей' };
 
-export const langLabel = (l: Language): string => (l === 'python' ? 'Python' : l === 'php' ? 'PHP' : 'HTML · CSS · JS');
+export const langLabel = (l: Language): string => (l === 'python' ? 'Python' : l === 'php' ? 'PHP' : l === 'javascript' ? 'JavaScript · TypeScript' : 'HTML · CSS · JS');
 const langBadge = (l: Language) =>
-  l === 'python' ? '<span class="file-ext py">PY</span>' : l === 'php' ? '<span class="file-ext php">PHP</span>' : `<span class="file-ext html">${esc('</>')}</span>`;
+  l === 'python'
+    ? '<span class="file-ext py">PY</span>'
+    : l === 'php'
+      ? '<span class="file-ext php">PHP</span>'
+      : l === 'javascript'
+        ? '<span class="file-ext js">JS</span>'
+        : `<span class="file-ext html">${esc('</>')}</span>`;
 
 const KIND_LABEL: Record<string, string> = { html: 'H', css: '#', js: 'JS', php: 'PHP', py: 'PY', json: '{}', md: 'TXT' };
 const fileBadge = (path: string): string => {
@@ -283,12 +289,15 @@ export function previewView(s: AppState, p: Project): string {
   const pages = Object.keys(p.files).filter((x) => /\.html?$/i.test(x) || (p.language === 'php' && /\.php$/i.test(x)));
   const errors = s.previewConsole.filter((l) => l.level === 'error').length;
   if (!s.previewPage) {
+    const runs = p.language === 'python' || p.language === 'javascript';
     const msg =
       p.language === 'python'
         ? t('У Python-проекта результат появляется во вкладке «Запуск». Для предпросмотра добавьте HTML-файл.')
-        : t('Для предпросмотра нужен HTML-файл.');
+        : p.language === 'javascript'
+          ? t('У JavaScript-проекта результат появляется во вкладке «Запуск». Для предпросмотра добавьте HTML-файл.')
+          : t('Для предпросмотра нужен HTML-файл.');
     return `<div class="pane"><div class="empty-state">${icon('eye', 'xl')}<p>${msg}</p>
-      ${p.language === 'python' ? `<button class="btn primary" data-action="view" data-view="run">${t('Открыть запуск')}</button>` : `<button class="btn secondary" data-action="new-file">${t('Создать файл')}</button>`}</div></div>`;
+      ${runs ? `<button class="btn primary" data-action="view" data-view="run">${t('Открыть запуск')}</button>` : `<button class="btn secondary" data-action="new-file">${t('Создать файл')}</button>`}</div></div>`;
   }
   return `<div class="pane preview-pane ${s.fullscreen ? 'fullscreen' : ''}" id="preview-pane">
     <div class="preview-toolbar">
@@ -334,8 +343,10 @@ export function runView(s: AppState, p: Project): string {
       ${consolePanel(s.previewConsole, 'preview-console')}
     </div>`;
   }
-  const ext = p.language === 'python' ? '.py' : '.php';
-  const entries = Object.keys(p.files).filter((x) => x.endsWith(ext));
+  const ext = p.language === 'python' ? '.py' : p.language === 'javascript' ? '.js / .ts' : '.php';
+  const isEntry = (x: string) =>
+    p.language === 'python' ? x.endsWith('.py') : p.language === 'javascript' ? /\.(m?[jt]s|cjs|[jt]sx)$/.test(x) && !x.startsWith('node_modules/') : x.endsWith('.php');
+  const entries = Object.keys(p.files).filter(isEntry);
   const seconds = (ms: number) => t('{seconds} с', { seconds: fmtNumber(ms / 1000, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false }) });
   const status = r.running
     ? `<span class="spinner" aria-hidden="true"></span> ${esc(r.status || t('Выполняется…'))}`
@@ -347,7 +358,7 @@ export function runView(s: AppState, p: Project): string {
   return `<div class="pane run-pane">
     <div class="run-top">
       <div class="grow">
-        <label class="field-label" for="run-entry">${t('Файл запуска')} · ${p.language === 'python' ? 'Python 3' : 'PHP 8.3'}</label>
+        <label class="field-label" for="run-entry">${t('Файл запуска')} · ${p.language === 'python' ? 'Python 3' : p.language === 'javascript' ? 'JavaScript · TypeScript' : 'PHP 8.3'}</label>
         ${entries.length ? `<select id="run-entry" class="select">${entries.map((x) => `<option value="${esc(x)}" ${x === p.entry ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : `<div class="subtxt">${t('Нет файлов {ext}', { ext })}</div>`}
       </div>
       ${
@@ -357,8 +368,8 @@ export function runView(s: AppState, p: Project): string {
       }
     </div>
     ${
-      p.language === 'python'
-        ? `<details class="stdin-box" ${r.stdin ? 'open' : ''}><summary>${t('Ввод для input()')} <span class="muted">${t('— по строке на вызов')}</span></summary>
+      p.language === 'python' || p.language === 'javascript'
+        ? `<details class="stdin-box" ${r.stdin ? 'open' : ''}><summary>${p.language === 'python' ? t('Ввод для input()') : t('Ввод для prompt()')} <span class="muted">${t('— по строке на вызов')}</span></summary>
           <textarea id="run-stdin" class="text-input textarea mono" rows="3" placeholder="${t('Например: Анна')}" autocapitalize="off" autocorrect="off" spellcheck="false">${esc(r.stdin)}</textarea></details>`
         : `<div class="field-row"><label class="field-label" for="run-query">${t('Параметры запроса ($_GET)')}</label>
           <input id="run-query" class="text-input mono" value="${esc(s.previewQuery)}" placeholder="${t('name=Анна&page=2')}" autocapitalize="off" autocorrect="off" spellcheck="false"></div>`
