@@ -139,22 +139,43 @@ def set_content_rights(asc, app):
         log("Content rights: does not use third-party content")
 
 
+LIVE_INFO_STATES = ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE", "REPLACED_WITH_NEW_INFO", "ACCEPTED", "WAITING_FOR_REVIEW", "IN_REVIEW")
+
+
 def editable_app_info(asc, app):
+    """The appInfo of the version being prepared. For an update it exists only once the new
+    appStoreVersion has been created; the live app's appInfo is read-only."""
     infos = asc.all(f"/v1/apps/{app['id']}/appInfos")
-    for state_key in ("appStoreState", "state"):
+    for i in infos:
+        log(f"appInfo {i['id']}: state={i['attributes'].get('state')} appStoreState={i['attributes'].get('appStoreState')}")
+    for state_key in ("state", "appStoreState"):
         for i in infos:
-            if i["attributes"].get(state_key) not in ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE", "REPLACED_WITH_NEW_INFO"):
+            if i["attributes"].get(state_key) and i["attributes"].get(state_key) not in LIVE_INFO_STATES:
                 return i
     return infos[0]
 
 
+def current_category(asc, info, which):
+    out = asc.get(f"/v1/appInfos/{info['id']}/relationships/{which}", ok_missing=True)
+    d = (out or {}).get("data")
+    return d.get("id") if d else None
+
+
 def apply_app_info(asc, app, meta):
     info = editable_app_info(asc, app)
-    rels = {"primaryCategory": rel("appCategories", meta["primaryCategory"])}
-    if meta.get("secondaryCategory"):
-        rels["secondaryCategory"] = rel("appCategories", meta["secondaryCategory"])
-    asc.call("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": rels}})
-    log(f"Categories: {meta['primaryCategory']} / {meta.get('secondaryCategory')}")
+    rels = {}
+    for which in ("primaryCategory", "secondaryCategory"):
+        want = meta.get(which)
+        if want and current_category(asc, info, which) != want:
+            rels[which] = rel("appCategories", want)
+    if rels:
+        try:
+            asc.call("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": rels}})
+        except APIError as e:
+            if e.code != 409:
+                raise
+            log(f"!! Categories could not be changed in this state, keeping the current ones: {str(e)[:300]}")
+    log(f"Categories: {meta['primaryCategory']} / {meta.get('secondaryCategory')}{'' if rels else ' (unchanged)'}")
     existing = {l["attributes"]["locale"]: l for l in asc.all(f"/v1/appInfos/{info['id']}/appInfoLocalizations")}
     for locale, loc in meta["locales"].items():
         attrs = {k: loc[k] for k in ("name", "subtitle") if k in loc}
@@ -449,6 +470,8 @@ def main():
     ]
     for name, fn in steps:
         fn()
+    # Creating the version first also creates the editable appInfo of an update.
+    version = ensure_version(asc, app, meta)
     info = apply_app_info(asc, app, meta)
     failures = []
     for name, fn in (("age rating", lambda: apply_age_rating(asc, info)), ("price", lambda: apply_free_price(asc, app)),
@@ -458,7 +481,6 @@ def main():
         except Exception as e:  # keep going: report everything at the end
             failures.append(f"{name}: {e}")
             log(f"!! {name} failed: {e}")
-    version = ensure_version(asc, app, meta)
     apply_version_localizations(asc, version, meta, meta_path.parent)
     attach_build(asc, app, version, meta)
     has_contact = apply_review_detail(asc, version, meta)
