@@ -20,6 +20,8 @@ export interface GitHubRepo {
   full_name: string;
   owner: { login: string };
   private: boolean;
+  /** True for forks of another repository. */
+  fork?: boolean;
   description: string | null;
   default_branch: string;
   html_url: string;
