@@ -4,6 +4,7 @@ import { searchProject } from '../core/search';
 import type { Language, Project, ProjectMeta } from '../core/types';
 import type { AppState, ConsoleLine } from '../state';
 import { fileSize } from '../storage/repository';
+import { githubBadge } from '../tools/github';
 import { fmtNumber, LANG_NAMES, plural, preferredLang, SUPPORTED_LANGS, t, tc, type RuForms } from '../i18n';
 import { esc, fmtDate, fmtDateTime, icon } from './dom';
 import { errorLog } from './errors';
@@ -41,6 +42,12 @@ export function topbar(s: AppState): string {
     return `<header class="topbar">
       <button class="icon-btn" data-action="go-home" aria-label="${t('К проектам')}">${icon('back')}</button>
       <button class="project-title" data-action="rename-project" aria-label="${t('Переименовать проект {name}', { name: esc(p.name) })}"><span class="truncate">${esc(p.name)}</span></button>
+      ${(() => {
+        const gh = githubBadge(p);
+        return gh
+          ? `<button class="gh-badge" data-action="open-tool" data-tool-id="github-sync" aria-label="${esc(t('GitHub: ветка {name}', { name: gh.label }))}">${icon('branch', 'xs')} ${esc(gh.label)}${gh.ahead ? ` <span class="gh-ahead">↑${gh.ahead}</span>` : ''}</button>`
+          : '';
+      })()}
       <div class="top-actions">
         <button class="icon-btn" data-action="tools" aria-label="${t('Инструменты')}">${icon('sliders')}</button>
         <button class="icon-btn" data-action="history" aria-label="${t('История версий')}">${icon('clock')}</button>

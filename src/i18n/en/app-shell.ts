@@ -53,4 +53,5 @@ export default {
   'Нельзя переместить папку внутрь самой себя': 'A folder cannot be moved into itself',
   'Перед переименованием папки {name}': 'Before renaming folder {name}',
   'Коснитесь элемента в предпросмотре': 'Tap an element in the preview',
+  'GitHub: ветка {name}': 'GitHub: branch {name}',
 } as Record<string, string>;

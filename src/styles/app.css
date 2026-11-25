@@ -1558,3 +1558,22 @@ mark {
   font: 600 15px var(--font);
   box-shadow: var(--shadow);
 }
+.gh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--tap);
+  max-width: 34vw;
+  padding: 0 10px;
+  border: 1px solid var(--stroke2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font: 500 13px var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gh-ahead {
+  color: var(--accent);
+}

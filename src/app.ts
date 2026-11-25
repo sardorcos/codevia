@@ -19,7 +19,8 @@ import { $, esc, fmtDateTime, icon, toast } from './ui/dom';
 import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
-import { closeTool, onToolOpen, pickTool, registerTools, setToolPeek } from './ui/tool-host';
+import { closeTool, onToolOpen, openTool, pickTool, registeredTools, registerTools, setToolPeek } from './ui/tool-host';
+import { githubTools } from './tools/github';
 import { createInspectorTool, type InspectorBridge, type InspectorRequest, type PreviewMessage } from './tools/inspector';
 import type { ToolContext } from './tools/types';
 
@@ -77,7 +78,7 @@ export class App {
   constructor(private root: HTMLElement) {
     this.editor = createEditor((path, text) => this.onEdit(path, text), false);
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
-    registerTools([createInspectorTool(this.inspectorBridge)]);
+    registerTools([...githubTools, createInspectorTool(this.inspectorBridge)]);
     onToolOpen((id) => {
       // The inspector works on the live preview: make sure it is on screen behind/beside the panel.
       if (id !== 'inspector' || !this.s.project) return;
@@ -1773,6 +1774,14 @@ export class App {
         return this.movePathsToFolder(this.s.selected);
       case 'folder-menu':
         return this.folderMenu(el.dataset.dir!);
+      case 'open-tool': {
+        const tool = registeredTools().find((x) => x.id === el.dataset.toolId);
+        if (tool) {
+          await this.flushSaves();
+          openTool(tool, this.toolContext());
+        }
+        return;
+      }
       case 'tools':
         await this.flushSaves();
         return pickTool(!!this.s.project && this.s.route === 'workspace', () => this.toolContext());
