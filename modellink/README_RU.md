@@ -99,7 +99,7 @@ Codemagic → приложение `codevia` → workflow **ModelLink → TestFl
 | Профиль App Store «ModelLink App Store» | ✅ создан |
 | Компиляция и подпись (Xcode 26, Release, Apple Distribution 8PMNK7YN6D) | ✅ `modellink-ios-build`, App.ipa 3,4 МБ |
 | Запись приложения в App Store Connect | ✅ ModelLink, Apple ID 6837877822 (создана вручную: Apple не разрешает `POST /v1/apps`) |
-| Загрузка в TestFlight | ✅ 0.4.0 (4), VALID, workflow `modellink-testflight` |
+| Загрузка в TestFlight | ✅ 0.4.0 (4); 0.5.0 (5) — VALID 25.11.2026, workflow `modellink-testflight` |
 | Внутреннее тестирование | ✅ группа «ModelLink Internal» (все сборки), владелец аккаунта добавлен — workflow `modellink-testflight-testers` |
 
 Версия — `MARKETING_VERSION` в `ios/App/App.xcodeproj/project.pbxproj` и `version` в `package.json`.
