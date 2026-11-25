@@ -38,6 +38,14 @@ export interface GitHubBranchSummary {
 }
 
 /** Branch head: the commit SHA and the SHA of its root tree. */
+export interface PullRequestInfo {
+  number: number;
+  html_url: string;
+  title: string;
+  state: string;
+  draft?: boolean;
+}
+
 export interface BranchHead {
   name: string;
   commitSha: string;
@@ -244,6 +252,26 @@ export class GitHubClient {
       method: 'PATCH',
       json: { sha, force: false },
     });
+  }
+
+  // --- branches & pull requests ---
+
+  /** Creates branch `name` pointing at commit `sha`. GitHub answers 422 when it already exists. */
+  async createBranch(owner: string, repo: string, name: string, sha: string): Promise<void> {
+    await this.call(`/repos/${seg(owner)}/${seg(repo)}/git/refs`, { method: 'POST', json: { ref: `refs/heads/${name}`, sha } });
+  }
+
+  /** Open pull request from `head` (a branch of the same repository) into `base`, if any. */
+  async findPullRequest(owner: string, repo: string, head: string, base: string): Promise<PullRequestInfo | null> {
+    const { data } = await this.call<PullRequestInfo[]>(`/repos/${seg(owner)}/${seg(repo)}/pulls`, {
+      query: { head: `${owner}:${head}`, base, state: 'open', per_page: 1 },
+    });
+    return data[0] ?? null;
+  }
+
+  async createPullRequest(owner: string, repo: string, pr: { title: string; head: string; base: string; body?: string; draft?: boolean }): Promise<PullRequestInfo> {
+    const { data } = await this.call<PullRequestInfo>(`/repos/${seg(owner)}/${seg(repo)}/pulls`, { method: 'POST', json: pr });
+    return data;
   }
 
   // --- Pages ---

@@ -31,7 +31,10 @@ import { defaultPagesUrl } from './parse';
 
 /** Everything the flows use from GitHubClient. */
 export type GhApi = SyncApi &
-  Pick<GitHubClient, 'listRepos' | 'listBranches' | 'getRepo' | 'createRepo' | 'enablePages' | 'getPages' | 'latestPagesBuild'>;
+  Pick<
+    GitHubClient,
+    'listRepos' | 'listBranches' | 'getRepo' | 'createRepo' | 'enablePages' | 'getPages' | 'latestPagesBuild' | 'createBranch' | 'findPullRequest' | 'createPullRequest'
+  >;
 
 /** The writes the flows make. */
 export type ProjectWriter = Pick<ToolContext, 'project' | 'writeFiles' | 'replaceAllFiles' | 'updateMeta' | 'createProject'>;

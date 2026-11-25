@@ -5,7 +5,7 @@
 import { basename, dirname } from '../../core/paths';
 import type { Files, GitHubLink, Project, ProjectFile } from '../../core/types';
 import { plural, t } from '../../i18n';
-import { GitHubError } from '../../github/errors';
+import { GitHubError, isGitHubError } from '../../github/errors';
 import { defaultCommitMessage, fetchRemoteFile, planPush, ShaCache, type PullConflict, type PullPlan } from '../../github/sync';
 import { copyText } from '../../platform/native';
 import type { ToolContext } from '../types';
@@ -25,7 +25,7 @@ import {
 } from './flows';
 import { errorText, isAbortError, PagesBuildError, repoNameText, secretText, stageText, StaleProjectError } from './messages';
 import { ChangesModel, commitMessage, ConflictState, lastSyncTime, markSynced, pullSummary, quickStatus, type ChangeItem } from './model';
-import { commitWebUrl, repoWebUrl, suggestRepoName, validateRepoName } from './parse';
+import { branchNameProblem, commitWebUrl, repoWebUrl, suggestRepoName, validateRepoName } from './parse';
 import { branchOptions, clearRepoCache, mountRepoPicker, orderBranches } from './repo-picker';
 import { authedClient, currentAccount, isOnline, onAccountChange, signOutAndNotify, type AccountInfo } from './session';
 import { callout, esc, fmtShortDate, icon, Life, Nav, renderError, spinnerLine, statusBadge, Task, type Screen } from './ui';
@@ -203,6 +203,8 @@ export function mountSyncTool(root: HTMLElement, ctx: ToolContext): () => void {
       <h3 class="section-heading">${esc(t('Репозиторий'))}</h3>
       <div class="list">
         <div class="row"><button class="row-button" data-branch ${canNetwork() ? '' : 'disabled'}>${icon('branch', 'sm')}<span class="row-main"><span class="row-title">${esc(t('Сменить ветку'))}</span></span>${icon('chevron', 'sm row-action')}</button></div>
+        <div class="row"><button class="row-button" data-newbranch ${canNetwork() ? '' : 'disabled'}>${icon('plus', 'sm')}<span class="row-main"><span class="row-title">${esc(t('Новая ветка'))}</span><span class="row-description">${esc(t('От текущей версии, изменения останутся с вами'))}</span></span></button></div>
+        <div class="row"><button class="row-button" data-pr ${canNetwork() ? '' : 'disabled'}>${icon('share', 'sm')}<span class="row-main"><span class="row-title">${esc(t('Pull Request'))}</span><span class="row-description">${esc(t('Предложить изменения ветки {branch} в основную', { branch: l.branch }))}</span></span>${icon('chevron', 'sm row-action')}</button></div>
         <div class="row"><button class="row-button" data-web2>${icon('external', 'sm')}<span class="row-main"><span class="row-title">${esc(t('Открыть на github.com'))}</span></span></button></div>
         <div class="row"><button class="row-button c-danger" data-unlink>${icon('close', 'sm')}<span class="row-main"><span class="row-title">${esc(t('Отвязать репозиторий'))}</span></span></button></div>
       </div>
@@ -226,6 +228,8 @@ export function mountSyncTool(root: HTMLElement, ctx: ToolContext): () => void {
     body.querySelector('[data-pull]')!.addEventListener('click', () => nav.push(pullScreen('pull')));
     body.querySelector('[data-pages]')?.addEventListener('click', () => nav.push(pagesScreen()));
     body.querySelector('[data-branch]')!.addEventListener('click', () => nav.push(branchScreen()));
+    body.querySelector('[data-newbranch]')!.addEventListener('click', () => void newBranch());
+    body.querySelector('[data-pr]')!.addEventListener('click', () => nav.push(pullRequestScreen()));
     body.querySelector('[data-unlink]')!.addEventListener('click', () => void unlink());
 
     if (lastPush && lastPush.owner === l.owner && lastPush.repo === l.repo) {
@@ -1022,6 +1026,114 @@ export function mountSyncTool(root: HTMLElement, ctx: ToolContext): () => void {
               nav.push(
                 pullScreen('link', undefined, false, (signal) => prepareLink(api(), project()!.files, { owner, repo, branch, subdir }, { signal })),
               );
+            });
+          } catch (e) {
+            if (!sub.dead && !isAbortError(e)) renderError(body, e, { retry: () => void load(), signIn: reconnect });
+          } finally {
+            sub.release(c);
+          }
+        };
+        void load();
+        return () => sub.dispose();
+      },
+    };
+  }
+
+  /** Creates a branch at the commit the project is based on and moves the project onto it. Local
+   *  changes stay as they are and go to the new branch with the next push. */
+  async function newBranch(): Promise<void> {
+    const l = link();
+    if (!l) return;
+    const name = await ctx.prompt({ title: t('Новая ветка'), label: t('Имя ветки'), value: suggestBranchName(), ok: t('Создать') });
+    if (name === null) return;
+    const problem = branchNameProblem(name);
+    if (problem) {
+      ctx.toast(problem === 'empty' ? t('Введите имя ветки') : t('Недопустимое имя ветки: уберите пробелы и символы ~ ^ : ? * ['), 'error');
+      return;
+    }
+    try {
+      await api().createBranch(l.owner, l.repo, name.trim(), l.baseCommit);
+      await ctx.updateMeta({ github: { ...l, branch: name.trim() } });
+      ctx.haptic('success');
+      ctx.toast(t('Ветка {branch} создана — следующий пуш пойдёт в неё', { branch: name.trim() }), 'success');
+      nav.refresh();
+    } catch (e) {
+      ctx.toast(isGitHubError(e) && e.status === 422 ? t('Ветка {branch} уже существует', { branch: name.trim() }) : errorText(e), 'error');
+    }
+  }
+
+  function suggestBranchName(): string {
+    const d = new Date();
+    return `feature/${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** Pull request from the project's branch into the default branch (or opens the existing one). */
+  function pullRequestScreen(): Screen {
+    return {
+      title: t('Pull Request'),
+      render(body) {
+        const sub = life.child();
+        const l = link();
+        if (!l) return;
+        body.innerHTML = spinnerLine(t('Загружаем…'));
+        const load = async () => {
+          const c = sub.controller();
+          try {
+            const g = api();
+            const info = await g.getRepo(l.owner, l.repo);
+            const base = info.default_branch;
+            if (c.signal.aborted) return;
+            if (l.branch === base) {
+              body.innerHTML = `<div class="gh-section"><p class="subtxt">${esc(t('Проект работает с основной веткой {branch}. Создайте новую ветку, отправьте в неё изменения — и предложите их через Pull Request.', { branch: base }))}</p>
+                <button class="btn primary" data-nb>${icon('plus', 'sm')} ${esc(t('Новая ветка'))}</button></div>`;
+              body.querySelector('[data-nb]')!.addEventListener('click', () => void newBranch().then(() => nav.pop()));
+              return;
+            }
+            const existing = await g.findPullRequest(l.owner, l.repo, l.branch, base);
+            if (c.signal.aborted) return;
+            if (existing) {
+              body.innerHTML = `<div class="gh-section"><p>${esc(t('Pull Request #{number} уже открыт: {title}', { number: existing.number, title: existing.title }))}</p>
+                <p class="subtxt">${esc(t('Новые коммиты в ветку {branch} автоматически попадут в него.', { branch: l.branch }))}</p>
+                <button class="btn primary" data-open>${icon('external', 'sm')} ${esc(t('Открыть на github.com'))}</button></div>`;
+              body.querySelector('[data-open]')!.addEventListener('click', () => ctx.openExternal(existing.html_url));
+              return;
+            }
+            body.innerHTML = `<form class="gh-section stack" data-form>
+              <p class="subtxt mono">${esc(l.branch)} → ${esc(base)}</p>
+              <label class="field-label" for="pr-title">${esc(t('Заголовок'))}</label>
+              <input id="pr-title" class="text-input" maxlength="200" value="${esc(l.branch.replace(/^[a-z]+\//, '').replace(/[-_]/g, ' '))}">
+              <label class="field-label" for="pr-body">${esc(t('Описание'))}</label>
+              <textarea id="pr-body" class="text-input textarea" rows="5" placeholder="${esc(t('Что изменилось и зачем'))}"></textarea>
+              <label class="switch-row"><input type="checkbox" id="pr-draft"> ${esc(t('Черновик'))}</label>
+              <button class="btn primary" type="submit">${icon('share', 'sm')} ${esc(t('Создать Pull Request'))}</button>
+              <p class="subtxt">${esc(t('Неотправленные изменения сначала отправьте в ветку — Pull Request показывает то, что уже на GitHub.'))}</p>
+            </form>`;
+            body.querySelector('[data-form]')!.addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const title = (body.querySelector('#pr-title') as HTMLInputElement).value.trim();
+              if (!title) return ctx.toast(t('Введите заголовок'), 'error');
+              const btn = body.querySelector<HTMLButtonElement>('button[type=submit]')!;
+              btn.disabled = true;
+              try {
+                const pr = await g.createPullRequest(l.owner, l.repo, {
+                  title,
+                  head: l.branch,
+                  base,
+                  body: (body.querySelector('#pr-body') as HTMLTextAreaElement).value,
+                  draft: (body.querySelector('#pr-draft') as HTMLInputElement).checked,
+                });
+                ctx.haptic('success');
+                ctx.toast(t('Pull Request #{number} создан', { number: pr.number }), 'success');
+                body.innerHTML = `<div class="gh-section"><p>${esc(t('Pull Request #{number} создан', { number: pr.number }))}</p>
+                  <button class="btn primary" data-open>${icon('external', 'sm')} ${esc(t('Открыть на github.com'))}</button></div>`;
+                body.querySelector('[data-open]')!.addEventListener('click', () => ctx.openExternal(pr.html_url));
+              } catch (err) {
+                btn.disabled = false;
+                ctx.toast(
+                  isGitHubError(err) && err.status === 422 ? t('GitHub не создал Pull Request: в ветке нет новых коммитов относительно {branch}', { branch: base }) : errorText(err),
+                  'error',
+                );
+              }
             });
           } catch (e) {
             if (!sub.dead && !isAbortError(e)) renderError(body, e, { retry: () => void load(), signIn: reconnect });

@@ -155,6 +155,44 @@ describe('GitHub tools in the DOM', () => {
     expect(root.innerHTML).not.toContain(TOKEN);
   });
 
+  it('New branch from the base commit, then a pull request into the default branch', async () => {
+    await signIn();
+    const calls: Array<{ method: string; path: string; body: unknown }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        const method = init?.method ?? 'GET';
+        const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+        calls.push({ method, path: url.pathname, body });
+        const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
+        if (url.pathname === '/repos/octo/site') return json({ name: 'site', full_name: 'octo/site', default_branch: 'main', private: true, owner: { login: 'octo' } });
+        if (url.pathname === '/repos/octo/site/git/refs' && method === 'POST') return json({ ref: body.ref }, 201);
+        if (url.pathname === '/repos/octo/site/pulls' && method === 'GET') return json([]);
+        if (url.pathname === '/repos/octo/site/pulls' && method === 'POST') return json({ number: 3, html_url: 'https://github.com/octo/site/pull/3', title: body.title, state: 'open' }, 201);
+        return json({ message: 'Not Found' }, 404);
+      }),
+    );
+    const ctx = fakeCtx(await linkedProject());
+    (ctx.prompt as ReturnType<typeof vi.fn>).mockResolvedValue('feature/hero');
+    cleanup = tool('github-sync').mount(root, ctx);
+    await vi.waitFor(() => expect(root.querySelector('[data-newbranch]')).not.toBeNull());
+    root.querySelector<HTMLButtonElement>('[data-newbranch]')!.click();
+    await vi.waitFor(() => expect(ctx.project()!.github!.branch).toBe('feature/hero'));
+    expect(calls.find((c) => c.path.endsWith('/git/refs'))!.body).toEqual({ ref: 'refs/heads/feature/hero', sha: 'c1' });
+
+    await vi.waitFor(() => expect(root.querySelector('[data-pr]')).not.toBeNull());
+    root.querySelector<HTMLButtonElement>('[data-pr]')!.click();
+    await vi.waitFor(() => expect(root.querySelector('#pr-title')).not.toBeNull());
+    expect(root.textContent).toContain('feature/hero → main');
+    root.querySelector<HTMLInputElement>('#pr-title')!.value = 'New hero';
+    root.querySelector<HTMLFormElement>('[data-form]')!.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    await vi.waitFor(() => expect(root.querySelector('[data-open]')).not.toBeNull());
+    expect(calls.find((c) => c.method === 'POST' && c.path.endsWith('/pulls'))!.body).toMatchObject({ title: 'New hero', head: 'feature/hero', base: 'main' });
+    root.querySelector<HTMLButtonElement>('[data-open]')!.click();
+    expect(ctx.openExternal).toHaveBeenCalledWith('https://github.com/octo/site/pull/3');
+  });
+
   it('Source control offline: shows changes, disables network actions and explains', async () => {
     await signIn();
     vi.stubGlobal('navigator', { ...navigator, onLine: false });

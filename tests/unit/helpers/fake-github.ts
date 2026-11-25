@@ -156,6 +156,23 @@ export class FakeGitHub implements GhApi {
     this.refs[branch] = sha;
   });
 
+  pulls: Array<{ number: number; html_url: string; title: string; state: string; head: string; base: string; draft?: boolean }> = [];
+
+  createBranch = vi.fn(async (_o: string, _r: string, name: string, sha: string) => {
+    if (this.refs[name]) throw new GitHubError('validation', { status: 422, detail: 'Reference already exists' });
+    this.refs[name] = sha;
+  });
+
+  findPullRequest = vi.fn(async (_o: string, _r: string, head: string, base: string) => this.pulls.find((p) => p.head === head && p.base === base && p.state === 'open') ?? null);
+
+  createPullRequest = vi.fn(async (_o: string, _r: string, pr: { title: string; head: string; base: string; body?: string; draft?: boolean }) => {
+    if (this.refs[pr.head] === this.refs[pr.base]) throw new GitHubError('validation', { status: 422, detail: 'No commits between' });
+    const n = this.pulls.length + 1;
+    const created = { number: n, html_url: `https://github.com/o/r/pull/${n}`, title: pr.title, state: 'open', head: pr.head, base: pr.base, draft: pr.draft };
+    this.pulls.push(created);
+    return created;
+  });
+
   listRepos = vi.fn(async () => [this.repoInfo()]);
 
   listBranches = vi.fn(async (): Promise<GitHubBranchSummary[]> =>

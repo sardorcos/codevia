@@ -146,3 +146,15 @@ export function defaultPagesUrl(owner: string, repo: string): string {
   const host = `${owner.toLowerCase()}.github.io`;
   return repo.toLowerCase() === host ? `https://${host}/` : `https://${host}/${repo}/`;
 }
+
+/**
+ * Git branch names: no spaces or control characters, none of ~^:?*[\\, no "..", "@{", "//",
+ * no leading/trailing "/" or ".", not ending in ".lock". Returns null when valid, else a reason key.
+ */
+export function branchNameProblem(name: string): 'empty' | 'invalid' | null {
+  const n = name.trim();
+  if (!n) return 'empty';
+  if (/[\s~^:?*[\\\x00-\x1f\x7f]/.test(n) || n.includes('..') || n.includes('@{') || n.includes('//')) return 'invalid';
+  if (/^[/.-]|[/.]$|\.lock$|\/\./.test(n) || n === '@') return 'invalid';
+  return null;
+}
