@@ -70,6 +70,17 @@ export async function shareFile(data: Blob | Uint8Array | string, filename: stri
   return 'downloaded';
 }
 
+/** Opens a web page outside the app's content: an in-app Safari sheet on iOS, a new tab on the web. */
+export async function openUrl(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return;
+  if (isNative()) {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url, presentationStyle: 'popover' });
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
+}
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);

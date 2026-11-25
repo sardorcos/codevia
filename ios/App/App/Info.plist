@@ -10,6 +10,18 @@
 	<array>
 		<string>en</string>
 		<string>ru</string>
+		<string>es</string>
+		<string>de</string>
+		<string>fr</string>
+		<string>it</string>
+		<string>pt-BR</string>
+		<string>tr</string>
+		<string>uk</string>
+		<string>uz</string>
+		<string>kk</string>
+		<string>zh-Hans</string>
+		<string>ja</string>
+		<string>ko</string>
 	</array>
 	<key>CFBundleDisplayName</key>
         <string>Codevia Pocket</string>
@@ -48,6 +60,10 @@
       </array>
     </dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Codevia uses the camera only when you choose to take a photo to add to a project or to pick colours from it.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Codevia opens your photo library only when you choose an image to add to a project or to pick colours from it.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

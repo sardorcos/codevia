@@ -12,7 +12,7 @@ import { createEditor, type EditorHost } from './editor/editor';
 import { expandAbbreviation, nextDiagnostic, smartTab, toggleComment, wordAtCursor } from './editor/commands';
 import { buildSymbolIndex, findDefinitions, findReferences, listSymbols, type SymbolIndex } from './editor/symbols';
 import { getLang, plural, setPreferredLang, t, type Lang } from './i18n';
-import { copyText, haptic, initNativeChrome, isNative, pickFiles, shareFile } from './platform/native';
+import { copyText, haptic, initNativeChrome, isNative, openUrl, pickFiles, shareFile } from './platform/native';
 import { Runner, type RuntimeKind } from './runtime/runner';
 import { initialState, type AppState, type ConsoleLine, type Route, type View } from './state';
 import { filesSize } from './storage/repository';
@@ -1464,7 +1464,9 @@ export class App {
       this.render();
     } else if (d.type === 'external') {
       const href = String(d.href).slice(0, 2000);
-      void copyText(href).then((ok) => toast(ok ? t('Внешняя ссылка скопирована: {url}', { url: href }) : t('Внешняя ссылка: {url}', { url: href })));
+      // Web links open in the in-app Safari sheet; other schemes (mailto:, tel:) are copied.
+      if (/^https?:\/\//i.test(href)) void openUrl(href);
+      else void copyText(href).then((ok) => toast(ok ? t('Внешняя ссылка скопирована: {url}', { url: href }) : t('Внешняя ссылка: {url}', { url: href })));
     }
   }
 
@@ -1705,10 +1707,7 @@ export class App {
       share: async (data, filename, mime) => {
         await shareFile(data, filename, mime);
       },
-      openExternal: (url) => {
-        if (!/^https?:\/\//i.test(url)) return;
-        window.open(url, '_blank', 'noopener');
-      },
+      openExternal: (url) => void openUrl(url).catch(() => undefined),
       haptic: (kind = 'light') => haptic(kind),
       close: () => closeTool(),
       runProject: async (opts = {}) => {
