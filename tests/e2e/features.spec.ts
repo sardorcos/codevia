@@ -199,3 +199,18 @@ test('multi-select moves files into a folder, then the folder is renamed and del
   await page.getByRole('button', { name: 'История версий' }).click();
   await expect(page.locator('.row', { hasText: 'Перед удалением файлов: 2' })).toBeVisible();
 });
+
+test('inspector opens from Tools on the live preview and shows the DOM tree and styles', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'Сайт-портфолио');
+  await page.getByRole('button', { name: 'Инструменты' }).click();
+  await page.locator('[data-tool="inspector"]').click();
+  const panel = page.locator('.tool-layer');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.insp-tree')).toContainText('main', { timeout: 20_000 });
+  await panel.locator('.insp-row', { hasText: 'class="hero"' }).first().click();
+  await panel.getByRole('tab', { name: 'Стили' }).or(panel.getByRole('button', { name: 'Стили' })).first().click();
+  await expect(panel).toContainText('css/styles.css');
+  await panel.getByRole('button', { name: 'Закрыть' }).first().click();
+  await expect(panel).toHaveCount(0);
+});

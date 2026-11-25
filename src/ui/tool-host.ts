@@ -10,6 +10,31 @@ import { openSheet } from './sheet';
  */
 const registry: Tool[] = [];
 let open: { tool: Tool; cleanup?: () => void; layer: HTMLElement } | null = null;
+let openListener: ((id: string) => void) | null = null;
+
+/** Called with the tool id right before a tool mounts (the app prepares the screen it needs). */
+export function onToolOpen(fn: (id: string) => void): void {
+  openListener = fn;
+}
+
+/**
+ * Temporarily moves the tool panel aside so the app underneath can be tapped (e.g. picking an element
+ * in the preview on a phone). A floating chip lets the user come back.
+ */
+export function setToolPeek(on: boolean, onCancel?: () => void, label = t('Коснитесь элемента в предпросмотре')): void {
+  if (!open) return;
+  open.layer.classList.toggle('peek', on);
+  document.querySelector('.tool-peek-chip')?.remove();
+  if (!on) return;
+  const chip = document.createElement('button');
+  chip.className = 'tool-peek-chip';
+  chip.innerHTML = `${icon('search', 'sm')} ${esc(label)} · ${esc(t('Отмена'))}`;
+  chip.addEventListener('click', () => {
+    setToolPeek(false);
+    onCancel?.();
+  });
+  document.body.append(chip);
+}
 
 export function registerTools(tools: Tool[]): void {
   for (const tool of tools) if (!registry.some((x) => x.id === tool.id)) registry.push(tool);
@@ -26,6 +51,7 @@ export function closeTool(): void {
     console.error(e);
   }
   open.layer.remove();
+  document.querySelector('.tool-peek-chip')?.remove();
   document.documentElement.classList.remove('tool-docked');
   open = null;
 }
@@ -53,6 +79,7 @@ export async function pickTool(hasProject: boolean, makeContext: () => ToolConte
 
 export function openTool(tool: Tool, ctx: ToolContext): void {
   closeTool();
+  openListener?.(tool.id);
   const layer = document.createElement('section');
   layer.className = 'tool-layer';
   layer.setAttribute('role', 'dialog');

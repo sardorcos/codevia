@@ -19,7 +19,8 @@ import { $, esc, fmtDateTime, icon, toast } from './ui/dom';
 import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
-import { closeTool, pickTool } from './ui/tool-host';
+import { closeTool, onToolOpen, pickTool, registerTools, setToolPeek } from './ui/tool-host';
+import { createInspectorTool, type InspectorBridge, type InspectorRequest, type PreviewMessage } from './tools/inspector';
 import type { ToolContext } from './tools/types';
 
 const SAVE_DELAY = 700;
@@ -57,10 +58,34 @@ export class App {
   private consoleQueue = new Map<string, ConsoleLine[]>();
   private consoleFrame = 0;
   private transpiler: Promise<(path: string, code: string) => string> | null = null;
+  private inspectorHandlers = new Set<(m: PreviewMessage) => void>();
+  /** Connects the inspector panel to the live preview frame (messages carry the frame token). */
+  private inspectorBridge: InspectorBridge = {
+    send: (msg) => {
+      const frame = $<HTMLIFrameElement>('#live-preview', this.root);
+      frame?.contentWindow?.postMessage({ ...msg, token: this.previewToken }, '*');
+    },
+    onMessage: (handler) => {
+      this.inspectorHandlers.add(handler);
+      return () => this.inspectorHandlers.delete(handler);
+    },
+    consoleHistory: () => this.s.previewConsole.map((l) => ({ level: l.level, text: l.text })),
+    // On a phone the panel covers the preview: step aside while the user taps an element.
+    onPickChange: (on) => setToolPeek(on && !this.s.wide, () => this.inspectorBridge.send({ type: 'inspect:pick', on: false } as InspectorRequest)),
+  };
 
   constructor(private root: HTMLElement) {
     this.editor = createEditor((path, text) => this.onEdit(path, text), false);
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
+    registerTools([createInspectorTool(this.inspectorBridge)]);
+    onToolOpen((id) => {
+      // The inspector works on the live preview: make sure it is on screen behind/beside the panel.
+      if (id !== 'inspector' || !this.s.project) return;
+      if (this.s.wide) this.s.side = 'preview';
+      else this.s.view = 'preview';
+      if (!this.s.previewPage) this.pickPreviewPage();
+      this.render();
+    });
   }
 
   // ------------------------------------------------------------------ lifecycle
@@ -1261,6 +1286,13 @@ export class App {
       return;
     }
     if (!d || d.token !== this.previewToken) return;
+    if (typeof d.type === 'string' && (d.type.startsWith('inspect:') || d.type === 'console')) {
+      for (const h of this.inspectorHandlers) h(d as unknown as PreviewMessage);
+      if (d.type.startsWith('inspect:')) {
+        if (d.type === 'inspect:picked') setToolPeek(false);
+        return;
+      }
+    }
     if (d.type === 'console') {
       const args = Array.isArray(d.args) ? d.args.map(String) : [];
       const level = (['log', 'info', 'warn', 'error', 'debug'].includes(String(d.level)) ? d.level : 'log') as ConsoleLine['level'];
