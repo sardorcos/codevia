@@ -21,6 +21,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
     }
 
+    func sceneWillResignActive(_ scene: UIScene) {
+        ModelLinkSecurity.shared.showShield(in: window)
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        ModelLinkSecurity.shared.hideShield()
+    }
+
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }

@@ -50,3 +50,9 @@ test('conversion targets per format',()=>{
   assert.ok(!to('photo.jpg').includes('jpeg'));assert.deepEqual(to('x.zip'),[]);
   assert.equal(baseName('a/b/План.v2.dxf'),'План.v2');
 });
+import {redactDrawing,drawingToDXF} from '../core/convert.js';
+test('redaction removes entities inside regions and DXF round-trips',()=>{
+  const d={entities:[{type:'line',a:[0,0],b:[10,0]},{type:'text',p:[50,50],text:'ООО Секрет',height:2}],bounds:{minX:0,minY:0,maxX:60,maxY:60}};
+  const r=redactDrawing(d,[{x0:40,y0:40,x1:80,y1:80}]);assert.equal(r.redacted,1);assert.ok(!r.entities.some(e=>e.type==='text'));
+  const back=parseDXF(drawingToDXF(r));assert.ok(back.entities.some(e=>e.type==='line'));assert.ok(!JSON.stringify(back).includes('Секрет'));
+});

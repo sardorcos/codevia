@@ -22,6 +22,7 @@
 		A10001040000000000000000 /* ModelLinkViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000040000000000000000 /* ModelLinkViewController.swift */; };
 		A10001050000000000000000 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000000 /* PrivacyInfo.xcprivacy */; };
 		A10001060000000000000000 /* ModelLinkConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000000 /* ModelLinkConverter.swift */; };
+		A10001070000000000000000 /* ModelLinkSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000070000000000000000 /* ModelLinkSecurity.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		A10000040000000000000000 /* ModelLinkViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkViewController.swift; sourceTree = "<group>"; };
 		A10000050000000000000000 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A10000060000000000000000 /* ModelLinkConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkConverter.swift; sourceTree = "<group>"; };
+		A10000070000000000000000 /* ModelLinkSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkSecurity.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -77,6 +79,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+				A10000070000000000000000 /* ModelLinkSecurity.swift */,
 				A10000060000000000000000 /* ModelLinkConverter.swift */,
 				A10000010000000000000000 /* ModelLinkNativePlugin.swift */,
 				A10000020000000000000000 /* ModelLinkImportStore.swift */,
@@ -180,6 +183,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
+				A10001070000000000000000 /* ModelLinkSecurity.swift in Sources */,
 				A10001060000000000000000 /* ModelLinkConverter.swift in Sources */,
 				A10001010000000000000000 /* ModelLinkNativePlugin.swift in Sources */,
 				A10001020000000000000000 /* ModelLinkImportStore.swift in Sources */,
@@ -332,13 +336,13 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.neverlandplayworks.modellink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -354,12 +358,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neverlandplayworks.modellink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

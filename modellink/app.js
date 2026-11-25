@@ -1,10 +1,11 @@
-import {initDemo,getProjects,getProject,getAssets,getAsset,getAllAssets,getAllNotes,getNotes,createProject,addAsset,addNote,setNoteStatus,removeProject,removeAsset,renameProject,renameAsset,removeNote,setAssetScale,removeAllData,latestFiles,fileInfo,kindFor,formatBytes,capabilities} from './core/storage.js';
+import {initDemo,getProjects,getProject,getAssets,getAsset,getAllAssets,getAllNotes,getNotes,createProject,addAsset,addNote,setNoteStatus,removeProject,removeAsset,renameProject,renameAsset,removeNote,setAssetScale,sandbox as sandboxStore,sent as sentStore,pref,setPref,setVaultCrypto,setProjectVault,updateAssetMeta,ensureFingerprints,removeAllData,latestFiles,fileInfo,kindFor,formatBytes,capabilities} from './core/storage.js';
 import {parseDXF,parseOBJ,parseSTL,parseGLB,meshBounds} from './core/geometry.js';
-import {exportProject,importProjectPackage} from './core/pack.js';
-import {conversionTargets,dxfToSVG,meshToSTL,meshToOBJ,meshToPLY,meshToGLB,meshToUSDZ,jpegToPDF,baseName,extOf} from './core/convert.js';
+import {exportProject,importProjectPackage,PACKAGE_VERSION} from './core/pack.js';
+import {sealPackage,readEnvelope,openPackage,checkPolicy,keyLink,parseKeyLink,appendAudit,makeReceipt,verifyReceipt,sealBytes,openBytes,randomBytes,b64u,uuid,sha256} from './core/secure.js';
+import {conversionTargets,dxfToSVG,meshToSTL,meshToOBJ,meshToPLY,meshToGLB,meshToUSDZ,jpegToPDF,baseName,extOf,zipStore,redactDrawing,drawingToDXF} from './core/convert.js';
 import {Capacitor,registerPlugin} from './vendor/capacitor-core.js';
 
-const APP_VERSION='0.6.0';
+const APP_VERSION='0.7.0';
 const IS_NATIVE=Capacitor.isNativePlatform();
 /** Native iOS bridge (ios/App/App/ModelLinkNativePlugin.swift); null in the browser. */
 const NativeML=IS_NATIVE?registerPlugin('ModelLinkNative'):null;
@@ -71,7 +72,7 @@ const featureDefs=[
 ];
 const navDefs=[['home','Главная','home'],['projects','Проекты','folders'],['notes','Замечания','comment'],['settings','Настройки','settings']];
 function notify(message){toastArea.textContent=message;toastArea.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastArea.classList.remove('visible'),3700);}
-function header(){return `<header class="app-header"><div class="brand"><span class="brand-icon">${icon('box')}</span><span>ModelLink<span style="color:var(--blue)">.</span></span></div><div class="header-right"><span class="header-chip"><i class="dot"></i> На устройстве</span><button data-action="go-settings" class="icon-button" aria-label="Настройки">${icon('settings')}</button></div></header>`;}
+function header(){return `<header class="app-header"><div class="brand"><span class="brand-icon">${icon('box')}</span><span>ModelLink<span style="color:var(--blue)">.</span></span></div><div class="header-right"><button class="header-chip ${settings.offlineLock?'locked':''}" data-action="go-settings" aria-label="Режим данных">${settings.offlineLock?icon('lock','small')+' 100% офлайн':'<i class="dot"></i> На устройстве'}</button><button data-action="go-settings" class="icon-button" aria-label="Настройки">${icon('settings')}</button></div></header>`;}
 function navItem([id,label,glyph]){return `<button class="nav-item ${state.tab===id?'active':''}" data-action="tab" data-tab="${id}" aria-label="${label}" ${state.tab===id?'aria-current="page"':''}>${icon(glyph)}<span>${label}</span></button>`;}
 function layout(content){return `<div class="app-layout"><aside class="side-nav"><div class="brand" style="padding:0 12px"><span class="brand-icon">${icon('box')}</span>ModelLink<span style="color:var(--blue)">.</span></div><div class="side-title">Рабочее пространство</div>${navDefs.map(navItem).join('')}<div class="side-note">Ваши файлы хранятся на этом устройстве. Для переноса проекта используйте «Поделиться».</div></aside><div class="main-area">${state.tab==='viewer'?'':header()}<main class="page ${state.tab==='viewer'?'viewer-page':''}">${content}</main></div></div>${state.tab==='viewer'?'':`<nav class="bottom-nav" aria-label="Основная навигация">${navDefs.map(navItem).join('')}</nav>`}`;}
 function sectionTitle(title,button='',action=''){return `<div class="section-heading"><h2>${title}</h2>${button?`<button class="link-button" data-action="${action}">${button} ${icon('arrow','small')}</button>`:''}</div>`;}
@@ -97,7 +98,7 @@ function projectsView(projects,files,notes){const q=state.search.trim().toLowerC
 }
 function detailView(p,files,notes){const current=latestFiles(files),open=notes.filter(n=>n.status==='open');return `<div class="breadcrumbs"><button data-action="go-projects">Проекты</button>${icon('arrow','small')}<span>${esc(niceName(p.name))}</span></div>
 <div class="project-hero"><span class="eyebrow">${p.demo?'Демонстрационный проект':'Ваш проект'}</span><h1>${esc(p.name)}</h1><p>${esc(p.description||'Файлы и комментарии проекта')}</p><div class="info-stack"><span>${icon('file','small')} ${current.length} файлов</span><span>${icon('comment','small')} ${open.length} замечаний</span><span>${icon('history','small')} ${files.length-current.length} старых версий</span></div>
-<div class="action-bar"><button class="btn primary" data-action="import-here">${icon('plus','small')} Добавить файлы</button><button class="btn outline" data-action="share-project">${icon('share','small')} Поделиться</button></div><div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn tiny outline" data-action="rename-project">${icon('edit','small')} Переименовать</button><button class="btn tiny outline" data-action="notes-report">${icon('pdf','small')} Отчёт по замечаниям</button></div></div>
+<div class="action-bar"><button class="btn primary" data-action="import-here">${icon('plus','small')} Добавить файлы</button><button class="btn outline" data-action="share-project">${icon('share','small')} Поделиться</button></div><div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn tiny outline" data-action="rename-project">${icon('edit','small')} Переименовать</button><button class="btn tiny outline" data-action="notes-report">${icon('pdf','small')} Отчёт по замечаниям</button><button class="btn tiny soft" data-action="secure-share">${icon('lock','small')} Защищённая отправка</button><button class="btn tiny outline" data-action="vault-move">${icon(p.vault?'unlock':'lock','small')} ${p.vault?'Из сейфа':'В сейф'}</button></div></div>
 ${sectionTitle('Файлы')}<div class="file-list">${current.map(f=>fileRow(f)).join('')||`<div class="empty"><h3>Пока нет файлов</h3><p>Добавьте чертёж или 3D-модель</p></div>`}</div>
 <div class="section">${sectionTitle('Замечания')}<div>${open.slice(0,3).map((n,i)=>noteRow(n,i+1)).join('')||'<p class="small-muted">Открытых замечаний нет</p>'}</div></div>
 <div class="section"><button class="btn outline" data-action="project-versions">${icon('history','small')} История версий</button> <button class="btn outline" data-action="delete-project">${icon('trash','small')} Удалить проект</button></div>`;}
@@ -106,38 +107,64 @@ function fileBadge(name,kind){const ext=String(name).split('.').at(-1).toLowerCa
 function fileRow(f,withProject=false){const info=fileInfo(f.name);const project=withProject?state.projectNames?.get(f.projectId):null;return `<button class="file-row" data-action="open-asset" data-id="${esc(f.id)}">${fileBadge(f.name,f.kind)}<span class="body"><h3>${esc(niceName(f.name))}</h3><p>${project?`${esc(project)} · `:''}${formatBytes(f.size)} · версия ${f.version}${withProject?` · ${date(f.createdAt)}`:` · ${info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр'}`}</p></span>${icon('arrow','small')}</button>`;}
 function noteRow(n,index){return `<div class="annotation-card"><span class="annotation-count">${index}</span><span class="body"><p>${esc(n.text)}</p><div class="meta">${date(n.createdAt)} · версия ${n.version} · <span class="status-text ${n.status==='resolved'?'resolved':''}">${n.status==='resolved'?'Проверено':'Открыто'}</span></div></span><span class="note-actions"><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}" aria-label="Изменить статус">${n.status==='resolved'?'Вернуть':'Готово'}</button><button class="btn tiny outline" data-action="delete-note" data-id="${n.id}" aria-label="Удалить замечание">${icon('trash','small')}</button></span></div>`;}
 function notesView(notes,files){return `<div class="eyebrow">Контроль изменений</div><h1>Замечания</h1><p class="lead">Нажмите на запись, чтобы открыть соответствующий файл</p><div class="section">${notes.map((n,i)=>{const asset=files.find(f=>f.id===n.assetId);return `<div class="annotation-card"><span class="annotation-count">${notes.length-i}</span><div class="body"><p>${esc(n.text)}</p><div class="meta">${esc(asset?.name||'Файл не найден')} · версия ${n.version} · ${date(n.createdAt)}</div><div class="row" style="margin-top:10px"><button class="btn tiny soft" data-action="open-asset" data-id="${esc(n.assetId)}">${icon('eye','small')} Открыть</button><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}">${n.status==='resolved'?'Вернуть':'Выполнено'}</button></div></div></div>`;}).join('')||`<div class="empty">${icon('pin','large')}<h3>Замечаний пока нет</h3><p>Откройте файл и нажмите «Отметить»</p></div>`}</div>`;}
-function settingsView(projects,files){return `<div class="eyebrow">ModelLink</div><h1>Настройки</h1><p class="lead">Простые инструменты без сложных меню</p><div class="two-col section"><div class="stat"><strong>${projects.length}</strong><p>проектов</p></div><div class="stat"><strong>${files.length}</strong><p>файлов и версий</p></div></div><div class="group-card section"><div class="setting-row"><div><strong>Тема оформления</strong><br><span>Светлая / тёмная</span></div><button class="btn outline tiny" data-action="theme">${icon('light','small')} ${state.theme==='dark'?'Светлая':'Тёмная'}</button></div><div class="setting-row"><div><strong>Поддерживаемые форматы</strong><br><span>Что открывается прямо в приложении</span></div><button class="icon-button" data-action="formats" aria-label="Форматы">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Импорт проекта</strong><br><span>Открыть резервный пакет .mlink</span></div><button class="icon-button" data-action="import-package" aria-label="Импорт пакета">${icon('download')}</button></div></div><div class="notice section">${icon('info','small')} &nbsp; Данные хранятся только на этом устройстве. Экспортируйте важные проекты в .mlink для резервной копии.</div><div class="group-card section"><div class="setting-row"><div><strong>О приложении</strong><br><span>Версия ${APP_VERSION}</span></div><button class="icon-button" data-action="about" aria-label="О приложении">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Конфиденциальность</strong><br><span>Данные не собираются</span></div><button class="icon-button" data-action="privacy" aria-label="Конфиденциальность">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Удалить все данные</strong><br><span>Проекты, файлы и замечания</span></div><button class="icon-button" data-action="erase-all" aria-label="Удалить все данные">${icon('trash')}</button></div></div><div class="section"><button class="btn outline" data-action="open-example">${icon('cube','small')} Посмотреть пример</button></div>`;}
+function settingsView(projects,files){return `<div class="eyebrow">ModelLink</div><h1>Настройки</h1><p class="lead">Простые инструменты без сложных меню</p><div class="two-col section"><div class="stat"><strong>${projects.length}</strong><p>проектов</p></div><div class="stat"><strong>${files.length}</strong><p>файлов и версий</p></div></div><div class="group-card section"><div class="setting-row"><div><strong>Тема оформления</strong><br><span>Светлая / тёмная</span></div><button class="btn outline tiny" data-action="theme">${icon('light','small')} ${state.theme==='dark'?'Светлая':'Тёмная'}</button></div><div class="setting-row"><div><strong>Поддерживаемые форматы</strong><br><span>Что открывается прямо в приложении</span></div><button class="icon-button" data-action="formats" aria-label="Форматы">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Импорт проекта</strong><br><span>Открыть резервный пакет .mlink</span></div><button class="icon-button" data-action="import-package" aria-label="Импорт пакета">${icon('download')}</button></div></div><div class="notice section">${icon('info','small')} &nbsp; Данные хранятся только на этом устройстве. Экспортируйте важные проекты в .mlink для резервной копии.</div><div class="section">${sectionTitle('Безопасность')}<div class="group-card">
+  <div class="setting-row"><div><strong>Режим «Без следов»</strong><br><span>${settings.offlineLock?'Включён: приложение не обращается к сети вообще':'Сеть только для проверки отзыва пакетов'}</span></div><button class="switch ${settings.offlineLock?'on':''}" data-action="toggle-setting" data-key="offlineLock" role="switch" aria-checked="${settings.offlineLock}" aria-label="Без следов"></button></div>
+  <div class="setting-row"><div><strong>Шторка в переключателе приложений</strong><br><span>Всегда скрывать содержимое при сворачивании</span></div><button class="switch ${settings.shieldAlways?'on':''}" data-action="toggle-setting" data-key="shieldAlways" role="switch" aria-checked="${settings.shieldAlways}" aria-label="Шторка"></button></div>
+  <div class="setting-row"><div><strong>Режим паники</strong><br><span>Экраном вниз${IS_NATIVE?'':' (iPhone)'} или три пальца — закрыть конфиденциальное</span></div><button class="switch ${settings.panicMotion?'on':''}" data-action="toggle-setting" data-key="panicMotion" role="switch" aria-checked="${settings.panicMotion}" aria-label="Режим паники"></button></div>
+  <div class="setting-row"><div><strong>Имя, компания, список отзыва</strong><br><span>${esc([settings.userName,settings.company].filter(Boolean).join(', ')||'Не указаны')}</span></div><button class="icon-button" data-action="edit-identity" aria-label="Изменить">${icon('edit')}</button></div>
+  <div class="setting-row"><div><strong>Отправленные пакеты</strong><br><span>Ключи, отзыв, квитанции об ознакомлении</span></div><button class="icon-button" data-action="sent-packages" aria-label="Отправленные пакеты">${icon('arrow')}</button></div>
+  <div class="setting-row"><div><strong>Сверить файл по SHA-256</strong><br><span>Доказать, какая ревизия была передана</span></div><button class="icon-button" data-action="verify-fp" aria-label="Сверить файл">${icon('search')}</button></div>
+  <div class="setting-row"><div><strong>Экстренная очистка</strong><br><span>Стереть полученные пакеты и временные файлы</span></div><button class="icon-button" data-action="emergency-wipe" aria-label="Экстренная очистка">${icon('warning')}</button></div>
+  </div></div><div class="group-card section"><div class="setting-row"><div><strong>О приложении</strong><br><span>Версия ${APP_VERSION}</span></div><button class="icon-button" data-action="about" aria-label="О приложении">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Конфиденциальность</strong><br><span>Данные не собираются</span></div><button class="icon-button" data-action="privacy" aria-label="Конфиденциальность">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Удалить все данные</strong><br><span>Проекты, файлы и замечания</span></div><button class="icon-button" data-action="erase-all" aria-label="Удалить все данные">${icon('trash')}</button></div></div><div class="section"><button class="btn outline" data-action="open-example">${icon('cube','small')} Посмотреть пример</button></div>`;}
 function viewerContent(f,allFiles,notes){const info=fileInfo(f.name);const siblings=allFiles.filter(x=>x.groupId===f.groupId).sort((a,b)=>b.version-a.version);
-  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${['drawing','model','image'].includes(f.kind)?`<button class="btn tiny outline" data-action="zoom" data-k="1.4" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.7" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}${f.kind==='model'?`<button class="btn tiny outline" data-action="wireframe">${icon('cube','small')} Каркас</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>${f.name.toLowerCase().endsWith('.max')?`<button class="btn tiny outline" data-action="max-props">${icon('info','small')} Свойства</button>`:''}`:''}${f.kind==='drawing'?`<button class="btn tiny outline" data-action="layers">${icon('layers','small')} Слои</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
-  return `<div class="breadcrumbs"><button data-action="back-project">${icon('chevron','small')} Проект</button></div><div class="viewer-header"><div style="min-width:0"><div class="eyebrow">${esc(info.label)} · Версия ${f.version}</div><div class="viewer-heading">${esc(f.name)}</div></div><div class="row"><button class="icon-button" data-action="export-file" aria-label="Экспорт в другой формат">${icon('export')}</button><button class="icon-button" data-action="share-file" aria-label="Поделиться">${icon('share')}</button><button class="icon-button" data-action="file-menu" aria-label="Ещё">${icon('dots')}</button></div></div>${toolbar}
-  <div class="canvas-wrap" id="canvas-wrap"><div class="viewport-badge">${esc(info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр')}</div><div class="preview-body" id="preview-body"><div class="file-unsupported"><h3>Загружаем просмотр…</h3></div></div><div class="canvas-hint" id="canvas-hint">${f.kind==='model'?'Вращайте одним пальцем, масштаб — двумя':f.kind==='drawing'?'Двигайте одним пальцем, масштаб — двумя':'Коснитесь файла для отметки'}</div></div>
+  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${(f.kind==='drawing'||f.kind==='image')&&!f.secure?`<button class="btn tiny ${state.viewerTool==='redact'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="redact">${icon('eye-off','small')} Скрыть</button>`:''}${['drawing','model','image'].includes(f.kind)?`<button class="btn tiny outline" data-action="zoom" data-k="1.4" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.7" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}${f.kind==='model'?`<button class="btn tiny outline" data-action="wireframe">${icon('cube','small')} Каркас</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>${f.name.toLowerCase().endsWith('.max')?`<button class="btn tiny outline" data-action="max-props">${icon('info','small')} Свойства</button>`:''}`:''}${f.kind==='drawing'?`<button class="btn tiny outline" data-action="layers">${icon('layers','small')} Слои</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
+  return `<div class="breadcrumbs"><button data-action="back-project">${icon('chevron','small')} Проект</button></div><div class="viewer-header"><div style="min-width:0"><div class="eyebrow">${esc(info.label)} · Версия ${f.version}</div><div class="viewer-heading">${esc(f.name)}</div></div><div class="row">${viewOnlyBlocked(f)?`<span class="viewonly-chip">${icon('lock','small')} Только просмотр</span>`:`<button class="icon-button" data-action="export-file" aria-label="Экспорт в другой формат">${icon('export')}</button><button class="icon-button" data-action="share-file" aria-label="Поделиться">${icon('share')}</button>`}<button class="icon-button" data-action="file-menu" aria-label="Ещё">${icon('dots')}</button></div></div>${toolbar}
+  <div class="canvas-wrap" id="canvas-wrap">${f.secure?`<div class="watermark" style="${watermarkStyle()}"></div>`:''}<div class="capture-veil">${icon('eye-off','large')}<span>Скрыто во время записи экрана</span></div><div class="viewport-badge">${esc(info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр')}</div><div class="preview-body" id="preview-body"><div class="file-unsupported"><h3>Загружаем просмотр…</h3></div></div><div class="canvas-hint" id="canvas-hint">${f.kind==='model'?'Вращайте одним пальцем, масштаб — двумя':f.kind==='drawing'?'Двигайте одним пальцем, масштаб — двумя':'Коснитесь файла для отметки'}</div></div>
   <div class="viewer-data"><div class="section-heading"><h3>Замечания · ${notes.length}</h3><button class="link-button" data-action="quick-comment">${icon('plus','small')} Добавить</button></div>${notes.map((n,i)=>noteRow(n,i+1)).join('')||'<p class="small-muted">Здесь появятся замечания к этому файлу.</p>'}</div>
   <div class="section">${sectionTitle('Версии файла')}<div class="group-card">${siblings.map(v=>`<div class="version-item"><span>Версия ${v.version} ${v.id===f.id?'<span class="tag">ОТКРЫТА</span>':''}<br><small style="color:var(--muted)">${date(v.createdAt)} · ${formatBytes(v.size)}</small></span>${v.id===f.id?'':`<button class="btn tiny outline" data-action="open-asset" data-id="${v.id}">Открыть</button>`}</div>`).join('')}</div></div>`;}
 
 function modal(title,html){document.getElementById('modal-title').textContent=title;document.getElementById('modal-content').innerHTML=html;if(!dialog.open)dialog.showModal();}
 function closeModal(){if(dialog.open)dialog.close();}
-function selectTab(tab){state.tab=tab;state.projectId=null;state.assetId=null;state.viewer=null;state.viewerTool='view';window.scrollTo(0,0);render();}
+async function securePanels(){
+  const boxes=(await sandboxStore.all()).sort((a,b)=>b.addedAt-a.addedAt);
+  const vaultCount=(await getProjects()).filter(p=>p.vault).length;
+  return `<div class="section">${sectionTitle('Сейф и защищённые пакеты')}<button class="project-card vault-card" data-action="open-vault"><span class="project-thumb">${icon('lock')}</span><span class="project-body"><span class="project-title">Сейф</span><div class="project-sub">${vaultCount?`${vaultCount} проектов · `:''}${IS_NATIVE?'Face ID / код-пароль':'код приложения'} · шифрование AES-256</div></span>${icon('arrow','small arrow-right')}</button>
+  ${boxes.map(r=>{const h=r.header;const exp=h.expiresAt&&Date.now()>Date.parse(h.expiresAt);return `<div class="project-card sandbox-card"><button class="sandbox-open" data-action="open-sandbox" data-id="${esc(r.id)}"><span class="project-thumb">${icon('unlock')}</span><span class="project-body"><span class="project-title">${esc(h.sender||'Защищённый пакет')}</span><div class="project-sub">${h.recipient?.name?`для ${esc(h.recipient.name)} · `:''}${exp?'срок истёк':h.expiresAt?`до ${new Date(h.expiresAt).toLocaleDateString('ru-RU')}`:'без срока'}${h.oneTime?' · одноразовый':''}${h.viewOnly?' · только просмотр':''}</div></span></button><button class="icon-button" data-action="delete-sandbox" data-id="${esc(r.id)}" aria-label="Удалить пакет">${icon('trash')}</button></div>`;}).join('')}
+  <p class="small-muted" style="margin-top:8px">Полученные защищённые пакеты лежат в песочнице: не попадают в «Мои файлы», поиск и недавние.</p></div>`;
+}
+function vaultView(projects,files,notes){return `<div class="breadcrumbs"><button data-action="lock-vault">${icon('lock','small')} Закрыть сейф</button></div><div class="eyebrow">${icon('lock','small')} Открыт по ${IS_NATIVE?'Face ID / код-паролю':'коду'}</div><h1>Сейф</h1><p class="lead">Файлы зашифрованы ключом этого устройства (не переносится в резервные копии). Сейф закрывается при сворачивании приложения.</p>
+  <div class="project-list section">${projects.map(p=>projectTile(p,files,notes)).join('')||`<div class="empty">${icon('lock','large')}<h3>Сейф пуст</h3><p>Откройте проект и нажмите «В сейф»</p></div>`}</div>`;}
+function selectTab(tab){if(state.secure&&tab!=='secure')closeSecure();if(state.vaultOpen&&tab!=='vault')lockVault();state.tab=tab;state.projectId=null;state.assetId=null;state.viewer=null;state.viewerTool='view';window.scrollTo(0,0);render();}
 function releasePreview(){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}}
 
 async function render(){
   const projects=await getProjects(),files=await getAllAssets(),notes=await getAllNotes();for(const f of files)f.kind=kindFor(f.name); /* kinds evolve between versions (DWG became viewable) */state.projectIds=projects.map(p=>p.id);state.projectNames=new Map(projects.map(p=>[p.id,p.name]));state.notes=notes;
+  const vaultIds=new Set(projects.filter(p=>p.vault).map(p=>p.id));
+  const pub=projects.filter(p=>!p.vault),pubFiles=files.filter(f=>!vaultIds.has(f.projectId)),pubNotes=notes.filter(n=>!vaultIds.has(n.projectId));
+  if(state.secure)state.notes=notes.concat(state.secure.notes);
+  if(state.secure&&state.secure.header.expiresAt&&Date.now()>Date.parse(state.secure.header.expiresAt)){await closeSecure();notify('Срок действия пакета истёк');state.tab='projects';}
+  if(['project','viewer','vault'].includes(state.tab)&&!state.secure&&(state.tab==='vault'||vaultIds.has(state.projectId))&&!state.vaultOpen){state.tab='projects';}
   let body='';
-  if(state.tab==='home')body=homeView(projects,files,notes);
-  if(state.tab==='projects')body=projectsView(projects,files,notes);
-  if(state.tab==='notes')body=notesView(notes,files);
+  if(state.tab==='home')body=homeView(pub,pubFiles,pubNotes);
+  if(state.tab==='projects')body=projectsView(pub,pubFiles,pubNotes)+await securePanels();
+  if(state.tab==='vault')body=vaultView(projects.filter(p=>p.vault),files,notes);
+  if(state.tab==='secure')body=state.secure?secureView():'<div class="empty">Пакет закрыт</div>';
+  if(state.tab==='notes')body=notesView(pubNotes,pubFiles);
   if(state.tab==='settings')body=settingsView(projects,files);
   if(state.tab==='project'){
     const p=projects.find(p=>p.id===state.projectId);
     body=p?detailView(p,files.filter(f=>f.projectId===p.id),notes.filter(n=>n.projectId===p.id)):'<div class="empty">Проект не найден</div>';
   }
   if(state.tab==='viewer'){
-    const f=files.find(f=>f.id===state.assetId);
-    body=f?viewerContent(f,files,notes.filter(n=>n.assetId===f.id)):'<div class="empty">Файл не найден</div>';
+    var viewed=null;try{viewed=await assetById(state.assetId);}catch(e){notify(e.message);}
+    if(viewed)viewed.kind=kindFor(viewed.name);
+    const all=state.secure&&String(state.assetId).startsWith('sbx:')?state.secure.assets:files;
+    body=viewed?viewerContent(viewed,all,state.notes.filter(n=>n.assetId===viewed.id)):'<div class="empty">Файл не найден</div>';
   }
-  state.viewer?.cleanup?.();releasePreview();app.innerHTML=layout(body);
-  if(state.tab==='viewer'&&state.assetId) await activateViewer(files.find(f=>f.id===state.assetId));
+  state.viewer?.cleanup?.();releasePreview();app.innerHTML=layout(body);updatePrivacy();
+  if(state.tab==='viewer'&&viewed) await activateViewer(viewed);
 }
-async function openAsset(id){const asset=await getAsset(id);if(!asset){notify('Файл не найден');return;}state.tab='viewer';state.assetId=id;state.projectId=asset.projectId;state.viewerTool='view';state.viewer=null;window.scrollTo(0,0);await render();}
+async function openAsset(id){let asset;try{asset=await assetById(id);}catch(e){notify(e.message);return;}if(!asset){notify('Файл не найден');return;}state.tab='viewer';state.assetId=id;state.projectId=asset.projectId;state.viewerTool='view';state.viewer=null;window.scrollTo(0,0);await render();}
 async function openProject(id){const p=await getProject(id);if(!p)return;state.projectId=id;state.assetId=null;state.tab='project';window.scrollTo(0,0);await render();}
 function filePickerAction(mode='all',projectId=null){
   state.pickerProject=projectId;state.pickerMode=mode;
@@ -148,6 +175,11 @@ function filePickerAction(mode='all',projectId=null){
 }
 async function pickProjectToImport(files){if(state.pickerProject)return state.pickerProject;const projects=await getProjects();let inbox=projects.find(x=>x.name==='Мои файлы'&&!x.demo);if(!inbox)inbox=await createProject('Мои файлы','Файлы, открытые с телефона');return inbox.id;}
 async function addPickedFiles(files){if(!files?.length)return;
+  const receipts=files.filter(f=>/\.mlinkack$/i.test(f.name));files=files.filter(f=>!/\.mlinkack$/i.test(f.name));
+  for(const r of receipts)await importReceipt(r);
+  const secured=[];for(const f of files.filter(f=>f.name.toLowerCase().endsWith('.mlink'))){try{if(await readEnvelope(f,window.JSZip))secured.push(f);}catch(e){notify(e.message);secured.push(f);}}
+  files=files.filter(f=>!secured.includes(f));for(const f of secured){try{await secureImport(f);}catch(e){notify(e.message);}}
+  if(!files.length)return;
   const packages=files.filter(f=>f.name.toLowerCase().endsWith('.mlink'));
   const regular=files.filter(f=>!f.name.toLowerCase().endsWith('.mlink'));
   if(state.pickerMode==='package'&&!packages.length)throw new Error('Выберите пакет .mlink');
@@ -236,13 +268,13 @@ async function actionHandler(button){const action=button.dataset.action;
   if(action==='formats'){formatModal();return;}
   if(action==='filter'){state.filter=button.dataset.filter;await render();return;}
   if(action==='theme'){state.theme=state.theme==='dark'?'light':'dark';document.body.classList.toggle('dark',state.theme==='dark');localStorage.setItem('modellink-theme',state.theme);await render();return;}
-  if(action==='back-project'){await openProject(state.projectId);return;}
-  if(action==='download-file'){const f=await getAsset(state.assetId);await saveBlob(f.blob,f.name);return;}
-  if(action==='export-file'){const f=await getAsset(state.assetId);if(f)exportModal(f);return;}
-  if(action==='export-picked'){closeModal();await openAsset(button.dataset.id);const f=await getAsset(button.dataset.id);if(f)exportModal(f);return;}
+  if(action==='back-project'){if(String(state.projectId).startsWith('sbx:')){state.tab='secure';state.assetId=null;await render();return;}await openProject(state.projectId);return;}
+  if(action==='download-file'){const f=await assetById(state.assetId);if(viewOnlyBlocked(f)){notify('Отправитель запретил выгрузку этого файла');return;}await saveBlob(f.blob,f.name);return;}
+  if(action==='export-file'){const f=await assetById(state.assetId);if(viewOnlyBlocked(f)){notify('Отправитель запретил выгрузку этого файла');return;}if(f)exportModal(f);return;}
+  if(action==='export-picked'){closeModal();await openAsset(button.dataset.id);const f=await assetById(button.dataset.id);if(f)exportModal(f);return;}
   if(action==='share-project-picker'){projectPickerModal(await getProjects(),'share');return;}
-  if(action==='convert'){await convertAction(button);return;}
-  if(action==='quicklook'){const f=await getAsset(state.assetId);if(!(await quickLook(f.blob,f.name)))notify('Этот формат нельзя открыть в Quick Look');return;}
+  if(action==='convert'){if(viewOnlyBlocked(await assetById(state.assetId))){notify('Отправитель запретил выгрузку');return;}await convertAction(button);return;}
+  if(action==='quicklook'){const f=await assetById(state.assetId);if(viewOnlyBlocked(f)){notify('В режиме «только просмотр» системный просмотр недоступен');return;}if(!(await quickLook(f.blob,f.name)))notify('Этот формат нельзя открыть в Quick Look');return;}
   if(action==='delete-asset'){askDeleteAsset();return;}
   if(action==='confirm-delete-asset'){const a=await removeAsset(state.assetId);closeModal();notify('Версия файла удалена');const rest=latestFiles(await getAssets(a.projectId)).find(f=>f.groupId===a.groupId);if(rest)await openAsset(rest.id);else await openProject(a.projectId);return;}
   if(action==='privacy'){privacyModal();return;}
@@ -250,20 +282,45 @@ async function actionHandler(button){const action=button.dataset.action;
   if(action==='erase-all'){askEraseAll();return;}
   if(action==='confirm-erase-all'){await removeAllData();closeModal();notify('Все данные удалены');selectTab('home');return;}
   if(action==='clear-scale'){await setAssetScale(state.assetId,null);closeModal();notify('Масштаб сброшен');await render();return;}
-  if(action==='share-file'){const f=await getAsset(state.assetId);await shareBlob(f.blob,f.name);return;}
+  if(action==='share-file'){const f=await assetById(state.assetId);if(viewOnlyBlocked(f)){notify('Отправитель запретил выгрузку этого файла');return;}await shareBlob(f.blob,f.name);return;}
   if(action==='share-project'){await shareProject();return;}
   if(action==='share-picked-project'){state.projectId=button.dataset.id;closeModal();await shareProject();return;}
   if(action==='versions-picked-project'){closeModal();versionsModal(button.dataset.id);return;}
   if(action==='project-versions'){versionsModal(state.projectId);return;}
   if(action==='delete-project'){askDeleteProject();return;}
   if(action==='confirm-delete'){await removeProject(state.projectId);closeModal();notify('Проект удалён');selectTab('projects');return;}
+  if(action==='toggle-note'&&String(button.dataset.id).startsWith('sbx')){const n=state.secure?.notes.find(x=>x.id===button.dataset.id);if(n&&!n.fromSender){n.status=n.status==='resolved'?'open':'resolved';await secureAudit({type:'comment'});}else notify('Замечания отправителя изменить нельзя');await render();return;}
+  if(action==='delete-note'&&String(button.dataset.id).startsWith('sbx')){const s=state.secure;if(s){const n=s.notes.find(x=>x.id===button.dataset.id);if(n?.fromSender){notify('Замечания отправителя удалить нельзя');return;}s.notes=s.notes.filter(x=>x.id!==button.dataset.id);await secureAudit({type:'comment'});}await render();return;}
   if(action==='toggle-note'){const note=state.notes.find(n=>n.id===button.dataset.id);if(note)await setNoteStatus(note.id,note.status==='resolved'?'open':'resolved');await render();return;}
   if(action==='viewer-tool'){state.viewerTool=button.dataset.tool;state.viewer?.setTool?.(state.viewerTool);if(state.viewerTool==='measure'&&!state.viewer?.measure)notify('Измерения доступны для DXF и изображений');if(state.viewerTool==='comment')notify('Коснитесь места для замечания');app.querySelectorAll('[data-action="viewer-tool"]').forEach(b=>{const on=b.dataset.tool===state.viewerTool;b.classList.toggle('soft',on);b.classList.toggle('active-tool',on);b.classList.toggle('outline',!on);});return;}
   if(action==='fit'){state.viewer?.fit?.();return;}
-  if(action==='file-menu'){const f=await getAsset(state.assetId);if(!f)return;const item=(act,ic,label,extra='')=>`<button class="file-row" data-action="${act}"${extra}><span class="file-ext has-icon">${icon(ic)}</span><span class="body"><h3>${label}</h3></span></button>`;
-    modal(niceName(f.name),`<div class="file-list">${canQuickLook()?item('quicklook','eye','Открыть в Quick Look'):''}${item('export-file','export','Экспорт в другой формат')}${IS_NATIVE?item('share-file','share','Отправить или сохранить в «Файлы»'):item('download-file','download','Скачать оригинал')}${item('rename-asset','edit','Переименовать')}${item('delete-asset','trash','Удалить эту версию')}</div><p class="small-muted" style="margin-top:12px">${formatBytes(f.size)} · версия ${f.version} · добавлен ${date(f.createdAt)}</p>`);return;}
+  if(action==='file-menu'){const f=await assetById(state.assetId);if(!f)return;const item=(act,ic,label,extra='')=>`<button class="file-row" data-action="${act}"${extra}><span class="file-ext has-icon">${icon(ic)}</span><span class="body"><h3>${label}</h3></span></button>`;
+    modal(niceName(f.name),`<div class="file-list">${viewOnlyBlocked(f)?'':`${canQuickLook()?item('quicklook','eye','Открыть в Quick Look'):''}${item('export-file','export','Экспорт в другой формат')}${IS_NATIVE?item('share-file','share','Отправить или сохранить в «Файлы»'):item('download-file','download','Скачать оригинал')}`}${f.secure?'':`${item('rename-asset','edit','Переименовать')}${f.redactions?.length?item('clear-redactions','eye','Вернуть скрытые области ('+f.redactions.length+')'):''}${item('delete-asset','trash','Удалить эту версию')}`}</div><div class="fp" style="margin-top:12px"><strong>Отпечаток SHA-256</strong><code>${esc(f.sha256||'считается при добавлении')}</code></div><p class="small-muted" style="margin-top:12px">${formatBytes(f.size)} · версия ${f.version} · добавлен ${date(f.createdAt)}</p>`);return;}
+  if(action==='secure-share'){await secureShareModal(button.dataset.id||state.projectId);return;}
+  if(action==='close-secure'){await closeSecure();state.tab='projects';state.projectId=null;await render();return;}
+  if(action==='secure-ack'){await secureAckModal();return;}
+  if(action==='secure-audit'){modal('Журнал пакета («чёрный ящик»)',`<p class="small-muted">Каждая запись содержит хеш предыдущей: изменить историю незаметно нельзя. Журнал уходит отправителю вместе с квитанцией.</p>${auditList(state.secure?.audit||[])}`);return;}
+  if(action==='open-sandbox'){await unlockModal(button.dataset.id);return;}
+  if(action==='delete-sandbox'){await sandboxStore.del(button.dataset.id);notify('Пакет удалён');await render();return;}
+  if(action==='scan-key'){const k=await scanKey();if(k){const form=dialog.querySelector('#unlock-secure');await openSecure(button.dataset.id,k,{remember:!!form?.remember?.checked});}return;}
+  if(action==='copy-key'){try{await navigator.clipboard.writeText(state.lastKeyLink);notify('Скопировано');}catch{notify(state.lastKeyLink);}return;}
+  if(action==='sent-packages'){await sentPackagesModal();return;}
+  if(action==='sent-key'){const p=await sentStore.get(button.dataset.id);if(p){const header={id:p.id};await showKeyQR(p.policy&&p.key?keyLink(header,p.key):'', 'Ключ пакета', 'Этот ключ открывает пакет «'+esc(p.title)+'». Если пакет защищён паролем, ключ тоже подходит.');}return;}
+  if(action==='sent-revoke'){const p=await sentStore.get(button.dataset.id);if(p){p.revoked=!p.revoked;await sentStore.put(p);}await sentPackagesModal();if(p?.revoked)notify('Опубликуйте обновлённый «Список отзыва» по адресу из Настроек');return;}
+  if(action==='share-revocations'){const ids=(await sentStore.all()).filter(p=>p.revoked).map(p=>p.id);await shareBlob(new Blob([JSON.stringify({revoked:ids,updated:new Date().toISOString()},null,1)],{type:'application/json'}),'revocations.json');return;}
+  if(action==='import-receipt'){const f=await pickOneFile();if(f)await importReceipt(f);return;}
+  if(action==='verify-fp'){await verifyFingerprint();return;}
+  if(action==='emergency-wipe'){modal('Экстренная очистка',`<p class="lead" style="margin-bottom:18px">Будут удалены все полученные защищённые пакеты, временные файлы и кэш просмотра. Ваши проекты и сейф останутся.</p><div class="row"><button class="btn outline" style="flex:1" data-action="close-modal">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-wipe">Очистить</button></div>`);return;}
+  if(action==='confirm-wipe'){await emergencyWipe();return;}
+  if(action==='panic'){await panic();return;}
+  if(action==='open-vault'){if(await unlockVault()){state.tab='vault';state.projectId=null;await render();}return;}
+  if(action==='lock-vault'){lockVault();state.tab='projects';await render();return;}
+  if(action==='vault-move'){const p=await getProject(state.projectId);if(!p)return;if(!(await unlockVault()))return;notify(p.vault?'Переносим из сейфа…':'Шифруем и переносим в сейф…');await setProjectVault(p.id,!p.vault);notify(p.vault?'Проект перенесён в общий раздел':'Проект в сейфе');if(!p.vault){state.tab='vault';state.projectId=null;}await render();return;}
+  if(action==='toggle-setting'){const k=button.dataset.key;await saveSetting(k,!settings[k]);await render();return;}
+  if(action==='edit-identity'){modal('Подпись и список отзыва',`<form id="identity"><label class="field">Ваше имя (для квитанций и отправителя)<input name="userName" maxlength="80" value="${esc(settings.userName)}"></label><label class="field">Компания<input name="company" maxlength="80" value="${esc(settings.company)}"></label><label class="field">Адрес списка отзыва (https://…/revocations.json)<input name="revocationUrl" type="url" inputmode="url" value="${esc(settings.revocationUrl)}" placeholder="https://example.com/revocations.json"></label><p class="small-muted" style="margin-bottom:14px">Список отзыва — файл JSON {"revoked":["id",…]} на любом вашем сайте. Его можно выгрузить из «Отправленных пакетов».</p><button class="btn primary block" type="submit">Сохранить</button></form>`);return;}
+  if(action==='clear-redactions'){await updateAssetMeta(state.assetId,{redactions:[]});closeModal();notify('Скрытые области удалены');await render();return;}
   if(action==='rename-project'){const p=await getProject(state.projectId);if(p)modal('Переименовать проект',`<form id="rename-project"><label class="field">Название<input name="name" maxlength="100" required value="${esc(p.name)}"></label><label class="field">Описание<textarea name="description" maxlength="350">${esc(p.description||'')}</textarea></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить</button></form>`);return;}
-  if(action==='rename-asset'){const f=await getAsset(state.assetId);if(f)modal('Переименовать файл',`<form id="rename-asset"><label class="field">Имя файла (все версии)<input name="name" maxlength="150" required value="${esc(f.name)}"></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить</button></form>`);return;}
+  if(action==='rename-asset'){const f=await assetById(state.assetId);if(f)modal('Переименовать файл',`<form id="rename-asset"><label class="field">Имя файла (все версии)<input name="name" maxlength="150" required value="${esc(f.name)}"></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить</button></form>`);return;}
   if(action==='delete-note'){await removeNote(button.dataset.id);notify('Замечание удалено');await render();return;}
   if(action==='notes-report'){await notesReport();return;}
   if(action==='layers'){layersModal();return;}
@@ -285,6 +342,198 @@ async function actionHandler(button){const action=button.dataset.action;
     if(feature==='share'){const files=latestFiles(await getAllAssets());if(!files.length){notify('Сначала откройте файл');filePickerAction();return;}exportPickerModal(files);return;}
   }
 }
+
+async function assetById(id){if(String(id).startsWith('sbx:'))return state.secure?.assets.find(a=>a.id===id)||null;return getAsset(id);}
+// ---------------------------------------------------------------- security: settings, device keys, vault
+const settings={offlineLock:false,shieldAlways:false,panicMotion:true,revocationUrl:'',userName:'',company:''};
+async function loadSettings(){for(const k of Object.keys(settings)){const v=await pref('set:'+k,null);if(v!==null)settings[k]=v;}}
+async function saveSetting(k,v){settings[k]=v;await setPref('set:'+k,v);updatePrivacy();}
+async function deviceKey(name){
+  if(NativeML){const r=await NativeML.keychainGet({name});if(r?.value)return b64u.dec(r.value.replace(/\+/g,'-').replace(/\//g,'_'));const k=randomBytes(32);let s='';for(const b of k)s+=String.fromCharCode(b);await NativeML.keychainSet({name,value:btoa(s)});return k;}
+  const stored=await pref('key:'+name,null);if(stored)return b64u.dec(stored);const k=randomBytes(32);await setPref('key:'+name,b64u.enc(k));return k;
+}
+async function deviceId(){let id=await pref('deviceId',null);if(!id){id=uuid().slice(0,8);await setPref('deviceId',id);}return id;}
+state.vaultOpen=false;
+async function unlockVault(){
+  if(state.vaultOpen)return true;
+  if(NativeML){const r=await NativeML.authenticate({reason:'Откройте сейф ModelLink'});if(!r.ok){if(r.error)notify(r.error);return false;}}
+  else{const saved=await pref('vaultPin',null);const pin=prompt(saved?'Код сейфа':'Придумайте код сейфа (4+ цифры)');if(!pin)return false;const h=await sha256('mlink-vault:'+pin);if(!saved){if(pin.length<4){notify('Минимум 4 цифры');return false;}await setPref('vaultPin',h);}else if(h!==saved){notify('Неверный код');return false;}}
+  setVaultCrypto(await deviceKey('vault'),{seal:sealBytes,open:openBytes});state.vaultOpen=true;updatePrivacy();return true;
+}
+function lockVault(){setVaultCrypto(null);state.vaultOpen=false;drawingCache.clear();modelCache.clear();updatePrivacy();}
+function isSensitive(){return !!state.secure||(state.vaultOpen&&['vault','project','viewer'].includes(state.tab));}
+function updatePrivacy(){if(!NativeML)return;NativeML.setPrivacy({shield:settings.shieldAlways||isSensitive(),panicMotion:settings.panicMotion&&isSensitive()}).catch(()=>{});}
+
+// ---------------------------------------------------------------- panic, screenshots, screen recording
+async function panic(){
+  haptic();try{await closeSecure({reason:'panic'});}catch{}lockVault();closeModal();
+  state.tab='home';state.projectId=null;state.assetId=null;state.viewer?.cleanup?.();state.viewer=null;document.body.classList.remove('capture-hidden');await render();
+}
+document.addEventListener('touchstart',e=>{if(e.touches.length>=3&&isSensitive()){e.preventDefault();panic();}},{passive:false});
+let escTaps=0;document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;escTaps++;setTimeout(()=>escTaps=0,600);if(escTaps>=2&&isSensitive())panic();});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.vaultOpen&&!state.secure)lockVault();});
+async function onScreenshot(){if(!isSensitive())return;if(state.secure){await secureAudit({type:'screenshot'});notify('Снимок экрана записан в журнал пакета');}else notify('Снимок экрана конфиденциального проекта');}
+function onCapture(captured){document.body.classList.toggle('capture-hidden',!!captured&&isSensitive());if(captured&&isSensitive()){notify('Идёт запись экрана — чертёж скрыт');if(state.secure)secureAudit({type:'screen-recording'});}}
+
+// ---------------------------------------------------------------- QR codes
+async function qrSvg(text){const {default:qrcode}=await import('./vendor/qrcode.min.js');const q=qrcode(0,'M');q.addData(text);q.make();const n=q.getModuleCount(),c=4;let d='';for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q.isDark(y,x))d+=`M${x+c} ${y+c}h1v1h-1z`;return `<svg class="qr" viewBox="0 0 ${n+2*c} ${n+2*c}" role="img" aria-label="QR-код"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;}
+async function showKeyQR(link,title,note){state.lastKeyLink=link;modal(title,`<div class="qr-box">${await qrSvg(link)}</div><p class="small-muted" style="margin:12px 0">${note}</p><div class="row"><button class="btn outline" style="flex:1" data-action="copy-key">${icon('link','small')} Скопировать</button><button class="btn primary" style="flex:1" data-action="close-modal">Готово</button></div>`);}
+async function scanKey(){if(!NativeML){const t=prompt('Вставьте ключ доступа (mlink:…)');return t?parseKeyLink(t)||{password:t}:null;}const r=await NativeML.scanQR();if(r.cancelled)return null;const k=parseKeyLink(r.text);if(!k)throw new Error('Это не QR-код ключа ModelLink');return k;}
+
+// ---------------------------------------------------------------- fingerprints
+async function pickOneFile(){
+  if(NativeML){const r=await NativeML.pickFiles();if(r.cancelled||!r.files?.length)return null;const item=r.files[0];try{return await nativeStagedToFile(NativeML,item);}finally{NativeML.deleteStaged({id:item.id}).catch(()=>{});}}
+  return new Promise(res=>{const i=document.createElement('input');i.type='file';i.onchange=()=>res(i.files[0]||null);i.click();});
+}
+async function verifyFingerprint(){
+  const f=await pickOneFile();if(!f)return;notify('Считаем SHA-256…');const h=await sha256(f);
+  const assets=(await getAllAssets()).filter(a=>a.sha256===h);const sentHits=(await sentStore.all()).filter(p=>(p.files||[]).some(x=>x.sha256===h));
+  const projects=new Map((await getProjects()).map(p=>[p.id,p.name]));
+  modal('Сверка файла',`<div class="fp"><strong>${esc(f.name)}</strong><code>${h}</code></div>${assets.length||sentHits.length?`<div class="notice success" style="margin-top:12px">${icon('check','small')} Совпадает с:</div><div class="group-card" style="margin-top:8px">${assets.map(a=>`<div class="setting-row"><div><strong>${esc(a.name)}</strong><br><span>${esc(projects.get(a.projectId)||'')} · версия ${a.version} · ${date(a.createdAt)}</span></div></div>`).join('')}${sentHits.map(p=>`<div class="setting-row"><div><strong>Отправлено: ${esc(p.title)}</strong><br><span>${esc(p.recipient?.name||'')} · ${date(Date.parse(p.created))}</span></div></div>`).join('')}</div>`:`<div class="notice warn" style="margin-top:12px">${icon('warning','small')} Такой файл в приложении не найден — это другая ревизия или изменённая копия.</div>`}`);
+}
+
+// ---------------------------------------------------------------- protected package: sender
+async function secureShareModal(projectId){
+  const p=await getProject(projectId);if(!p)return;const exp=new Date(Date.now()+14*86400e3).toISOString().slice(0,10);
+  modal('Защищённая отправка',`<form id="secure-share" data-project="${esc(projectId)}"><p class="small-muted" style="margin-bottom:12px">Пакет шифруется AES-256. Без пароля или ключа его нельзя открыть, даже если он перехвачен в почте или мессенджере.</p>
+  <label class="field">Получатель — имя<input name="rname" maxlength="80" placeholder="Иван Петров"></label><label class="field">Компания<input name="rcompany" maxlength="80" placeholder="ООО «Подрядчик»"></label>
+  <div class="seg2"><label><input type="radio" name="mode" value="key" checked> Ключ по QR</label><label><input type="radio" name="mode" value="password"> Пароль</label></div>
+  <label class="field pw-field">Пароль (от 8 символов)<input name="password" type="password" autocomplete="new-password" minlength="8"></label>
+  <label class="field">Действует до<input name="expires" type="date" value="${exp}"></label>
+  <label class="check"><input type="checkbox" name="viewOnly" checked> <span><strong>Только просмотр</strong><br>Нельзя выгрузить исходные DWG/STEP и переслать файлы</span></label>
+  <label class="check"><input type="checkbox" name="oneTime"> <span><strong>Одноразовый просмотр</strong><br>Открывается один раз, после закрытия стирается</span></label>
+  <label class="check"><input type="checkbox" name="check" ${settings.revocationUrl?'checked':'disabled'}> <span><strong>Проверять отзыв</strong><br>${settings.revocationUrl?'По списку отзыва, когда есть сеть':'Укажите адрес списка отзыва в Настройках'}</span></label>
+  <p class="small-muted" style="margin:6px 0 14px">Имя получателя будет видно водяным знаком поверх каждого чертежа. Скрытые области (инструмент «Скрыть») вырезаются из пакета.</p>
+  <button class="btn primary block" type="submit">${icon('lock','small')} Создать и отправить</button></form>`);
+  const form=dialog.querySelector('#secure-share');const sync=()=>form.querySelector('.pw-field').style.display=form.mode.value==='password'?'':'none';form.addEventListener('change',sync);sync();
+}
+async function buildInnerPackage(projectId,policy){
+  const p=await getProject(projectId),files=await getAssets(projectId),notes=await getNotes(projectId);
+  const zip=new window.JSZip();const manifest={format:'modellink-package',version:PACKAGE_VERSION,created:new Date().toISOString(),project:{name:p.name,description:p.description},files:[],notes:[],policy};
+  const idMap=new Map();let i=0;
+  for(const f of latestFiles(files)){
+    let blob=f.blob,name=f.name,redacted=false;
+    if(f.redactions?.length&&f.kind==='drawing'){const d=redactDrawing(await loadDrawing(f),f.redactions);blob=new Blob([drawingToDXF(d)]);name=`${baseName(f.name)} (обезличено).dxf`;redacted=true;}
+    else if(f.redactions?.length&&f.kind==='image'){blob=await redactImage(f);name=`${baseName(f.name)} (обезличено).png`;redacted=true;}
+    const entry=`files/${String(i++).padStart(4,'0')}`;zip.file(entry,blob);const h=await sha256(blob);
+    manifest.files.push({entry,id:f.id,path:name,name,mime:blob.type||f.mime,size:blob.size,groupId:f.groupId,version:f.version,createdAt:f.createdAt,sha256:h,redacted});idMap.set(f.id,true);
+  }
+  manifest.audit=await appendAudit([],{type:'created',who:policy.sender||'Отправитель',device:await deviceId(),rev:new Date().toLocaleString('ru-RU')});
+  manifest.notes=notes.filter(n=>idMap.has(n.assetId)).map(n=>({assetId:n.assetId,text:n.text,point:n.point,locationType:n.locationType,status:n.status,createdAt:n.createdAt}));
+  zip.file('manifest.json',JSON.stringify(manifest));
+  return {bytes:await zip.generateAsync({type:'uint8array',compression:'DEFLATE',compressionOptions:{level:6}}),manifest,title:p.name};
+}
+async function createSecurePackage(form){
+  const fd=new FormData(form),projectId=form.dataset.project,mode=fd.get('mode');
+  const password=mode==='password'?String(fd.get('password')||''):null;if(mode==='password'&&password.length<8)throw new Error('Пароль — минимум 8 символов');
+  const expires=fd.get('expires')?new Date(fd.get('expires')+'T23:59:59').toISOString():null;
+  const policy={recipient:{name:String(fd.get('rname')||'').trim(),company:String(fd.get('rcompany')||'').trim()},sender:[settings.userName,settings.company].filter(Boolean).join(', '),expiresAt:expires,viewOnly:!!fd.get('viewOnly'),oneTime:!!fd.get('oneTime'),checkUrl:fd.get('check')&&settings.revocationUrl?settings.revocationUrl:null};
+  notify('Шифруем пакет…');
+  const inner=await buildInnerPackage(projectId,policy);
+  const {bytes,id,keyCode,header,raw}=await sealPackage(inner.bytes,policy,password?{password}:{},{zipStore});
+  await sentStore.put({id,title:inner.title,projectId,recipient:policy.recipient,created:header.created,expiresAt:expires,policy,key:b64u.enc(raw),receipts:[],revoked:false,files:inner.manifest.files.map(f=>({name:f.name,sha256:f.sha256,version:f.version}))});
+  closeModal();
+  const fileName=`${inner.title.replace(/[^\wа-яА-ЯёЁ -]/g,'_').slice(0,36)||'ModelLink'}${policy.recipient.name?' — '+policy.recipient.name.replace(/[^\wа-яА-ЯёЁ -]/g,'_').slice(0,24):''}.mlink`;
+  await shareBlob(new Blob([bytes],{type:'application/vnd.modellink.package+zip'}),fileName);
+  await showKeyQR(keyLink(header,keyCode,password),password?'Пароль — по QR при встрече':'Ключ доступа',password?'Пароль можно показать этим QR-кодом при личной встрече — не пересылайте его в той же переписке, что и файл.':'Покажите этот QR-код получателю при встрече или передайте ключ отдельным каналом. Без него пакет не открыть. Ключ сохранён в «Настройки → Отправленные пакеты».');
+}
+async function sentPackagesModal(){
+  const list=(await sentStore.all()).sort((a,b)=>Date.parse(b.created)-Date.parse(a.created));
+  modal('Отправленные пакеты',`${list.length?`<div class="group-card">${list.map(p=>{const exp=p.expiresAt&&Date.now()>Date.parse(p.expiresAt);const r=p.receipts?.length;return `<div class="sent-row"><div><strong>${esc(p.title)}</strong><br><span>${esc([p.recipient?.name,p.recipient?.company].filter(Boolean).join(', ')||'Получатель не указан')} · ${date(Date.parse(p.created))}${p.expiresAt?` · до ${new Date(p.expiresAt).toLocaleDateString('ru-RU')}`:''}</span><br><span class="badges">${p.revoked?'<b class="bad">отозван</b>':exp?'<b class="bad">срок истёк</b>':'<b class="ok">активен</b>'}${p.policy?.viewOnly?'<b>только просмотр</b>':''}${p.policy?.oneTime?'<b>одноразовый</b>':''}${r?`<b class="ok">ознакомлен: ${r}</b>`:''}</span>${(p.receipts||[]).map(x=>`<div class="receipt">${icon('check','small')} ${esc(x.name)}${x.company?`, ${esc(x.company)}`:''} — ${new Date(x.at).toLocaleString('ru-RU')}${x.chainOk?'':' · журнал повреждён'}</div>`).join('')}</div><div class="sent-actions"><button class="btn tiny outline" data-action="sent-key" data-id="${p.id}">QR</button><button class="btn tiny ${p.revoked?'soft':'outline'}" data-action="sent-revoke" data-id="${p.id}">${p.revoked?'Вернуть':'Отозвать'}</button></div></div>`;}).join('')}</div>
+  <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn outline tiny" data-action="share-revocations">${icon('share','small')} Список отзыва (JSON)</button><button class="btn outline tiny" data-action="import-receipt">${icon('download','small')} Проверить квитанцию</button></div>
+  <p class="small-muted" style="margin-top:10px">Отзыв срабатывает у получателя при следующем открытии, если в пакете включена проверка, есть сеть и опубликован актуальный список отзыва по адресу из Настроек. Без сети действует срок действия пакета.</p>`:'<div class="empty"><h3>Пока нет</h3><p>Откройте проект → «Защищённая отправка»</p></div>'}`);
+}
+async function importReceipt(file){
+  const text=await file.text();let parsed;try{parsed=JSON.parse(JSON.parse(text).body);}catch{throw new Error('Это не квитанция ModelLink');}
+  const pkg=await sentStore.get(parsed.packageId);if(!pkg)throw new Error('Квитанция относится к пакету, отправленному с другого устройства');
+  const v=await verifyReceipt(b64u.dec(pkg.key),text);
+  if(v.ok){pkg.receipts=[...(pkg.receipts||[]).filter(r=>r.at!==v.data.at),{name:v.data.name,company:v.data.company,at:v.data.at,revision:v.data.revision,chainOk:v.chainOk,events:(v.data.chain||[]).length}];await sentStore.put(pkg);}
+  modal('Квитанция об ознакомлении',`<div class="notice ${v.ok?'success':'warn'}">${icon(v.ok?'check':'warning','small')} ${v.ok?'Подпись верна: квитанция создана тем, у кого есть ключ этого пакета.':'Подпись неверна — квитанция подделана или изменена.'}</div><div class="group-card" style="margin-top:12px"><div class="setting-row"><div><strong>${esc(v.data.name||'—')}</strong><br><span>${esc(v.data.company||'')}</span></div></div><div class="setting-row"><div><strong>Ознакомлен</strong><br><span>${new Date(v.data.at).toLocaleString('ru-RU')} · ревизия ${esc(String(v.data.revision||''))}</span></div></div><div class="setting-row"><div><strong>Журнал получателя</strong><br><span>${(v.data.chain||[]).length} событий · ${v.chainOk?'цепочка цела':'цепочка нарушена'}</span></div></div></div>${auditList(v.data.chain||[])}`);
+}
+
+// ---------------------------------------------------------------- protected package: recipient (sandbox)
+state.secure=null;
+async function secureImport(file){
+  const env=await readEnvelope(file,window.JSZip);if(!env)return false;
+  await sandboxStore.put({id:env.header.id,header:env.header,headerText:env.headerText,payload:env.payload,addedAt:Date.now(),audit:[],notes:[]});
+  await unlockModal(env.header.id);return true;
+}
+async function unlockModal(id){
+  const rec=await sandboxStore.get(id);if(!rec)return;const h=rec.header;
+  if(rec.savedKey){try{const secret=dec8(await openBytes(await deviceKey('sandbox'),b64u.dec(rec.savedKey)));await openSecure(id,parseKeyLink(secret)||secret);return;}catch(e){if(/истёк|отозван|уже был/.test(e.message)){notify(e.message);return;}}}
+  modal('Защищённый пакет',`<div class="secure-head">${icon('lock','large')}<div><strong>${esc(h.sender||'Отправитель не указан')}</strong><br><span>${h.recipient?.name?`Для: ${esc([h.recipient.name,h.recipient.company].filter(Boolean).join(', '))} · `:''}${h.expiresAt?`до ${new Date(h.expiresAt).toLocaleDateString('ru-RU')}`:'без срока'}</span></div></div>
+  <div class="badges" style="margin:10px 0 14px">${h.viewOnly?'<b>только просмотр</b>':''}${h.oneTime?'<b class="bad">одноразовый</b>':''}${h.checkUrl?'<b>проверка отзыва</b>':''}</div>
+  <form id="unlock-secure" data-id="${esc(id)}">${h.kdf.alg==='raw'?'<label class="field">Ключ доступа<input name="secret" autocomplete="off" placeholder="mlink:key:… или код"></label>':'<label class="field">Пароль<input name="secret" type="password" autocomplete="off"></label>'}
+  ${h.oneTime?'':'<label class="check"><input type="checkbox" name="remember"> <span>Запомнить на этом устройстве</span></label>'}
+  <div class="row"><button class="btn outline" type="button" style="flex:1" data-action="scan-key" data-id="${esc(id)}">${icon('target','small')} Сканировать QR</button><button class="btn primary" type="submit" style="flex:1">${icon('unlock','small')} Открыть</button></div></form>`);
+}
+const dec8=b=>new TextDecoder().decode(b);
+async function revocationCheck(h){
+  if(!h.checkUrl||!NativeML||settings.offlineLock)return null;
+  try{const r=await NativeML.fetchText({url:h.checkUrl});if(r.status!==200)return null;let ids=[];try{const j=JSON.parse(r.text);ids=Array.isArray(j)?j:(j.revoked||[]);}catch{ids=r.text.split(/\s+/);}return ids.map(String).includes(h.id);}catch{return null;}
+}
+async function openSecure(id,secretInput,{remember=false}={}){
+  const rec=await sandboxStore.get(id);if(!rec)throw new Error('Пакет не найден');const h=rec.header;
+  const seen=new Set(await pref('seenOnce',[])),revoked=new Set(await pref('revokedIds',[])),lastSeen=await pref('lastSeenTime',0);
+  let pol=checkPolicy(h,{seen,revoked,lastSeenTime:lastSeen});if(!pol.ok){if(/отозван|Одноразовый/.test(pol.reason))await sandboxStore.del(id);throw new Error(pol.reason);}
+  const link=typeof secretInput==='string'?parseKeyLink(secretInput):secretInput;const secret=link?(link.key||link.password):secretInput;const rawKey=!!link?.key;
+  if(link?.id&&link.id!==id)throw new Error('Этот ключ от другого пакета');
+  const {inner,raw}=await openPackage({header:h,headerText:rec.headerText,payload:rec.payload},secret,{rawKey});
+  const rv=await revocationCheck(h);if(rv===true){await setPref('revokedIds',[...revoked,id]);await sandboxStore.del(id);throw new Error('Доступ к пакету отозван отправителем');}
+  await setPref('lastSeenTime',Math.max(lastSeen,Date.now()));
+  if(h.oneTime)await setPref('seenOnce',[...seen,id]);
+  if(remember&&!h.oneTime){rec.savedKey=b64u.enc(await sealBytes(await deviceKey('sandbox'),new TextEncoder().encode(rawKey?`mlink:key:${id}:${secret}`:String(secret))));await sandboxStore.put(rec);}
+  const zip=await window.JSZip.loadAsync(inner);const manifest=JSON.parse(await zip.file('manifest.json').async('string'));
+  const assets=[];for(const m of manifest.files){const blob=await zip.file(m.entry).async('blob');assets.push({id:'sbx:'+id+':'+m.id,projectId:'sbx:'+id,name:m.name,path:m.path,groupId:m.groupId,version:m.version,size:blob.size,mime:m.mime,blob:new Blob([blob],{type:m.mime}),createdAt:m.createdAt,kind:kindFor(m.name),sha256:m.sha256,secure:true});}
+  const senderNotes=manifest.notes.map((n,i)=>({...n,id:'sbxn:'+i,projectId:'sbx:'+id,assetId:'sbx:'+id+':'+n.assetId,version:1,fromSender:true}));
+  state.secure={id,header:h,raw,title:manifest.project.name,description:manifest.project.description,assets,notes:[...senderNotes,...(rec.notes||[])],audit:rec.audit?.length?rec.audit:(manifest.audit||[]),policy:manifest.policy||{}};
+  await secureAudit({type:'opened'});closeModal();state.tab='secure';state.projectId='sbx:'+id;state.assetId=null;updatePrivacy();await render();
+  if(h.oneTime)notify('Одноразовый просмотр: пакет удалится после закрытия');
+}
+async function secureAudit(event){
+  const s=state.secure;if(!s)return;const who=settings.userName||s.header.recipient?.name||'Получатель';
+  s.audit=await appendAudit(s.audit,{...event,who,device:await deviceId()});const rec=await sandboxStore.get(s.id);if(rec){rec.audit=s.audit;rec.notes=s.notes.filter(n=>!n.fromSender);await sandboxStore.put(rec);}
+}
+async function closeSecure({reason='close'}={}){
+  const s=state.secure;if(!s)return;
+  if(s.header.oneTime){await sandboxStore.del(s.id);}else await secureAudit({type:'closed'});
+  state.secure=null;drawingCache.clear();modelCache.clear();if(NativeML)NativeML.wipeTemp().catch(()=>{});updatePrivacy();
+  if(s.header.oneTime&&reason!=='panic')notify('Одноразовый пакет стёрт с устройства');
+}
+function secureView(){
+  const s=state.secure;const h=s.header;const exp=h.expiresAt?new Date(h.expiresAt).toLocaleDateString('ru-RU'):null;
+  return `<div class="breadcrumbs"><button data-action="close-secure">${icon('chevron','small')} Закрыть пакет</button></div>
+  <div class="project-hero secure-hero"><span class="eyebrow">${icon('lock','small')} Защищённый пакет · песочница</span><h1>${esc(s.title)}</h1><p>${esc(h.sender?`От: ${h.sender}`:'Отправитель не указан')}${h.recipient?.name?` · Для: ${esc([h.recipient.name,h.recipient.company].filter(Boolean).join(', '))}`:''}</p>
+  <div class="badges" style="margin-top:10px">${h.viewOnly?'<b>только просмотр</b>':'<b class="ok">можно выгружать</b>'}${exp?`<b>до ${exp}</b>`:''}${h.oneTime?'<b class="bad">одноразовый</b>':''}<b>ID ${esc(h.id.slice(0,8))}</b></div>
+  <div class="action-bar"><button class="btn primary" data-action="secure-ack">${icon('check','small')} Ознакомлен</button><button class="btn outline" data-action="secure-audit">${icon('history','small')} Журнал</button></div></div>
+  ${sectionTitle('Файлы')}<div class="file-list">${s.assets.map(f=>fileRow(f)).join('')}</div>
+  <p class="small-muted" style="margin-top:14px">Файлы расшифрованы только в памяти и не попадают в «Мои файлы», поиск и резервные копии. ${h.oneTime?'После закрытия пакет будет стёрт.':''} Три пальца на экране или переворот телефона экраном вниз мгновенно закрывают пакет.</p>`;
+}
+function auditList(chain){const names={created:'Создан',opened:'Открыт',closed:'Закрыт',acknowledged:'Ознакомлен',screenshot:'Снимок экрана','screen-recording':'Запись экрана',comment:'Замечание',destroyed:'Стёрт'};
+  return chain.length?`<div class="group-card" style="margin-top:12px">${chain.map(e=>`<div class="setting-row audit-row"><div><strong>${names[e.type]||esc(e.type)}</strong>${e.rev?` · ревизия ${esc(String(e.rev))}`:''}<br><span>${new Date(e.t).toLocaleString('ru-RU')} · ${esc(e.who||'')}${e.device?` · устройство ${esc(e.device)}`:''}</span></div><code>${esc((e.h||'').slice(0,8))}</code></div>`).join('')}</div>`:'<p class="small-muted">Событий пока нет</p>';}
+async function secureAckModal(){const s=state.secure;const h=s.header;
+  modal('Подтверждение ознакомления',`<form id="secure-ack"><p class="small-muted" style="margin-bottom:12px">В журнал пакета запишется отметка с временем и именем. Квитанцию, подписанную ключом пакета, отправьте отправителю — он сможет проверить, что она подлинная.</p><label class="field">Имя<input name="name" required maxlength="80" value="${esc(settings.userName||h.recipient?.name||'')}"></label><label class="field">Компания<input name="company" maxlength="80" value="${esc(settings.company||h.recipient?.company||'')}"></label><button class="btn primary block" type="submit">${icon('check','small')} Ознакомлен с ревизией от ${new Date(h.created).toLocaleDateString('ru-RU')}</button></form>`);}
+async function sendReceipt(name,company){
+  const s=state.secure;const rev=new Date(s.header.created).toLocaleString('ru-RU');
+  await secureAudit({type:'acknowledged',who:name,rev});
+  const receipt=await makeReceipt(s.raw,{packageId:s.id,revision:rev,files:s.assets.map(a=>({name:a.name,sha256:a.sha256})),name,company,chain:s.audit});
+  closeModal();await shareBlob(new Blob([receipt],{type:'application/json'}),`${s.title.replace(/[^\wа-яА-ЯёЁ -]/g,'_').slice(0,36)} — ознакомлен.mlinkack`);
+}
+function watermarkStyle(){const s=state.secure;if(!s)return '';const h=s.header;const text=[h.recipient?.name,h.recipient?.company].filter(Boolean).join(' · ')||'Конфиденциально';
+  const line=`${text} · ${new Date().toLocaleDateString('ru-RU')} · ${h.id.slice(0,8)}`;const svg=`<svg xmlns='http://www.w3.org/2000/svg' width='360' height='170'><text x='0' y='100' transform='rotate(-24 180 85)' font-family='-apple-system,Arial' font-size='14' font-weight='600' fill='rgba(110,120,140,0.34)'>${line.replace(/[<>&'"]/g,'')}</text></svg>`;
+  return `background-image:url(&quot;data:image/svg+xml;utf8,${encodeURIComponent(svg)}&quot;)`;}
+function viewOnlyBlocked(f){return !!(f?.secure&&state.secure?.header.viewOnly);}
+
+// ---------------------------------------------------------------- emergency wipe
+async function emergencyWipe(){
+  await closeSecure({reason:'panic'});await sandboxStore.clear();drawingCache.clear();modelCache.clear();releasePreview();
+  let removed=0;if(NativeML){try{removed=(await NativeML.wipeTemp()).removed||0;}catch{}}
+  try{for(const k of await caches?.keys?.()||[])await caches.delete(k);}catch{}
+  closeModal();notify(`Экстренная очистка: защищённые пакеты и временные файлы удалены${removed?` (${removed})`:''}`);await render();
+}
+
+// ---------------------------------------------------------------- redaction tool helpers
+async function redactImage(f){const c=await rasterize(f.blob);const ctx=c.getContext('2d');ctx.fillStyle='#000';for(const r of f.redactions||[])ctx.fillRect(Math.min(r.x0,r.x1)*c.width,Math.min(r.y0,r.y1)*c.height,Math.abs(r.x1-r.x0)*c.width,Math.abs(r.y1-r.y0)*c.height);return canvasBlob(c,'image/png');}
 
 // ---------------------------------------------------------------- notes report
 async function notesReport(){
@@ -331,8 +580,8 @@ async function runConversion(f,to,engine){
   if(engine==='native'){const r=await withNativeExport(f.blob,f.name,id=>NativeML.convertExport({exportId:id,to}));return {staged:r.files||[]};}
   const ext=extOf(f.name);
   if(ext==='dxf'||ext==='dwg'){
-    if(to==='dxf'){const {bytes}=await cadRun('dxf',f);return {files:[toFile(f,'dxf',bytes)]};}
-    const svg=dxfToSVG(await loadDrawing(f),{hiddenLayers:hiddenLayers.get(f.id)||null});if(to==='svg')return {files:[toFile(f,'svg',svg)]};
+    if(to==='dxf'){if(f.redactions?.length)return {files:[toFile(f,'dxf',drawingToDXF(redactDrawing(await loadDrawing(f),f.redactions)))]};const {bytes}=await cadRun('dxf',f);return {files:[toFile(f,'dxf',bytes)]};}
+    const svg=dxfToSVG(redactDrawing(await loadDrawing(f),f.redactions),{hiddenLayers:hiddenLayers.get(f.id)||null});if(to==='svg')return {files:[toFile(f,'svg',svg)]};
     return {files:[await canvasTo(await rasterize(new Blob([svg],{type:'image/svg+xml'}),{maxSide:3600,minSide:2400}),to,f)]};}
   if(MODEL_EXTS.has(ext)){
     if(to==='png'){if(state.assetId!==f.id||!state.viewer?.snapshot)throw new Error('Откройте модель, чтобы сохранить снимок');return {files:[toFile(f,'png',await state.viewer.snapshot())]};}
@@ -341,11 +590,11 @@ async function runConversion(f,to,engine){
     if(to==='stl'||to==='ply')mesh={vertices:mesh.vertices.map(([x,y,z])=>[x,-z,y]),faces:mesh.faces}; // printers expect Z-up
     const data={stl:()=>meshToSTL(mesh),obj:()=>meshToOBJ(mesh,baseName(f.name)),ply:()=>meshToPLY(mesh),glb:()=>meshToGLB(mesh),usdz:()=>meshToUSDZ(mesh,{upAxis:'Y'})}[to];
     if(!data)throw new Error('Неизвестный формат');return {files:[toFile(f,to,data())]};}
-  if(f.kind==='image')return {files:[await canvasTo(await rasterize(f.blob,{minSide:ext==='svg'?2000:0}),to,f)]};
+  if(f.kind==='image'){const src=f.redactions?.length?await redactImage(f):f.blob;return {files:[await canvasTo(await rasterize(src,{minSide:ext==='svg'?2000:0}),to,f)]};}
   throw new Error('Такое преобразование недоступно');
 }
 async function convertAction(button){
-  const f=await getAsset(state.assetId);if(!f)throw new Error('Сначала откройте файл');
+  const f=await assetById(state.assetId);if(!f)throw new Error('Сначала откройте файл');
   const {to,engine,mode}=button.dataset;
   const buttons=[...document.querySelectorAll('#modal [data-action="convert"]')];buttons.forEach(b=>b.disabled=true);notify('Преобразуем…');
   let result;try{result=await runConversion(f,to,engine);}finally{buttons.forEach(b=>b.disabled=false);}
@@ -384,15 +633,19 @@ async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=d
       const hint=document.getElementById('canvas-hint');if(hint)hint.textContent='Масштаб — 2 пальца или двойной тап';
     });
     const touches=new Map();let pinch=null,drag=null,lastTap=0;
+    const drawRedactions=()=>{if(!box)return;layer.querySelectorAll('.redact-box').forEach(x=>x.remove());for(const r of [...(f.redactions||[]),...(rdraft?[rdraft]:[])]){const el=document.createElement('div');el.className='redact-box'+(r===rdraft?' draft':'');el.style.left=`${box.left+box.width*Math.min(r.x0,r.x1)}px`;el.style.top=`${box.top+box.height*Math.min(r.y0,r.y1)}px`;el.style.width=`${box.width*Math.abs(r.x1-r.x0)}px`;el.style.height=`${box.height*Math.abs(r.y1-r.y0)}px`;layer.append(el);}};
+    let rdraft=null;image.addEventListener('load',()=>setTimeout(drawRedactions,0));
     stage.addEventListener('pointerdown',e=>{if(e.target.closest('.image-annotation'))return;stage.setPointerCapture(e.pointerId);touches.set(e.pointerId,local(e));
+      if(state.viewerTool==='redact'&&touches.size===1&&box){const p=toImage(...local(e));rdraft={x0:p.x,y0:p.y,x1:p.x,y1:p.y};return;}
       if(touches.size===2){const [a,c]=[...touches.values()];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),s:t.s,m:[(a[0]+c[0])/2,(a[1]+c[1])/2],x:t.x,y:t.y};drag=null;return;}
       drag={start:local(e),last:local(e),moved:false};});
     stage.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,local(e));
+      if(rdraft){const p=toImage(...local(e));rdraft.x1=Math.max(0,Math.min(1,p.x));rdraft.y1=Math.max(0,Math.min(1,p.y));drawRedactions();return;}
       if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];const ns=Math.max(1,Math.min(12,pinch.s*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));
         t.x=m[0]-(pinch.m[0]-pinch.x)*ns/pinch.s;t.y=m[1]-(pinch.m[1]-pinch.y)*ns/pinch.s;t.s=ns;clamp();apply();return;}
       if(!drag)return;const p=local(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
       if(drag.moved&&t.s>1){t.x+=p[0]-drag.last[0];t.y+=p[1]-drag.last[1];clamp();apply();}drag.last=p;});
-    const end=e=>{touches.delete(e.pointerId);if(pinch){if(touches.size<2)pinch=null;drag=null;return;}const d=drag;drag=null;if(!d||d.moved||!box||e.type==='pointercancel')return;
+    const end=e=>{touches.delete(e.pointerId);if(rdraft){const r=rdraft;rdraft=null;if(Math.abs(r.x1-r.x0)>0.01&&Math.abs(r.y1-r.y0)>0.01&&e.type!=='pointercancel'){f.redactions=[...(f.redactions||[]),r];updateAssetMeta(f.id,{redactions:f.redactions}).then(()=>notify('Область скрыта: при экспорте и защищённой отправке её содержимое будет удалено')).catch(err=>notify(err.message));}drawRedactions();return;}if(pinch){if(touches.size<2)pinch=null;drag=null;return;}const d=drag;drag=null;if(!d||d.moved||!box||e.type==='pointercancel')return;
       const [sx,sy]=local(e);const p=toImage(sx,sy);const inside=p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1;
       if(state.viewerTool==='comment'){if(inside)newNoteModal(p);return;}
       if(state.viewerTool==='measure'){if(!inside)return;state.measurePoints=state.measurePoints||[];if(state.measurePoints.length>=2){state.measurePoints=[];layer.querySelectorAll('.measure-dot').forEach(x=>x.remove());}
@@ -632,6 +885,7 @@ async function activateCadViewer(f,host,wrap){
     let shown=0;const minPx=texts.length>4000?6:3;
     for(const t of texts){const px=t.height*k;if(px<minPx)continue;const [x,y]=toScreen(t.p[0],t.p[1]);if(x<-w||x>2*w||y<-60||y>h+60)continue;if(++shown>6000)break;
       ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);if(t.width&&t.width!==1)ctx.scale(t.width,1);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline=t.valign||'alphabetic';ctx.fillStyle=(dark?t.color:toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
+    for(const r of [...(f.redactions||[]),...(redactDraft?[redactDraft]:[])]){const a=toScreen(Math.min(r.x0,r.x1),Math.max(r.y0,r.y1)),c=toScreen(Math.max(r.x0,r.x1),Math.min(r.y0,r.y1));ctx.fillStyle=r===redactDraft?'rgba(0,0,0,.55)':'#000';ctx.fillRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);ctx.strokeStyle='#e5484d';ctx.lineWidth=1;ctx.strokeRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);}
     if(measure.length){ctx.strokeStyle='#4f8cff';ctx.fillStyle='#4f8cff';ctx.lineWidth=2;const pts=measure.map(p=>toScreen(p[0],p[1]));
       if(pts.length===2){ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(...pts[0]);ctx.lineTo(...pts[1]);ctx.stroke();ctx.setLineDash([]);
         const len=Math.hypot(measure[1][0]-measure[0][0],measure[1][1]-measure[0][1]);const label=`${fmtNum(len)} ${unit}`;const mx=(pts[0][0]+pts[1][0])/2,my=(pts[0][1]+pts[1][1])/2;
@@ -646,15 +900,19 @@ async function activateCadViewer(f,host,wrap){
   const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${drawing.entities.length.toLocaleString('ru-RU')} объектов${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}`;};
   build();updateInfo();setTimeout(()=>info.classList.add('faded'),3500);
   const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
-  const touches=new Map();let pinch=null,drag=null,lastTap=0;
+  const touches=new Map();let pinch=null,drag=null,lastTap=0,redactDraft=null;
   canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);touches.set(e.pointerId,pos(e));
+    if(state.viewerTool==='redact'&&touches.size===1){const [x,y]=toWorld(...pos(e));redactDraft={x0:x,y0:y,x1:x,y1:y};return;}
     if(touches.size===2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),zoom:vs.zoom,world:toWorld(...m)};drag=null;return;}
     drag={start:pos(e),last:pos(e),moved:false};});
   canvas.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,pos(e));
     if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.05,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;redraw();return;}
+    if(redactDraft){const [x,y]=toWorld(...pos(e));redactDraft.x1=x;redactDraft.y1=y;redraw();return;}
     if(!drag)return;const p=pos(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
     if(drag.moved){const k=scale();vs.cx-=(p[0]-drag.last[0])/k;vs.cy+=(p[1]-drag.last[1])/k;drag.last=p;redraw();}});
-  const end=e=>{touches.delete(e.pointerId);if(pinch){if(touches.size<2)pinch=null;drag=null;return;}
+  const end=e=>{touches.delete(e.pointerId);
+    if(redactDraft){const r=redactDraft;redactDraft=null;const k=scale();if(Math.abs(r.x1-r.x0)*k>10&&Math.abs(r.y1-r.y0)*k>10&&e.type!=='pointercancel'){f.redactions=[...(f.redactions||[]),r];updateAssetMeta(f.id,{redactions:f.redactions}).then(()=>notify('Область скрыта: при экспорте и защищённой отправке её содержимое будет удалено')).catch(err=>notify(err.message));}redraw();return;}
+    if(pinch){if(touches.size<2)pinch=null;drag=null;return;}
     const d=drag;drag=null;if(!d||d.moved||e.type==='pointercancel')return;const [sx,sy]=pos(e);
     if(state.viewerTool==='measure'){const p=snapTo(sx,sy);if(measure.length>=2)measure=[];measure.push(p);
       if(measure.length===2){const dx=measure[1][0]-measure[0][0],dy=measure[1][1]-measure[0][1];notify(`Расстояние ${fmtNum(Math.hypot(dx,dy))} ${unit} · ΔX ${fmtNum(Math.abs(dx))} · ΔY ${fmtNum(Math.abs(dy))}`);haptic();}
@@ -692,19 +950,25 @@ dialog.addEventListener('submit',async e=>{
   e.preventDefault();const form=e.target;
   try{
     if(form.id==='create-project'){const fd=new FormData(form);const p=await createProject(fd.get('name'),fd.get('description'));closeModal();await openProject(p.id);notify('Проект создан');}
+    if(form.id==='secure-share'){await createSecurePackage(form);return;}
+    if(form.id==='unlock-secure'){const fd=new FormData(form);await openSecure(form.dataset.id,String(fd.get('secret')||'').trim(),{remember:!!fd.get('remember')});return;}
+    if(form.id==='secure-ack'){const fd=new FormData(form);await sendReceipt(String(fd.get('name')).trim(),String(fd.get('company')||'').trim());return;}
+    if(form.id==='identity'){const fd=new FormData(form);const url=String(fd.get('revocationUrl')||'').trim();if(url&&!/^https:\/\//.test(url))throw new Error('Адрес должен начинаться с https://');await saveSetting('userName',String(fd.get('userName')||'').trim());await saveSetting('company',String(fd.get('company')||'').trim());await saveSetting('revocationUrl',url);closeModal();notify('Сохранено');await render();return;}
     if(form.id==='rename-project'){const fd=new FormData(form);await renameProject(state.projectId,fd.get('name'),fd.get('description'));closeModal();notify('Сохранено');await render();return;}
     if(form.id==='rename-asset'){const name=await renameAsset(state.assetId,new FormData(form).get('name'));closeModal();notify(`Файл: ${name}`);await render();return;}
     if(form.id==='calibrate'){const length=Number(String(new FormData(form).get('length')).replace(',','.'));if(!(length>0)||!(state.lastPixels>0))throw new Error('Введите длину больше нуля');await setAssetScale(state.assetId,length/state.lastPixels);closeModal();notify(`Масштаб задан: ${formatLength(length)} = ${state.lastPixels.toFixed(1)} пикс.`);state.measurePoints=[];await render();state.viewerTool='measure';state.viewer?.setTool?.('measure');app.querySelectorAll('[data-action="viewer-tool"]').forEach(b=>{const on=b.dataset.tool==='measure';b.classList.toggle('soft',on);b.classList.toggle('active-tool',on);b.classList.toggle('outline',!on);});return;}
-    if(form.id==='create-note'){const f=await getAsset(state.assetId);const fd=new FormData(form);if(!f)throw new Error('Сначала откройте файл');await addNote({projectId:f.projectId,assetId:f.id,text:fd.get('text'),point:state.pendingPoint||{x:.5,y:.5},locationType:state.pendingLocationType||'normalized'});state.pendingPoint=null;state.pendingLocationType='normalized';state.viewerTool='view';closeModal();await render();notify('Замечание сохранено');}
+    if(form.id==='create-note'&&String(state.assetId).startsWith('sbx:')){const fd=new FormData(form);const n={id:'sbxl:'+uuid(),projectId:state.projectId,assetId:state.assetId,version:1,text:String(fd.get('text')).trim().slice(0,1200),point:state.pendingPoint||{x:.5,y:.5},locationType:state.pendingLocationType||'normalized',status:'open',createdAt:Date.now()};if(!n.text)throw new Error('Напишите замечание');state.secure.notes.push(n);await secureAudit({type:'comment'});state.pendingPoint=null;state.viewerTool='view';closeModal();await render();notify('Замечание сохранено в пакете');return;}
+    if(form.id==='create-note'){const f=await assetById(state.assetId);const fd=new FormData(form);if(!f)throw new Error('Сначала откройте файл');await addNote({projectId:f.projectId,assetId:f.id,text:fd.get('text'),point:state.pendingPoint||{x:.5,y:.5},locationType:state.pendingLocationType||'normalized'});state.pendingPoint=null;state.pendingLocationType='normalized';state.viewerTool='view';closeModal();await render();notify('Замечание сохранено');}
   }catch(err){notify(err.message||'Не удалось сохранить');}
 });
 document.addEventListener('input',e=>{if(e.target.id==='project-search'){const el=e.target;state.search=el.value;const start=el.selectionStart;render().then(()=>{const next=document.getElementById('project-search');next?.focus();next?.setSelectionRange(start,start);});}});
 document.addEventListener('change',e=>{const t=e.target;if(t.matches?.('input[data-layer]')&&state.viewer?.setLayer)state.viewer.setLayer(t.dataset.layer,t.checked);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)nativeDrain();});
 async function init(){
-  if(NativeML)NativeML.addListener('inboxChanged',()=>nativeDrain()).catch(console.warn);
+  if(NativeML){NativeML.addListener('inboxChanged',()=>nativeDrain()).catch(console.warn);NativeML.addListener('screenshot',()=>onScreenshot()).catch(()=>{});NativeML.addListener('capture',e=>onCapture(e.captured)).catch(()=>{});NativeML.addListener('panic',()=>{if(isSensitive())panic();}).catch(()=>{});}
+  await loadSettings().catch(()=>{});
   navigator.storage?.persist?.().catch(()=>{});
-  try{state.theme=localStorage.getItem('modellink-theme')||'light';document.body.classList.toggle('dark',state.theme==='dark');await initDemo();await render();if(!IS_NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(console.warn);await nativeDrain();}
+  try{state.theme=localStorage.getItem('modellink-theme')||'light';document.body.classList.toggle('dark',state.theme==='dark');await initDemo();await render();ensureFingerprints().catch(()=>{});if(!IS_NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('./sw.js').catch(console.warn);await nativeDrain();}
   catch(e){console.error(e);app.innerHTML=`<div class="boot-screen">${icon('warning','large')}<h2>Не удалось открыть хранилище</h2><p class="lead" style="text-align:center;padding:20px">Проверьте разрешения браузера и свободное место на устройстве.</p></div>`;}
 }
 init();

@@ -158,3 +158,33 @@ export function conversionTargets(name,{native=false}={}){
   if(ext!=='zip')add('zip','ZIP-архив','zip');
   return t;
 }
+
+// ---------------------------------------------------------------- redaction ("обезличивание")
+/** Removes primitives that lie (even partly) inside any rectangle {x0,y0,x1,y1} and returns rectangles as filled boxes. */
+export function redactDrawing(drawing,regions){
+  if(!regions?.length)return drawing;
+  const hit=(x,y)=>regions.some(r=>x>=Math.min(r.x0,r.x1)&&x<=Math.max(r.x0,r.x1)&&y>=Math.min(r.y0,r.y1)&&y<=Math.max(r.y0,r.y1));
+  const pts=e=>e.type==='line'?[e.a,e.b]:e.type==='polyline'?e.points:e.type==='circle'||e.type==='arc'?[e.c,[e.c[0]+e.r,e.c[1]],[e.c[0]-e.r,e.c[1]],[e.c[0],e.c[1]+e.r],[e.c[0],e.c[1]-e.r]]:e.type==='text'?[e.p,[e.p[0]+e.height*e.text.length*0.6,e.p[1]+e.height]]:e.type==='point'?[e.p]:[];
+  const kept=drawing.entities.filter(e=>!pts(e).some(p=>hit(p[0],p[1])));
+  const boxes=regions.map(r=>({type:'polyline',closed:true,fill:true,color:'#000000',layer:'REDACTED',points:[[r.x0,r.y0],[r.x1,r.y0],[r.x1,r.y1],[r.x0,r.y1]]}));
+  return {...drawing,entities:[...kept,...boxes],redacted:drawing.entities.length-kept.length};
+}
+
+/** Minimal ASCII DXF (R12) from drawing primitives: lines, polylines, circles, arcs, texts, solid boxes. */
+export function drawingToDXF(drawing){
+  const out=['0','SECTION','2','HEADER','9','$ACADVER','1','AC1009','0','ENDSEC','0','SECTION','2','ENTITIES'];
+  const n=v=>String(Math.round(v*1e6)/1e6);
+  const aci=c=>{if(!c)return 7;const v=parseInt(c.slice(1),16),r=v>>16&255,g=v>>8&255,b=v&255;if(r<40&&g<40&&b<40)return 250;const table=[[1,255,0,0],[2,255,255,0],[3,0,255,0],[4,0,255,255],[5,0,0,255],[6,255,0,255],[8,128,128,128],[9,192,192,192],[30,255,127,0]];let best=7,bd=1e9;for(const [i,R,G,B] of table){const d=(r-R)**2+(g-G)**2+(b-B)**2;if(d<bd){bd=d;best=i;}}return best;};
+  const common=e=>['8',String(e.layer||'0').replace(/[<>\/\\":;?*|=']/g,'_'),'62',String(aci(e.color))];
+  for(const e of drawing.entities){
+    if(e.type==='line')out.push('0','LINE',...common(e),'10',n(e.a[0]),'20',n(e.a[1]),'30','0','11',n(e.b[0]),'21',n(e.b[1]),'31','0');
+    else if(e.type==='circle'&&e.r>0)out.push('0','CIRCLE',...common(e),'10',n(e.c[0]),'20',n(e.c[1]),'30','0','40',n(e.r));
+    else if(e.type==='arc')out.push('0','ARC',...common(e),'10',n(e.c[0]),'20',n(e.c[1]),'30','0','40',n(e.r),'50',n(e.start),'51',n(e.end));
+    else if(e.type==='point'||(e.type==='circle'&&!e.r)){const p=e.p||e.c;out.push('0','POINT',...common(e),'10',n(p[0]),'20',n(p[1]),'30','0');}
+    else if(e.type==='text')out.push('0','TEXT',...common(e),'10',n(e.p[0]),'20',n(e.p[1]),'30','0','40',n(e.height),'1',String(e.text).replace(/[\r\n]+/g,' '),'50',n((e.rotation||0)*180/Math.PI));
+    else if(e.type==='polyline'&&e.fill&&e.points.length===4){const [a,b,c,d]=e.points;out.push('0','SOLID',...common(e),'10',n(a[0]),'20',n(a[1]),'30','0','11',n(b[0]),'21',n(b[1]),'31','0','12',n(d[0]),'22',n(d[1]),'32','0','13',n(c[0]),'23',n(c[1]),'33','0');}
+    else if(e.type==='polyline'){out.push('0','POLYLINE',...common(e),'66','1','70',e.closed?'1':'0');for(const p of e.points)out.push('0','VERTEX','8',String(e.layer||'0'),'10',n(p[0]),'20',n(p[1]),'30','0');out.push('0','SEQEND','8',String(e.layer||'0'));}
+  }
+  out.push('0','ENDSEC','0','EOF');
+  return out.join('\r\n')+'\r\n';
+}

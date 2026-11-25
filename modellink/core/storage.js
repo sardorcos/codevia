@@ -1,7 +1,13 @@
 const NAME = 'modellink-mobile-v04';
-const VERSION = 1;
+const VERSION = 2;
 const MAX_FILE = 100 * 1024 * 1024;
-const STORE = {projects:'projects',assets:'assets',notes:'notes',prefs:'prefs'};
+const STORE = {projects:'projects',assets:'assets',notes:'notes',prefs:'prefs',sandbox:'sandbox',sent:'sent'};
+// Vault: assets of vault projects are stored sealed (AES-GCM) with a device key the app provides after Face ID.
+let vaultKey=null,sealFns=null;
+export function setVaultCrypto(key,fns){vaultKey=key;if(fns)sealFns=fns;}
+export function vaultUnlocked(){return !!vaultKey;}
+async function sha256Hex(blob){try{const d=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');}catch{return null;}}
+async function unseal(asset){if(!asset||!asset.sealed)return asset;if(!vaultKey||!sealFns)throw new Error('Сейф заблокирован');const plain=await sealFns.open(vaultKey,new Uint8Array(await asset.blob.arrayBuffer()));return {...asset,blob:new Blob([plain],{type:asset.mime}),sealed:false};}
 let dbPromise;
 
 export function uid(){return (globalThis.crypto?.randomUUID?.() || `ml-${Date.now()}-${Math.random().toString(36).slice(2)}`);}
@@ -54,9 +60,10 @@ export async function createProject(name,description='',demo=false){
 }
 export async function getProjects(){return (await all(STORE.projects)).sort((a,b)=>b.updatedAt-a.updatedAt);}
 export async function getProject(id){return one(STORE.projects,id);}
-export async function getAssets(projectId){return (await all(STORE.assets)).filter(f=>f.projectId===projectId).sort((a,b)=>b.createdAt-a.createdAt);}
+export async function getAssets(projectId,{decrypt=true}={}){const list=(await all(STORE.assets)).filter(f=>f.projectId===projectId).sort((a,b)=>b.createdAt-a.createdAt);return decrypt?Promise.all(list.map(unseal)):list;}
 export async function getAllAssets(){return all(STORE.assets);}
-export async function getAsset(id){return one(STORE.assets,id);}
+export async function getAsset(id){return unseal(await one(STORE.assets,id));}
+export async function getAssetRaw(id){return one(STORE.assets,id);}
 export async function addAsset(projectId,file,opts={}){
   const project=await getProject(projectId);
   if(!project) throw new Error('Проект не найден');
@@ -64,16 +71,17 @@ export async function addAsset(projectId,file,opts={}){
   if(!Number.isFinite(size)||size>MAX_FILE) throw new Error('Максимальный размер одного файла: 100 МБ');
   const path=String(opts.path||file.name).replace(/\\/g,'/').replace(/^\/+/, '');
   if(path.split('/').includes('..')) throw new Error('Недопустимый путь файла');
-  const exists=(await getAssets(projectId)).filter(f=>f.path===path).sort((a,b)=>b.version-a.version);
+  const exists=(await getAssets(projectId,{decrypt:false})).filter(f=>f.path===path).sort((a,b)=>b.version-a.version);
   const newest=exists[0];
   const asset={id:uid(),projectId,name:file.name,path,groupId:newest?.groupId||uid(),version:(newest?.version||0)+1,
-    size, mime:file.type||'application/octet-stream',blob:file,createdAt:Date.now(),kind:kindFor(file.name)};
+    size, mime:file.type||'application/octet-stream',blob:file,createdAt:Date.now(),kind:kindFor(file.name),sha256:await sha256Hex(file)};
+  if(project.vault){if(!vaultKey||!sealFns)throw new Error('Сейф заблокирован');asset.blob=new Blob([await sealFns.seal(vaultKey,new Uint8Array(await file.arrayBuffer()))]);asset.sealed=true;}
   await put(STORE.assets,asset);
   project.updatedAt=Date.now();await put(STORE.projects,project);
   return asset;
 }
 export async function removeAsset(id){
-  const asset=await getAsset(id);if(!asset)throw new Error('Файл не найден');
+  const asset=await one(STORE.assets,id);if(!asset)throw new Error('Файл не найден');
   for(const note of (await getNotes(asset.projectId)).filter(n=>n.assetId===id)) await del(STORE.notes,note.id);
   await del(STORE.assets,id);
   const project=await getProject(asset.projectId);if(project){project.updatedAt=Date.now();await put(STORE.projects,project);}
@@ -81,7 +89,7 @@ export async function removeAsset(id){
 }
 /** Physical scale for raster/vector images: millimetres per source pixel. */
 export async function setAssetScale(id,mmPerPixel){
-  const asset=await getAsset(id);if(!asset)throw new Error('Файл не найден');
+  const asset=await one(STORE.assets,id);if(!asset)throw new Error('Файл не найден');
   if(mmPerPixel!==null&&!(Number.isFinite(mmPerPixel)&&mmPerPixel>0))throw new Error('Некорректный масштаб');
   asset.mmPerPixel=mmPerPixel;await put(STORE.assets,asset);return asset;
 }
@@ -93,18 +101,35 @@ export async function renameProject(id,name,description){
 }
 /** Renames every version of a file (they share groupId) and keeps the extension unless a new one is typed. */
 export async function renameAsset(id,newName){
-  const asset=await getAsset(id);if(!asset)throw new Error('Файл не найден');
+  const asset=await one(STORE.assets,id);if(!asset)throw new Error('Файл не найден');
   let name=String(newName||'').trim().replace(/[\\/:*?"<>|]/g,'_').slice(0,150);if(!name)throw new Error('Введите имя файла');
   const ext=asset.name.includes('.')?asset.name.split('.').at(-1):'';if(ext&&!name.toLowerCase().endsWith('.'+ext.toLowerCase())&&!/\.[a-z0-9]{1,6}$/i.test(name))name+='.'+ext;
-  for(const v of (await getAssets(asset.projectId)).filter(x=>x.groupId===asset.groupId)){v.name=name;v.path=name;v.kind=kindFor(name);await put(STORE.assets,v);}
+  for(const v of (await getAssets(asset.projectId,{decrypt:false})).filter(x=>x.groupId===asset.groupId)){v.name=name;v.path=name;v.kind=kindFor(name);await put(STORE.assets,v);}
   return name;
 }
 export async function removeNote(id){await del(STORE.notes,id);}
+/** Moves a project into or out of the vault, sealing / unsealing every file version. */
+export async function setProjectVault(id,inVault){
+  const project=await getProject(id);if(!project)throw new Error('Проект не найден');if(!vaultKey||!sealFns)throw new Error('Сейф заблокирован');
+  for(const a of await getAssets(id,{decrypt:false})){
+    if(inVault&&!a.sealed){a.blob=new Blob([await sealFns.seal(vaultKey,new Uint8Array(await a.blob.arrayBuffer()))]);a.sealed=true;await put(STORE.assets,a);}
+    if(!inVault&&a.sealed){const plain=await unseal(a);await put(STORE.assets,{...plain,sealed:false});}
+  }
+  project.vault=!!inVault;project.updatedAt=Date.now();await put(STORE.projects,project);return project;
+}
+export async function updateAssetMeta(id,patch){const a=await one(STORE.assets,id);if(!a)throw new Error('Файл не найден');Object.assign(a,patch);await put(STORE.assets,a);return a;}
+/** Fills in missing fingerprints (files added before 0.7). */
+export async function ensureFingerprints(){for(const a of await all(STORE.assets)){if(a.sha256||a.sealed)continue;a.sha256=await sha256Hex(a.blob);if(a.sha256)await put(STORE.assets,a);}}
+// Protected packages received (sandbox) and sent (sender registry) + small key/value preferences.
+export const sandbox={all:()=>all(STORE.sandbox),get:id=>one(STORE.sandbox,id),put:r=>put(STORE.sandbox,r),del:id=>del(STORE.sandbox,id),clear:async()=>{for(const r of await all(STORE.sandbox))await del(STORE.sandbox,r.id);}};
+export const sent={all:()=>all(STORE.sent),get:id=>one(STORE.sent,id),put:r=>put(STORE.sent,r),del:id=>del(STORE.sent,id)};
+export async function pref(key,fallback=null){const r=await one(STORE.prefs,key);return r?r.value:fallback;}
+export async function setPref(key,value){await put(STORE.prefs,{id:key,value});}
 export async function removeAllData(){
-  for(const store of Object.values(STORE)){for(const item of await all(store))await del(store,item.id);}
+  for(const store of Object.values(STORE)){if(store===STORE.prefs)continue;for(const item of await all(store))await del(store,item.id);}
 }
 export async function removeProject(id){
-  const assets=await getAssets(id);const notes=await getNotes(id);
+  const assets=await getAssets(id,{decrypt:false});const notes=await getNotes(id);
   for(const asset of assets) await del(STORE.assets,asset.id);
   for(const note of notes) await del(STORE.notes,note.id);
   await del(STORE.projects,id);
@@ -113,7 +138,7 @@ export async function getNotes(projectId){return (await all(STORE.notes)).filter
 export async function getAllNotes(){return all(STORE.notes);}
 export async function addNote({projectId,assetId,text,point,locationType='normalized',page=1}){
   if(!String(text||'').trim()) throw new Error('Напишите замечание');
-  const asset=await getAsset(assetId);
+  const asset=await one(STORE.assets,assetId);
   if(!asset||asset.projectId!==projectId) throw new Error('Файл не найден');
   const note={id:uid(),projectId,assetId,version:asset.version,text:String(text).trim().slice(0,1200),point,locationType,page,status:'open',createdAt:Date.now()};
   await put(STORE.notes,note);return note;

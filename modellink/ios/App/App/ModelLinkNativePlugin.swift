@@ -3,6 +3,7 @@ import UIKit
 import QuickLook
 import UniformTypeIdentifiers
 import Capacitor
+import AVFoundation
 
 /// Native iOS bridge for the existing ModelLink web app.
 /// Existing CAD rendering remains in the web layer; the bridge handles system files and previews.
@@ -29,13 +30,23 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
         CAPPluginMethod(name: "deleteExport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "previewExport", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "convertExport", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "shareStaged", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "shareStaged", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "authenticate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "keychainGet", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "keychainSet", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "keychainDelete", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPrivacy", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "scanQR", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "fetchText", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "wipeTemp", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "screenState", returnType: CAPPluginReturnPromise)
     ]
 
     private var pendingPickCall: CAPPluginCall?
     private var quickLookURL: URL?
     private var pendingPreviewCall: CAPPluginCall?
     private var inboxObserver: NSObjectProtocol?
+    private var securityObservers: [NSObjectProtocol] = []
 
     override public func load() {
         inboxObserver = NotificationCenter.default.addObserver(
@@ -43,10 +54,21 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
         ) { [weak self] _ in
             self?.notifyListeners("inboxChanged", data: [:], retainUntilConsumed: true)
         }
+        let center = NotificationCenter.default
+        securityObservers.append(center.addObserver(forName: UIApplication.userDidTakeScreenshotNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.notifyListeners("screenshot", data: [:])
+        })
+        securityObservers.append(center.addObserver(forName: UIScreen.capturedDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.notifyListeners("capture", data: ["captured": UIScreen.main.isCaptured])
+        })
+        securityObservers.append(center.addObserver(forName: ModelLinkSecurity.panic, object: nil, queue: .main) { [weak self] _ in
+            self?.notifyListeners("panic", data: ["source": "faceDown"])
+        })
     }
 
     deinit {
         if let observer = inboxObserver { NotificationCenter.default.removeObserver(observer) }
+        securityObservers.forEach { NotificationCenter.default.removeObserver($0) }
     }
     private let nativePreviewExtensions: Set<String> = [
         "pdf", "usdz", "png", "jpg", "jpeg", "gif", "webp", "tif", "tiff", "txt", "rtf",
@@ -346,6 +368,89 @@ public final class ModelLinkNativePlugin: CAPPlugin, CAPBridgedPlugin, UIDocumen
                 presenter.present(controller, animated: true)
             }
         } catch { call.reject(error.localizedDescription) }
+    }
+
+    // MARK: Security
+
+    @objc public func authenticate(_ call: CAPPluginCall) {
+        let reason = call.getString("reason") ?? "Откройте сейф ModelLink"
+        ModelLinkSecurity.shared.authenticate(reason: reason) { ok, biometry, error in
+            var result: [String: Any] = ["ok": ok, "biometry": biometry]
+            if let error = error { result["error"] = error }
+            call.resolve(result)
+        }
+    }
+
+    @objc public func keychainGet(_ call: CAPPluginCall) {
+        guard let name = call.getString("name") else { call.reject("Нужно имя"); return }
+        if let data = ModelLinkSecurity.shared.keychainGet(name) { call.resolve(["value": data.base64EncodedString()]) }
+        else { call.resolve([:]) }
+    }
+
+    @objc public func keychainSet(_ call: CAPPluginCall) {
+        guard let name = call.getString("name"), let value = call.getString("value"), let data = Data(base64Encoded: value) else {
+            call.reject("Нужны имя и значение"); return
+        }
+        call.resolve(["ok": ModelLinkSecurity.shared.keychainSet(name, data: data)])
+    }
+
+    @objc public func keychainDelete(_ call: CAPPluginCall) {
+        guard let name = call.getString("name") else { call.reject("Нужно имя"); return }
+        ModelLinkSecurity.shared.keychainDelete(name)
+        call.resolve(["ok": true])
+    }
+
+    @objc public func setPrivacy(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if let shield = call.getBool("shield") { ModelLinkSecurity.shared.shieldEnabled = shield; if !shield { ModelLinkSecurity.shared.hideShield() } }
+            if let motion = call.getBool("panicMotion") { ModelLinkSecurity.shared.setPanicMotion(motion) }
+            call.resolve(["captured": UIScreen.main.isCaptured])
+        }
+    }
+
+    @objc public func screenState(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { call.resolve(["captured": UIScreen.main.isCaptured]) }
+    }
+
+    @objc public func scanQR(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let presenter = self.bridge?.viewController else { call.reject("Камера недоступна"); return }
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    guard granted else { call.reject("Нет доступа к камере. Разрешите его в Настройках iPhone."); return }
+                    let scanner = ModelLinkQRScanner()
+                    scanner.modalPresentationStyle = .fullScreen
+                    scanner.completion = { text in
+                        if let text = text { call.resolve(["text": text]) } else { call.resolve(["cancelled": true]) }
+                    }
+                    presenter.present(scanner, animated: true)
+                }
+            }
+        }
+    }
+
+    /// HTTPS GET used only for package revocation lists (the web layer has no network access by CSP).
+    @objc public func fetchText(_ call: CAPPluginCall) {
+        guard let string = call.getString("url"), let url = URL(string: string), url.scheme == "https" else {
+            call.reject("Нужен адрес https://"); return
+        }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
+        request.setValue("ModelLink", forHTTPHeaderField: "User-Agent")
+        URLSession(configuration: .ephemeral).dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error { call.reject(error.localizedDescription); return }
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let text = data.flatMap { String(data: $0.prefix(512 * 1024), encoding: .utf8) } ?? ""
+                call.resolve(["status": status, "text": text])
+            }
+        }.resume()
+    }
+
+    @objc public func wipeTemp(_ call: CAPPluginCall) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let removed = ModelLinkSecurity.shared.wipeTemporaryFiles()
+            DispatchQueue.main.async { call.resolve(["removed": removed]) }
+        }
     }
 
     public func previewControllerDidDismiss(_ controller: QLPreviewController) {
