@@ -555,6 +555,7 @@ export class App {
       save: 'saved',
       saveError: '',
     });
+    this.previewPost = null;
     this.previewDirty = true;
     this.previewHtml = null;
     this.editorPath = '';
@@ -1379,7 +1380,8 @@ export class App {
       this.previewDirty = true;
       return;
     }
-    this.previewPost = null;
+    // The posted form stays with this page (a rebuild re-runs it, like a browser keeps POST data for a
+    // page); it is cleared when the user navigates elsewhere or switches page/project.
     const transpile = Object.keys(p.files).some(needsTranspile) ? await this.loadTranspiler() : undefined;
     const result = buildPreview(p.files, page, source, { allowNetwork: this.s.settings.previewNetwork, token, transpile });
     for (const m of result.missing.slice(0, 20)) notes.push({ level: 'warn', text: `${t('Не найден файл: {name}', { name: m })}\n` });
@@ -2082,6 +2084,7 @@ export class App {
     }
     if (t.id === 'preview-page') {
       this.s.previewPage = t.value;
+      this.previewPost = null;
       this.s.previewQuery = '';
       this.previewDirty = true;
       this.render();
