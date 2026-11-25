@@ -46,7 +46,9 @@ workflows:
         script: npm test
       - name: Build web app and sync iOS project
         script: |
-          npm run build
+          # Release builds must contain the bundled Python packages (numpy, pandas, matplotlib…).
+          CODEVIA_PY_STRICT=1 npm run build
+          du -sh public/pyodide
           npx cap sync ios
       - name: Set build number
         script: |
