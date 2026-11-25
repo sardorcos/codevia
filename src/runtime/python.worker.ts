@@ -200,8 +200,12 @@ import sys, io, base64, importlib.abc, importlib.machinery
 import _codevia
 
 def _codevia_png(save):
+    import warnings
     buf = io.BytesIO()
-    save(buf)
+    # Rendering for the console must not print library deprecation noise into the user's output.
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        save(buf)
     _codevia.image('image/png', base64.b64encode(buf.getvalue()).decode('ascii'))
 
 def _codevia_show_figures(*args, **kwargs):

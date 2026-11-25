@@ -94,7 +94,9 @@ const typeFile = async (page, path, text) => {
 const run = async (page, waitText) => {
   await page.locator('[data-action="run"]').first().click();
   await page.locator('#run-console', { hasText: waitText }).waitFor({ timeout: 120_000 });
-  await page.waitForTimeout(600);
+  // Wait until the run has finished (Run button back, status shows the exit code).
+  await page.locator('[data-action="run"]').first().waitFor({ timeout: 120_000 });
+  await page.waitForTimeout(800);
 };
 
 // Sample order on Home (newest first): JS, PHP, Python, Web — resolved by text to stay robust.
@@ -147,7 +149,10 @@ async function iphone(locale) {
   await tools(page, 'json');
   const sample = JSON.stringify({ user: { id: 7, name: 'Anna', roles: ['admin', 'dev'] }, projects: [{ name: 'portfolio', stars: 42 }, { name: 'api', stars: 17 }], active: true });
   await page.locator('.tool-layer textarea').first().fill(sample);
-  await page.locator('.tool-layer button', { hasText: /format|формат/i }).first().click().catch(() => undefined);
+  await page.locator('.tool-layer textarea').first().dispatchEvent('input');
+  await page.waitForTimeout(400);
+  // Show the collapsible tree (the most telling view of the JSON tool).
+  await page.locator('.tool-layer button', { hasText: /^(Tree|Дерево)$/ }).first().click();
   await page.waitForTimeout(800);
   shots.tools = await page.screenshot();
   await ctx.close();
