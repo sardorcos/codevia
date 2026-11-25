@@ -3,7 +3,7 @@
 // files, console output, timers, prompt() fed from the Input field, process.exit, fs/path over
 // the project files. "Stop" terminates the worker, which is the only reliable way to interrupt code.
 import { compileModule, dirOf, formatArgs, formatTable, inspect, makeBuiltins, resolveModule } from './js-core';
-import { OutputBatcher, type RunRequest, type WorkerMessage } from './protocol';
+import { NEED_INPUT_EXIT, OutputBatcher, type RunRequest, type WorkerMessage } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 const post = (m: WorkerMessage) => self.postMessage(m);
@@ -127,6 +127,12 @@ function run(req: RunRequest): void {
     if (message) out.write(String(message));
     flush();
     if (stdinUsed >= lines.length || (stdinUsed === lines.length - 1 && lines[stdinUsed] === '')) {
+      if (req.interactive) {
+        // Stop the program; the app asks the user and replays the run with one more line.
+        flush();
+        post({ type: 'need-input', id: req.id });
+        throw new ExitSignal(NEED_INPUT_EXIT);
+      }
       err.write(wmsg('promptEnd'));
       return null;
     }

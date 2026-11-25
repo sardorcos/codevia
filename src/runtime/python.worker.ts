@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { OutputBatcher, type RunRequest, type WorkerMessage } from './protocol';
+import { NEED_INPUT_EXIT, OutputBatcher, type RunRequest, type WorkerMessage } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -49,6 +49,8 @@ let bundledNames = new Set<string>();
 let lockPackages: Record<string, LockPackage> = {};
 /** The run that currently owns stdout/images (for callbacks from Python). */
 let currentId = '';
+/** Set when an interactive run needs a line the app has not given yet. */
+let needInput = false;
 
 /** One fixed folder: a fresh copy of the project on every run, so edited modules are never stale. */
 const WORKDIR = '/home/pyodide/project';
@@ -179,6 +181,7 @@ function load(): Promise<PyodideLike> {
         env: { MPLBACKEND: 'AGG' },
       });
       py.registerJsModule('_codevia', {
+        need_input: () => needInput,
         image: (mime: string, data: string) => {
           flushAll();
           post({ type: 'image', id: currentId, mime, data });
@@ -276,6 +279,9 @@ def __codevia_run(entry, workdir, hint):
         return 1
     except BaseException:
         etype, value, tb = sys.exc_info()
+        import _codevia
+        if etype is EOFError and _codevia.need_input():
+            return ${NEED_INPUT_EXIT}
         frames = [f for f in traceback.extract_tb(tb) if f.filename.startswith(workdir)]
         print('Traceback (most recent call last):', file=sys.stderr)
         for line in traceback.format_list(frames):
@@ -406,10 +412,16 @@ async function run(req: RunRequest): Promise<void> {
 
   const lines = (req.stdin ?? '').split('\n');
   let stdinUsed = 0;
+  needInput = false;
   py.setStdin({
     stdin: () => {
       flushAll();
       if (stdinUsed >= lines.length || (stdinUsed === lines.length - 1 && lines[stdinUsed] === '')) {
+        // Interactive: stop here (EOF) and let the app ask the user; the run is replayed with one more line.
+        if (req.interactive) {
+          needInput = true;
+          return null;
+        }
         post({ type: 'stderr', id: req.id, text: wmsg('stdinEnd') });
         return null;
       }
@@ -428,6 +440,7 @@ async function run(req: RunRequest): Promise<void> {
     // Free the copy right away: big data files must not stay in the worker's memory between runs.
     clearDir(py.FS, WORKDIR);
   }
+  if (needInput) post({ type: 'need-input', id: req.id });
   post({ type: 'done', id: req.id, exitCode, ms: Math.round(performance.now() - started) });
 }
 

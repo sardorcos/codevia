@@ -1525,7 +1525,8 @@ export class App {
     if (!entry) throw new Error(t('Нет файла для запуска'));
     await this.flushSaves();
     const stdin = ($<HTMLTextAreaElement>('#run-stdin', this.root)?.value ?? this.s.run.stdin) || '';
-    this.s.run = { running: true, status: t('Подготовка…'), output: [], exitCode: null, ms: null, stdin };
+    this.s.run = { running: true, status: t('Подготовка…'), output: [], exitCode: null, ms: null, stdin, awaitingInput: false };
+    let needInput = false;
     this.outputChars = 0;
     this.render();
     const push = (level: ConsoleLine['level'], text: string) => {
@@ -1561,14 +1562,24 @@ export class App {
           onStdout: (t) => push('stdout', t),
           onStderr: (t) => push('stderr', t),
           onHtml: () => undefined,
+          onNeedInput: () => {
+            needInput = true;
+          },
           onImage: (mime, data) => {
             const line: ConsoleLine = { level: 'stdout', text: '', image: { mime, data } };
             this.s.run.output.push(line);
             this.appendConsoleLine('run-console', line);
           },
         },
-        { stdin, query: this.s.previewQuery },
+        { stdin, query: this.s.previewQuery, interactive: p.language === 'python' || p.language === 'javascript' },
       );
+      if (needInput && !r.stopped) {
+        // Interactive input: the program stopped at input()/prompt(); ask the user, then replay it.
+        this.s.run.awaitingInput = true;
+        this.s.run.exitCode = null;
+        this.s.run.ms = null;
+        return;
+      }
       this.s.run.exitCode = r.exitCode;
       this.s.run.ms = r.stopped ? null : r.ms;
       haptic(r.exitCode === 0 ? 'success' : 'warning');
@@ -1581,6 +1592,20 @@ export class App {
       // The run screen is a tab on phones and the side pane on iPad/Mac.
       if (this.s.route === 'workspace' && (this.s.view === 'run' || (this.s.wide && this.s.side === 'run'))) this.render();
     }
+  }
+
+  /** Answer typed in the console: appended to the input lines and the program is replayed from the start. */
+  private async sendConsoleInput(): Promise<void> {
+    const field = $<HTMLInputElement>('#console-input', this.root);
+    if (!field || !this.s.run.awaitingInput) return;
+    const value = field.value;
+    const lines = this.s.run.stdin ? this.s.run.stdin.replace(/\n$/, '') + '\n' + value : value;
+    this.s.run.stdin = lines;
+    const box = $<HTMLTextAreaElement>('#run-stdin', this.root);
+    if (box) box.value = lines;
+    await this.run();
+    // Keep the conversation going on the keyboard.
+    requestAnimationFrame(() => $<HTMLInputElement>('#console-input', this.root)?.focus());
   }
 
   // ------------------------------------------------------------------ tools
@@ -1821,6 +1846,8 @@ export class App {
         haptic('light');
         return;
       }
+      case 'console-send':
+        return this.sendConsoleInput();
       case 'smart-tab':
         smartTab(this.editor.view);
         haptic('light');
@@ -2042,6 +2069,11 @@ export class App {
 
   private onKey(e: KeyboardEvent): void {
     const mod = e.metaKey || e.ctrlKey;
+    if (e.key === 'Enter' && (e.target as HTMLElement)?.id === 'console-input') {
+      e.preventDefault();
+      void this.guard(() => this.sendConsoleInput());
+      return;
+    }
     if (mod && e.key.toLowerCase() === 's') {
       e.preventDefault();
       void (this.s.settings.formatOnSave ? this.editor.formatOnSave().catch(() => null) : Promise.resolve(null))

@@ -35,8 +35,12 @@ test('iPad: Python project runs in the side pane; ⌘1–⌘4 and the side switc
   await page.locator('.split-side').getByRole('button', { name: 'Запустить' }).click();
   await expect(page.locator('#run-console')).toContainText('Сумма заказов', { timeout: 60_000 });
   // When the run ends the side pane shows the result (Run button back, exit code).
+  // The sample asks for a name: answer in the console, then the side pane shows the finished run.
+  await page.locator('#console-input').fill('Анна');
+  await page.locator('#console-input').press('Enter');
+  await expect(page.locator('#run-console')).toContainText('Привет, Анна!', { timeout: 60_000 });
   await expect(page.locator('.split-side [data-action="run"]')).toBeVisible();
-  await expect(page.locator('.split-side .run-status')).toContainText('Завершено');
+  await expect(page.locator('.split-side .run-status')).toContainText('кодом 0');
   await page.locator('.side-switch button', { hasText: 'Просмотр' }).click();
   // No HTML page: the README is rendered as Markdown in the preview.
   await expect(page.frameLocator('#live-preview').locator('article.markdown-body h1')).toBeVisible();

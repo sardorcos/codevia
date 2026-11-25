@@ -43,6 +43,8 @@ export interface AppState {
     exitCode: number | null;
     ms: number | null;
     stdin: string;
+    /** The program is waiting for the next line of input (interactive replay). */
+    awaitingInput?: boolean;
   };
   save: SaveState;
   saveError: string;

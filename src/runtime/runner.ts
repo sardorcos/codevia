@@ -12,6 +12,8 @@ export interface RunCallbacks {
   onHtml?(html: string): void;
   /** An image produced by the program (matplotlib figure, PIL image), base64 data. */
   onImage?(mime: string, data: string): void;
+  /** Interactive runs: the program needs one more line of input. */
+  onNeedInput?(): void;
 }
 
 export interface RunOutcome {
@@ -135,6 +137,9 @@ export class Runner {
       case 'image':
         cb?.onImage?.(m.mime, m.data);
         break;
+      case 'need-input':
+        cb?.onNeedInput?.();
+        break;
       case 'done': {
         const a = this.active;
         this.active = null;
@@ -166,7 +171,7 @@ export class Runner {
     return this.active !== null;
   }
 
-  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string; post?: string } = {}): Promise<RunOutcome> {
+  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string; post?: string; interactive?: boolean } = {}): Promise<RunOutcome> {
     if (this.active) return Promise.reject(new Error(t('Программа уже выполняется')));
     const id = makeId();
     for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);

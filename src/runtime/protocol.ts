@@ -23,6 +23,8 @@ export interface RunRequest {
   allowNetwork?: boolean;
   /** Runtime messages already translated by the app (any interface language); keys as in the workers' MSG tables. */
   messages?: Record<string, string>;
+  /** Interactive input: when input()/prompt() runs out of lines, stop and ask the app for the next line. */
+  interactive?: boolean;
 }
 
 export type WorkerMessage =
@@ -33,6 +35,8 @@ export type WorkerMessage =
   | { type: 'html'; id: string; html: string }
   /** An image produced by the program (matplotlib figure, PIL Image.show()), base64 PNG. */
   | { type: 'image'; id: string; mime: string; data: string }
+  /** The program asked for input beyond the given lines (interactive runs). It has stopped; the app replays it with one more line. */
+  | { type: 'need-input'; id: string }
   | { type: 'done'; id: string; exitCode: number; ms: number }
   | { type: 'fatal'; id?: string; message: string };
 
@@ -41,6 +45,9 @@ export type WorkerMessage =
  * main thread with one message per line. Flushes by size or age (checked on every write, because a
  * synchronous Python run never yields to timers) and explicitly before input and at the end.
  */
+/** Exit code of a run that stopped to ask for more input (interactive mode). */
+export const NEED_INPUT_EXIT = 199;
+
 export class OutputBatcher {
   private buf = '';
   private last = 0;

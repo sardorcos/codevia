@@ -1179,4 +1179,7 @@ export default {
   'Готовые CSS-анимации: классы animate__animated и animate__bounce, fadeIn, pulse и другие.':
     'Tayyor CSS animatsiyalari: animate__animated va animate__bounce, fadeIn, pulse klasslari va boshqalar.',
   'Анимированный заголовок': 'Animatsiyali sarlavha',
+  'Программа ждёт ввода': 'Dastur kiritishni kutmoqda',
+  'Ответ программе': 'Dasturga javob',
+  'Введите ответ и нажмите ↵': 'Javob yozing va ↵ ni bosing',
 } as Record<string, string>;

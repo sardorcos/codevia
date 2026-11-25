@@ -1596,3 +1596,14 @@ mark {
   color: #1b0b0d;
   font: 700 10px/16px var(--font);
 }
+
+/* Interactive input under the run console */
+.console-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.console-input-row .text-input {
+  flex: 1;
+  min-width: 0;
+}

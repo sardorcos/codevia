@@ -1084,4 +1084,7 @@ export default {
   'Форматирование дат': '날짜 포맷',
   'Готовые CSS-анимации: классы animate__animated и animate__bounce, fadeIn, pulse и другие.': '기성 CSS 애니메이션: animate__animated 클래스와 animate__bounce, fadeIn, pulse 등.',
   'Анимированный заголовок': '애니메이션 제목',
+  'Программа ждёт ввода': '프로그램이 입력을 기다리고 있습니다',
+  'Ответ программе': '프로그램에 대한 응답',
+  'Введите ответ и нажмите ↵': '답을 입력하고 ↵를 누르십시오',
 } as Record<string, string>;

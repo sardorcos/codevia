@@ -263,3 +263,25 @@ test('go to definition jumps from a call in main.py to calculations.py; Emmet ex
   await page.getByRole('button', { name: 'Развернуть Emmet' }).click();
   await expect(page.locator('.cm-content')).toContainText('<li></li>');
 });
+
+test('interactive input: the program asks, the answer is typed in the console, the run continues (Python and JS)', async ({ page }) => {
+  await start(page);
+  await openProject(page, 'Python');
+  await page.locator('.nav-item', { hasText: 'Запуск' }).click();
+  await page.getByRole('button', { name: 'Запустить' }).click();
+  await expect(page.locator('.run-status')).toContainText('ждёт ввода', { timeout: 60_000 });
+  await page.locator('#console-input').fill('Мария');
+  await page.locator('#console-input').press('Enter');
+  await expect(page.locator('#run-console')).toContainText('Привет, Мария!', { timeout: 60_000 });
+  await expect(page.locator('.run-status')).toContainText('кодом 0');
+  await expect(page.locator('#console-input')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'К проектам' }).click();
+  await openProject(page, 'JavaScript');
+  await page.locator('.nav-item', { hasText: 'Запуск' }).click();
+  await page.getByRole('button', { name: 'Запустить' }).click();
+  await expect(page.locator('#console-input')).toBeVisible({ timeout: 30_000 });
+  await page.locator('#console-input').fill('Пётр');
+  await page.getByRole('button', { name: 'Отправить' }).click();
+  await expect(page.locator('#run-console')).toContainText('Привет, Пётр!', { timeout: 30_000 });
+});

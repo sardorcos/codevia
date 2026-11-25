@@ -1084,4 +1084,7 @@ export default {
   'Форматирование дат': '格式化日期',
   'Готовые CSS-анимации: классы animate__animated и animate__bounce, fadeIn, pulse и другие.': '现成的 CSS 动画：animate__animated 类，以及 animate__bounce、fadeIn、pulse 等。',
   'Анимированный заголовок': '动画标题',
+  'Программа ждёт ввода': '程序正在等待输入',
+  'Ответ программе': '回复程序',
+  'Введите ответ и нажмите ↵': '输入回答后按 ↵',
 } as Record<string, string>;

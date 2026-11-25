@@ -1080,4 +1080,7 @@ export default {
   'Форматирование дат': 'Tarihleri biçimlendirme',
   'Готовые CSS-анимации: классы animate__animated и animate__bounce, fadeIn, pulse и другие.': 'Hazır CSS animasyonları: animate__animated sınıfı ve animate__bounce, fadeIn, pulse gibi daha fazlası.',
   'Анимированный заголовок': 'Animasyonlu başlık',
+  'Программа ждёт ввода': 'Program giriş bekliyor',
+  'Ответ программе': 'Programa yanıt',
+  'Введите ответ и нажмите ↵': 'Bir yanıt yazın ve ↵ tuşuna basın',
 } as Record<string, string>;

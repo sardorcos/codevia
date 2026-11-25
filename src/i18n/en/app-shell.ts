@@ -84,4 +84,7 @@ export default {
     'Tip: the standard library, the packages listed in Settings → Python, and your project modules are available. For other PyPI packages, list them in requirements.txt.',
   "Модуль '{spec}' не найден (из {from}). Доступны файлы проекта и встроенные fs, path, util, events; пакеты npm на устройстве не установлены.":
     "Cannot find module '{spec}' (from {from}). Project files and the built-ins fs, path, util and events are available; npm packages are not installed on the device.",
+  'Программа ждёт ввода': 'The program is waiting for input',
+  'Ответ программе': 'Answer to the program',
+  'Введите ответ и нажмите ↵': 'Type an answer and press ↵',
 } as Record<string, string>;

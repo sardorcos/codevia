@@ -427,8 +427,15 @@ export function runView(s: AppState, p: Project): string {
         : `<div class="field-row"><label class="field-label" for="run-query">${t('Параметры запроса ($_GET)')}</label>
           <input id="run-query" class="text-input mono" value="${esc(s.previewQuery)}" placeholder="${t('name=Анна&page=2')}" autocapitalize="off" autocorrect="off" spellcheck="false"></div>`
     }
-    <div class="run-status" aria-live="polite">${status}</div>
+    <div class="run-status" aria-live="polite">${r.awaitingInput ? `${icon('edit', 'sm')} ${t('Программа ждёт ввода')}` : status}</div>
     ${consolePanel(r.output, 'run-console')}
+    ${
+      r.awaitingInput
+        ? `<div class="console-input-row"><label class="visually-hidden" for="console-input">${t('Ответ программе')}</label>
+        <input id="console-input" class="text-input mono" enterkeyhint="send" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${t('Введите ответ и нажмите ↵')}">
+        <button class="btn primary" data-action="console-send">${t('Отправить')}</button></div>`
+        : ''
+    }
     ${p.language === 'php' ? '<button class="btn secondary full" data-action="view" data-view="preview">' + icon('eye', 'sm') + ` ${t('Показать как страницу')}</button>` : ''}
   </div>`;
 }

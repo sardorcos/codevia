@@ -1092,4 +1092,7 @@ export default {
   'Форматирование дат': 'Datumsformatierung',
   'Готовые CSS-анимации: классы animate__animated и animate__bounce, fadeIn, pulse и другие.': 'Fertige CSS-Animationen: die Klasse animate__animated plus animate__bounce, fadeIn, pulse und mehr.',
   'Анимированный заголовок': 'Animierte Überschrift',
+  'Программа ждёт ввода': 'Das Programm wartet auf eine Eingabe',
+  'Ответ программе': 'Antwort an das Programm',
+  'Введите ответ и нажмите ↵': 'Antwort eingeben und ↵ drücken',
 } as Record<string, string>;
