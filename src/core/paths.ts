@@ -49,7 +49,13 @@ const MAX_PATH = 400;
 const RESERVED = new Set(Object.getOwnPropertyNames(Object.prototype));
 
 /** Makes an archive/picker name acceptable to normalizePath without losing the file. */
-export const sanitizeImportName = (name: string): string => name.replace(/[?#]/g, '_');
+export const sanitizeImportName = (name: string): string =>
+  name
+    .replace(/[?#]/g, '_')
+    .split('/')
+    // Reserved object keys (constructor, __proto__, …) get a suffix instead of failing the import.
+    .map((seg) => (RESERVED.has(seg) ? `${seg}_` : seg))
+    .join('/');
 const MAX_SEGMENT = 200;
 
 /**

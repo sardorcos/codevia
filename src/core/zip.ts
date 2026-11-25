@@ -154,6 +154,24 @@ async function deflateRaw(data: Uint8Array): Promise<Uint8Array | null> {
   }
 }
 
+/**
+ * Entry name for export. Names that came in through the Files app may contain characters the app
+ * itself never creates (#, ?, reserved words): exporting must still work, so only traversal segments
+ * are removed instead of failing the whole archive (audit 3, R4).
+ */
+export function zipEntryName(path: string): string {
+  try {
+    return normalizePath(path);
+  } catch {
+    const safe = path
+      .replace(/\\/g, '/')
+      .split('/')
+      .filter((seg) => seg && seg !== '.' && seg !== '..')
+      .join('/');
+    return safe || 'file';
+  }
+}
+
 /** Builds a ZIP with UTF-8 names; entries are deflated when that makes them smaller. */
 export async function zipFiles(files: Files, now = new Date()): Promise<Blob> {
   const parts: BlobPart[] = [];
@@ -162,7 +180,7 @@ export async function zipFiles(files: Files, now = new Date()): Promise<Blob> {
   let offset = 0;
   let count = 0;
   for (const [path, f] of Object.entries(files)) {
-    const name = encodeUtf8(normalizePath(path));
+    const name = encodeUtf8(zipEntryName(path));
     const data = f.text ? encodeUtf8(f.content) : f.data;
     if (data.byteLength > 0xfffffffe) throw new ZipError(`Файл ${path} слишком большой для ZIP`);
     const check = crc32(data);

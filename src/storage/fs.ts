@@ -170,12 +170,19 @@ export class FsBackend implements Backend {
   }
 
   async getBlob(hash: string, text: boolean): Promise<ProjectFile | null> {
-    if (text) {
-      const t = await readText(`${ROOT}/blobs/${hash}.t`, LIB);
-      return t === null ? null : { text: true, content: t };
+    // The same bytes may have been stored first as text or as binary (e.g. an empty .gitkeep and an
+    // empty __init__.py share one hash): try the preferred kind, then the other. The repository
+    // converts the result to the kind the snapshot entry asks for.
+    for (const asText of text ? [true, false] : [false, true]) {
+      if (asText) {
+        const t = await readText(`${ROOT}/blobs/${hash}.t`, LIB);
+        if (t !== null) return { text: true, content: t };
+      } else {
+        const b = await readBinary(`${ROOT}/blobs/${hash}.b`, LIB);
+        if (b) return { text: false, data: b };
+      }
     }
-    const b = await readBinary(`${ROOT}/blobs/${hash}.b`, LIB);
-    return b ? { text: false, data: b } : null;
+    return null;
   }
 
   async deleteBlob(hash: string): Promise<void> {
