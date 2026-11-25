@@ -146,7 +146,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 await wait(300);
 
 const name = prompt('${t('Как вас зовут? ')}');
-console.log(\`${t('Привет, {name}!').replace('{name}', '\${name}')}\`);
+console.log(\`${t('Привет, {name}!').replace('{name}', '${name}')}\`);
 `),
   'lib/orders.js': textFile(`/** ${t('Возвращает сумму поля amount.')} */
 export function total(orders) {
