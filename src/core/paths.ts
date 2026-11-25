@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 const TEXT_EXT = new Set([
   'html', 'htm', 'css', 'scss', 'sass', 'less', 'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'json', 'py', 'php', 'phtml',
   'md', 'markdown', 'txt', 'yaml', 'yml', 'toml', 'xml', 'svg', 'sh', 'ini', 'env', 'gitignore', 'htaccess', 'csv',
@@ -58,15 +59,15 @@ const MAX_SEGMENT = 200;
  */
 export function normalizePath(source: unknown): string {
   const raw = String(source ?? '').trim().replace(/\\/g, '/');
-  if (raw.startsWith('/') || /^[a-zA-Z]:/.test(raw)) throw new Error('Недопустимый абсолютный путь');
+  if (raw.startsWith('/') || /^[a-zA-Z]:/.test(raw)) throw new Error(t('Недопустимый абсолютный путь'));
   const path = raw.replace(/^(\.\/)+/, '');
-  if (!path) throw new Error('Укажите имя файла');
-  if (/[\u0000-\u001f\u007f]/.test(path)) throw new Error('Имя файла содержит недопустимые символы');
+  if (!path) throw new Error(t('Укажите имя файла'));
+  if (/[\u0000-\u001f\u007f]/.test(path)) throw new Error(t('Имя файла содержит недопустимые символы'));
   const parts = path.split('/');
-  if (parts.some((x) => x === '..' || x === '.' || !x)) throw new Error('Недопустимый путь файла');
-  if (/[?#]/.test(path)) throw new Error('Символы «?» и «#» в именах файлов не поддерживаются');
-  if (parts.some((x) => RESERVED.has(x))) throw new Error('Это имя зарезервировано, выберите другое');
-  if (path.length > MAX_PATH || parts.some((x) => x.length > MAX_SEGMENT)) throw new Error('Слишком длинное имя файла');
+  if (parts.some((x) => x === '..' || x === '.' || !x)) throw new Error(t('Недопустимый путь файла'));
+  if (/[?#]/.test(path)) throw new Error(t('Символы «?» и «#» в именах файлов не поддерживаются'));
+  if (parts.some((x) => RESERVED.has(x))) throw new Error(t('Это имя зарезервировано, выберите другое'));
+  if (path.length > MAX_PATH || parts.some((x) => x.length > MAX_SEGMENT)) throw new Error(t('Слишком длинное имя файла'));
   return path;
 }
 
@@ -129,6 +130,6 @@ export function safeFolderName(name: string, taken: Iterable<string>): string {
       .replace(/[/\\:*?"<>|#%\u0000-\u001f]+/g, ' ')
       .replace(/\s+/g, ' ')
       .replace(/^[.\s]+|[.\s]+$/g, '')
-      .slice(0, 80) || 'Проект';
+      .slice(0, 80) || t('Проект');
   return uniquePath(cleaned, taken);
 }

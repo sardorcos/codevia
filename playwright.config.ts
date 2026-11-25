@@ -11,6 +11,8 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173/?e2e=1',
+    // The UI follows the system language; most tests assert the Russian texts (see i18n.spec.ts for English).
+    locale: 'ru-RU',
     trace: 'off',
   },
   webServer: {

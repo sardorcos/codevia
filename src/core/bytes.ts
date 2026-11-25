@@ -1,3 +1,5 @@
+import { fmtNumber, t } from '../i18n';
+
 const CP866_HIGH =
   'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмноп░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀рстуфхцчшщъыьэюяЁёЄєЇїЎў°∙·√№¤■ ';
 
@@ -61,9 +63,10 @@ export function base64ToBytes(b64: string): Uint8Array {
 export const textToBase64 = (s: string): string => bytesToBase64(encodeUtf8(s));
 
 export function formatBytes(n: number): string {
-  if (n >= 1024 * 1024) return `${(n / 1048576).toFixed(1).replace('.', ',')} МБ`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1).replace('.', ',')} КБ`;
-  return `${n} Б`;
+  const one = (v: number) => fmtNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+  if (n >= 1024 * 1024) return t('{size} МБ', { size: one(n / 1048576) });
+  if (n >= 1024) return t('{size} КБ', { size: one(n / 1024) });
+  return t('{size} Б', { size: n });
 }
 
 const CRC_TABLE = (() => {

@@ -7,13 +7,14 @@ import { defaultEntry, detectLanguage, templateFiles, templateLanguage, type Tem
 import { binaryFile, LIMITS, textFile, type Files, type Project, type ProjectFile, type ProjectMeta } from './core/types';
 import { stripCommonRoot, unzip, zipFiles } from './core/zip';
 import { createEditor, type EditorHost } from './editor/editor';
+import { getLang, plural, t } from './i18n';
 import { copyText, haptic, initNativeChrome, isNative, pickFiles, shareFile } from './platform/native';
 import { Runner, type RuntimeKind } from './runtime/runner';
 import { initialState, type AppState, type ConsoleLine, type Route, type View } from './state';
 import { filesSize } from './storage/repository';
 import { migrateLegacy, openStorage } from './storage';
 import type { Repository } from './storage/repository';
-import { $, esc, icon, toast } from './ui/dom';
+import { $, esc, fmtDateTime, icon, toast } from './ui/dom';
 import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
@@ -25,7 +26,7 @@ const BACKUP_LIMIT_BYTES = 150 * 1024 * 1024;
 const PHP_PREVIEW_TIMEOUT_MS = 15_000;
 
 const NEW_FILE_CONTENT: Record<string, (name: string) => string> = {
-  html: (n) => `<!doctype html>\n<html lang="ru">\n<head>\n  <meta charset="utf-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1" />\n  <title>${n}</title>\n</head>\n<body>\n\n</body>\n</html>\n`,
+  html: (n) => `<!doctype html>\n<html lang="${getLang()}">\n<head>\n  <meta charset="utf-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1" />\n  <title>${n}</title>\n</head>\n<body>\n\n</body>\n</html>\n`,
   php: () => `<?php\n\n`,
   py: () => `def main():\n    pass\n\n\nif __name__ == '__main__':\n    main()\n`,
   json: () => '{\n}\n',
@@ -61,16 +62,16 @@ export class App {
     this.s.storageError = storage.error ?? '';
     if (!storage.volatile) {
       const migrated = await migrateLegacy(this.repo).catch(() => 0);
-      if (migrated) toast(`Перенесено проектов из прошлой версии: ${migrated}`, 'success');
+      if (migrated) toast(plural(migrated, 'Перенесено проектов из прошлой версии: {count}'), 'success');
     }
     this.s.settings = await this.repo.loadSettings();
     this.editor.setWrap(this.s.settings.wrapLines);
     const adopted = storage.volatile ? 0 : await this.repo.adoptOrphanFolders().catch(() => 0);
-    if (adopted) toast(`Найдены папки из «Файлов»: добавлено проектов — ${adopted}`, 'success');
+    if (adopted) toast(plural(adopted, 'Найдены папки из «Файлов»: добавлено проектов — {count}'), 'success');
     this.s.projects = await this.repo.listProjects();
     this.s.route = !this.s.settings.onboardingDone && !this.s.projects.length ? 'welcome' : 'home';
 
-    installGlobalErrorHandlers((m) => toast(`Ошибка: ${m}`, 'error'));
+    installGlobalErrorHandlers((m) => toast(t('Ошибка: {message}', { message: m }), 'error'));
     this.root.addEventListener('click', (e) => void this.guard(() => this.onClick(e)));
     this.root.addEventListener('input', (e) => this.onInput(e));
     this.root.addEventListener('change', (e) => void this.guard(() => this.onChange(e)));
@@ -101,7 +102,7 @@ export class App {
       recordError(e, 'action');
       this.setBusy('');
       haptic('error');
-      toast((e as Error)?.message || 'Что-то пошло не так', 'error');
+      toast((e as Error)?.message || t('Что-то пошло не так'), 'error');
     }
   }
 
@@ -218,7 +219,7 @@ export class App {
     const el = $('#save-state', this.root);
     if (!el) return;
     el.className = `save-state ${this.s.save}`;
-    el.innerHTML = this.s.save === 'saving' ? 'Сохранение…' : this.s.save === 'error' ? 'Ошибка сохранения' : `${icon('check', 'xs')} Сохранено`;
+    el.innerHTML = this.s.save === 'saving' ? t('Сохранение…') : this.s.save === 'error' ? t('Ошибка сохранения') : `${icon('check', 'xs')} ${t('Сохранено')}`;
   }
 
   // ------------------------------------------------------------------ saving
@@ -272,13 +273,13 @@ export class App {
     for (;;) {
       if (await this.flushSaves()) return true;
       const choice = await openSheet<string>({
-        title: 'Изменения не сохранены',
-        body: `<p class="sheet-text">${esc(this.s.saveError || 'Не удалось записать файлы.')} Несохранённые файлы: ${esc([...this.pending].slice(0, 5).join(', '))}.</p>
+        title: t('Изменения не сохранены'),
+        body: `<p class="sheet-text">${esc(this.s.saveError || t('Не удалось записать файлы.'))} ${t('Несохранённые файлы: {files}.', { files: esc([...this.pending].slice(0, 5).join(', ')) })}</p>
           <div class="sheet-actions">
-            <button class="btn primary full" data-choice="retry">Повторить сохранение</button>
-            <button class="btn secondary full" data-choice="export">Экспортировать проект в ZIP</button>
-            <button class="btn danger full" data-choice="discard">Выйти без сохранения</button>
-            <button class="btn ghost full" data-sheet-close>Остаться</button>
+            <button class="btn primary full" data-choice="retry">${t('Повторить сохранение')}</button>
+            <button class="btn secondary full" data-choice="export">${t('Экспортировать проект в ZIP')}</button>
+            <button class="btn danger full" data-choice="discard">${t('Выйти без сохранения')}</button>
+            <button class="btn ghost full" data-sheet-close>${t('Остаться')}</button>
           </div>`,
         onMount: (root, close) =>
           root.addEventListener('click', (e) => {
@@ -344,7 +345,7 @@ export class App {
   private async openProject(id: string): Promise<void> {
     if (!(await this.ensureSaved())) return;
     const meta = this.s.projects.find((m) => m.id === id) ?? (await this.repo.listProjects()).find((m) => m.id === id);
-    if (!meta) throw new Error('Проект не найден');
+    if (!meta) throw new Error(t('Проект не найден'));
     if (this.s.project?.id !== id) {
       this.runner.disposeAll();
       this.editor.reset();
@@ -387,7 +388,7 @@ export class App {
       const last = snaps[snaps.length - 1];
       if (last && Date.now() - Date.parse(last.at) < AUTO_SNAPSHOT_AFTER_MS) return;
       if (last && Date.parse(project.updatedAt) <= Date.parse(last.at)) return;
-      await this.repo.createSnapshot(project, 'Автоверсия при открытии', 'auto');
+      await this.repo.createSnapshot(project, t('Автоверсия при открытии'), 'auto');
     } catch {
       /* best effort */
     }
@@ -405,27 +406,27 @@ export class App {
   private async newProject(): Promise<void> {
     let template: TemplateId = 'web';
     const result = await openSheet<{ name: string; template: TemplateId }>({
-      title: 'Новый проект',
+      title: t('Новый проект'),
       body: `<form class="stack" id="new-project-form" novalidate>
-        <div class="field"><label class="field-label" for="np-name">Название</label>
-        <input class="text-input" id="np-name" maxlength="80" placeholder="Мой сайт" autocomplete="off"></div>
-        <div class="field"><span class="field-label" id="np-tpl-label">Шаблон</span>
+        <div class="field"><label class="field-label" for="np-name">${t('Название')}</label>
+        <input class="text-input" id="np-name" maxlength="80" placeholder="${t('Мой сайт')}" autocomplete="off"></div>
+        <div class="field"><span class="field-label" id="np-tpl-label">${t('Шаблон')}</span>
         <div class="template-grid" role="radiogroup" aria-labelledby="np-tpl-label">
           ${(
             [
-              ['web', 'Сайт', 'HTML, CSS, JS', 'code'],
-              ['python', 'Python', 'Скрипт и данные', 'terminal'],
-              ['php', 'PHP', 'Страница на PHP 8.3', 'server'],
-              ['empty', 'Пустой', 'Один index.html', 'file'],
+              ['web', t('Сайт'), 'HTML, CSS, JS', 'code'],
+              ['python', 'Python', t('Скрипт и данные'), 'terminal'],
+              ['php', 'PHP', t('Страница на PHP 8.3'), 'server'],
+              ['empty', t('Пустой'), t('Один index.html'), 'file'],
             ] as const
           )
             .map(
-              ([id, t, d, ic], i) =>
-                `<button type="button" class="template ${i === 0 ? 'active' : ''}" role="radio" aria-checked="${i === 0}" data-tpl="${id}">${icon(ic)}<strong>${t}</strong><span>${d}</span></button>`,
+              ([id, title, d, ic], i) =>
+                `<button type="button" class="template ${i === 0 ? 'active' : ''}" role="radio" aria-checked="${i === 0}" data-tpl="${id}">${icon(ic)}<strong>${title}</strong><span>${d}</span></button>`,
             )
             .join('')}
         </div></div>
-        <button class="btn primary full" type="submit">Создать проект</button></form>`,
+        <button class="btn primary full" type="submit">${t('Создать проект')}</button></form>`,
       initialFocus: '#np-name',
       onMount: (root, close) => {
         root.addEventListener('click', (e) => {
@@ -440,7 +441,7 @@ export class App {
         root.querySelector('form')!.addEventListener('submit', (e) => {
           e.preventDefault();
           const name = (root.querySelector('#np-name') as HTMLInputElement).value.trim();
-          const fallback = { web: 'Мой сайт', python: 'Python-проект', php: 'PHP-проект', empty: 'Новый проект' }[template];
+          const fallback = { web: t('Мой сайт'), python: t('Python-проект'), php: t('PHP-проект'), empty: t('Новый проект') }[template];
           close({ name: name || fallback, template });
         });
       },
@@ -455,13 +456,13 @@ export class App {
   }
 
   private async createSamples(): Promise<void> {
-    this.setBusy('Создаю примеры…');
-    for (const [t, name] of [
-      ['web', 'Сайт-портфолио'],
-      ['python', 'Python · расчёты'],
-      ['php', 'PHP · приветствие'],
+    this.setBusy(t('Создаю примеры…'));
+    for (const [tpl, name] of [
+      ['web', t('Сайт-портфолио')],
+      ['python', t('Python · расчёты')],
+      ['php', t('PHP · приветствие')],
     ] as const) {
-      await this.repo.createProject(name, templateLanguage(t), templateFiles(t, name));
+      await this.repo.createProject(name, templateLanguage(tpl), templateFiles(tpl, name));
     }
     this.setBusy('');
     this.s.projects = await this.repo.listProjects();
@@ -479,7 +480,7 @@ export class App {
     const isZip = !!head && head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
     if (files.length === 1 && (isZip || /\.zip$/i.test(files[0]!.name))) {
       const zip = files[0]!;
-      if (zip.size > LIMITS.maxZipBytes) throw new Error(`ZIP больше ${formatBytes(LIMITS.maxZipBytes)}`);
+      if (zip.size > LIMITS.maxZipBytes) throw new Error(t('ZIP больше {size}', { size: formatBytes(LIMITS.maxZipBytes) }));
       // Archive-level limits allow full backups; per-project limits are enforced when projects are created.
       const result = await unzip(new Uint8Array(await zip.arrayBuffer()), { maxEntries: 20_000, maxTotalBytes: BACKUP_LIMIT_BYTES * 1.4 });
       const stripped = stripCommonRoot(result.files);
@@ -499,33 +500,33 @@ export class App {
         skipped++;
         continue;
       }
-      if (f.size > LIMITS.maxFileBytes) throw new Error(`Файл ${f.name} больше ${formatBytes(LIMITS.maxFileBytes)}`);
+      if (f.size > LIMITS.maxFileBytes) throw new Error(t('Файл {name} больше {size}', { name: f.name, size: formatBytes(LIMITS.maxFileBytes) }));
       total += f.size;
-      if (total > LIMITS.maxProjectBytes) throw new Error('Слишком большой объём файлов');
+      if (total > LIMITS.maxProjectBytes) throw new Error(t('Слишком большой объём файлов'));
       const safe = normalizePath(sanitizeImportName(f.name));
       const path = uniquePath(safe, Object.keys(out));
       if (path !== safe) renamed++;
       const bytes = new Uint8Array(await f.arrayBuffer());
       out[path] = toProjectFile(path, bytes);
     }
-    return { files: out, name: files.length === 1 ? files[0]!.name.replace(/\.[^.]+$/, '') : 'Импорт', skipped, renamed };
+    return { files: out, name: files.length === 1 ? files[0]!.name.replace(/\.[^.]+$/, '') : t('Импорт'), skipped, renamed };
   }
 
   private async importProject(): Promise<void> {
     const picked = await pickFiles('.zip,application/zip,.html,.htm,.css,.js,.mjs,.json,.php,.py,.md,.txt,.svg,.png,.jpg,.jpeg,.gif,.webp,.woff,.woff2,.ttf,.csv,.xml', true);
     if (!picked.length) return;
-    this.setBusy('Импорт…');
+    this.setBusy(t('Импорт…'));
     try {
       const { files, name, skipped, renamed } = await this.readPicked(picked);
-      if (!Object.keys(files).length) throw new Error('В архиве нет файлов');
+      if (!Object.keys(files).length) throw new Error(t('В архиве нет файлов'));
       this.setBusy('');
       if (await this.restoreBackup(files)) return;
-      this.setBusy('Импорт…');
+      this.setBusy(t('Импорт…'));
       const project = await this.repo.createProject(name, detectLanguage(Object.keys(files)), files);
       this.setBusy('');
       haptic('success');
-      const notes = [skipped && `пропущено служебных: ${skipped}`, renamed && `переименовано дубликатов: ${renamed}`].filter(Boolean).join(', ');
-      toast(`Импортировано файлов: ${Object.keys(files).length}${notes ? ` (${notes})` : ''}`, 'success');
+      const notes = [skipped && plural(skipped, 'пропущено служебных: {count}'), renamed && plural(renamed, 'переименовано дубликатов: {count}')].filter(Boolean).join(', ');
+      toast(plural(Object.keys(files).length, 'Импортировано файлов: {count}{notes}', { notes: notes ? ` (${notes})` : '' }), 'success');
       this.s.projects = await this.repo.listProjects();
       await this.openProject(project.id);
     } finally {
@@ -538,7 +539,7 @@ export class App {
     if (!p) return;
     const picked = await pickFiles('*/*', true);
     if (!picked.length) return;
-    this.setBusy('Добавляю файлы…');
+    this.setBusy(t('Добавляю файлы…'));
     let incoming: Files;
     try {
       incoming = (await this.readPicked(picked)).files;
@@ -549,18 +550,20 @@ export class App {
     let replace = true;
     if (conflicts.length) {
       replace = await confirmSheet({
-        title: 'Файлы уже существуют',
-        message: `${conflicts.length} из добавляемых файлов уже есть в проекте (${esc(conflicts.slice(0, 3).join(', '))}${conflicts.length > 3 ? '…' : ''}). Заменить их? Иначе будут сохранены обе версии.`,
-        confirm: 'Заменить',
-        cancel: 'Сохранить обе',
+        title: t('Файлы уже существуют'),
+        message: plural(conflicts.length, '{count} из добавляемых файлов уже есть в проекте ({files}). Заменить их? Иначе будут сохранены обе версии.', {
+          files: `${esc(conflicts.slice(0, 3).join(', '))}${conflicts.length > 3 ? '…' : ''}`,
+        }),
+        confirm: t('Заменить'),
+        cancel: t('Сохранить обе'),
       });
-      if (replace) await this.repo.createSnapshot(p, 'Перед заменой файлов', 'auto');
+      if (replace) await this.repo.createSnapshot(p, t('Перед заменой файлов'), 'auto');
     }
     const merged: Files = { ...p.files };
     for (const [path, f] of Object.entries(incoming)) merged[replace ? path : uniquePath(path, Object.keys(merged))] = f;
-    if (Object.keys(merged).length > LIMITS.maxFilesPerProject) throw new Error('Слишком много файлов в проекте');
-    if (filesSize(merged) > LIMITS.maxProjectBytes) throw new Error('Проект станет слишком большим');
-    this.setBusy('Сохраняю…');
+    if (Object.keys(merged).length > LIMITS.maxFilesPerProject) throw new Error(t('Слишком много файлов в проекте'));
+    if (filesSize(merged) > LIMITS.maxProjectBytes) throw new Error(t('Проект станет слишком большим'));
+    this.setBusy(t('Сохраняю…'));
     try {
       await this.repo.replaceFiles(p, merged);
     } finally {
@@ -568,7 +571,7 @@ export class App {
     }
     conflicts.forEach((c) => replace && this.editor.forget(c));
     this.previewDirty = true;
-    toast(`Добавлено файлов: ${Object.keys(incoming).length}`, 'success');
+    toast(plural(Object.keys(incoming).length, 'Добавлено файлов: {count}'), 'success');
     this.render();
   }
 
@@ -576,11 +579,11 @@ export class App {
     if (!(await this.ensureSaved())) return;
     const project = meta && meta.id !== this.s.project?.id ? await this.repo.openProject(meta) : this.s.project;
     if (!project) return;
-    this.setBusy('Упаковываю ZIP…');
+    this.setBusy(t('Упаковываю ZIP…'));
     try {
       const blob = await zipFiles(project.files);
       const r = await shareFile(blob, `${project.folder}.zip`, 'application/zip');
-      if (r === 'downloaded') toast('ZIP сохранён в загрузки', 'success');
+      if (r === 'downloaded') toast(t('ZIP сохранён в загрузки'), 'success');
     } finally {
       this.setBusy('');
     }
@@ -590,12 +593,17 @@ export class App {
   private async backupAll(): Promise<void> {
     if (!(await this.ensureSaved())) return;
     const metas = await this.repo.listProjects();
-    if (!metas.length) throw new Error('Нет проектов для резервной копии');
+    if (!metas.length) throw new Error(t('Нет проектов для резервной копии'));
     const total = metas.reduce((a, m) => a + m.size, 0);
     if (total > BACKUP_LIMIT_BYTES) {
-      throw new Error(`Проекты занимают ${formatBytes(total)} — больше лимита полной копии (${formatBytes(BACKUP_LIMIT_BYTES)}). Экспортируйте крупные проекты по отдельности.`);
+      throw new Error(
+        t('Проекты занимают {size} — больше лимита полной копии ({limit}). Экспортируйте крупные проекты по отдельности.', {
+          size: formatBytes(total),
+          limit: formatBytes(BACKUP_LIMIT_BYTES),
+        }),
+      );
     }
-    this.setBusy('Готовлю резервную копию…');
+    this.setBusy(t('Готовлю резервную копию…'));
     try {
       const all: Files = {};
       const manifest = { format: 'codevia-backup', version: 1, createdAt: new Date().toISOString(), projects: [] as Array<Record<string, string | undefined>> };
@@ -608,7 +616,7 @@ export class App {
       const blob = await zipFiles(all);
       const stamp = new Date().toISOString().slice(0, 10);
       const r = await shareFile(blob, `codevia-backup-${stamp}.zip`, 'application/zip');
-      if (r === 'downloaded') toast('Резервная копия сохранена', 'success');
+      if (r === 'downloaded') toast(t('Резервная копия сохранена'), 'success');
     } finally {
       this.setBusy('');
     }
@@ -627,15 +635,15 @@ export class App {
     if (manifest.format !== 'codevia-backup' || !Array.isArray(manifest.projects)) return false;
     const free = LIMITS.maxProjects - this.s.projects.length;
     if (manifest.projects.length > free) {
-      throw new Error(`В копии ${manifest.projects.length} проектов, а места осталось на ${free}. Удалите лишние проекты и повторите.`);
+      throw new Error(plural(manifest.projects.length, 'В копии {count} проектов, а места осталось на {free}. Удалите лишние проекты и повторите.', { free }));
     }
     const ok = await confirmSheet({
-      title: 'Резервная копия Codevia',
-      message: `В архиве ${manifest.projects.length} проектов. Восстановить их? Существующие проекты не изменятся — восстановленные появятся рядом.`,
-      confirm: 'Восстановить',
+      title: t('Резервная копия Codevia'),
+      message: plural(manifest.projects.length, 'В архиве {count} проектов. Восстановить их? Существующие проекты не изменятся — восстановленные появятся рядом.'),
+      confirm: t('Восстановить'),
     });
     if (!ok) return true;
-    this.setBusy('Восстанавливаю проекты…');
+    this.setBusy(t('Восстанавливаю проекты…'));
     let restored = 0;
     try {
       for (const entry of manifest.projects) {
@@ -652,7 +660,7 @@ export class App {
       this.setBusy('');
     }
     this.s.projects = await this.repo.listProjects();
-    toast(`Восстановлено проектов: ${restored}`, 'success');
+    toast(plural(restored, 'Восстановлено проектов: {count}'), 'success');
     this.go('home');
     return true;
   }
@@ -660,11 +668,11 @@ export class App {
   private async showErrorLog(): Promise<void> {
     const report = errorReport(V.APP_VERSION);
     const choice = await openSheet<string>({
-      title: 'Журнал ошибок',
-      body: `<p class="sheet-text">Журнал хранится только на устройстве. Можно отправить его разработчику, чтобы помочь исправить проблему.</p>
+      title: t('Журнал ошибок'),
+      body: `<p class="sheet-text">${t('Журнал хранится только на устройстве. Можно отправить его разработчику, чтобы помочь исправить проблему.')}</p>
         <pre class="console log-pre">${esc(report)}</pre>
-        <div class="sheet-actions"><button class="btn primary full" data-share>Поделиться журналом</button>
-        <button class="btn secondary full" data-sheet-close>Закрыть</button></div>`,
+        <div class="sheet-actions"><button class="btn primary full" data-share>${t('Поделиться журналом')}</button>
+        <button class="btn secondary full" data-sheet-close>${t('Закрыть')}</button></div>`,
       onMount: (root, close) => root.querySelector('[data-share]')!.addEventListener('click', () => close('share')),
     });
     if (choice === 'share') await shareFile(report, 'codevia-error-log.txt', 'text/plain;charset=utf-8');
@@ -673,7 +681,7 @@ export class App {
   private async renameProject(meta?: ProjectMeta): Promise<void> {
     const target = meta && meta.id !== this.s.project?.id ? await this.repo.openProject(meta) : this.s.project;
     if (!target) return;
-    const name = await promptSheet({ title: 'Название проекта', label: 'Название', value: target.name, confirm: 'Сохранить' });
+    const name = await promptSheet({ title: t('Название проекта'), label: t('Название'), value: target.name, confirm: t('Сохранить') });
     if (!name || name === target.name) return;
     await this.repo.renameProject(target, name);
     this.s.projects = await this.repo.listProjects();
@@ -682,9 +690,9 @@ export class App {
 
   private async deleteProject(meta: ProjectMeta): Promise<void> {
     const ok = await confirmSheet({
-      title: 'Удалить проект?',
-      message: `Проект <strong>${esc(meta.name)}</strong> и все его версии будут удалены с устройства. Это нельзя отменить. Если нужна копия — сначала экспортируйте ZIP.`,
-      confirm: 'Удалить проект',
+      title: t('Удалить проект?'),
+      message: t('Проект <strong>{name}</strong> и все его версии будут удалены с устройства. Это нельзя отменить. Если нужна копия — сначала экспортируйте ZIP.', { name: esc(meta.name) }),
+      confirm: t('Удалить проект'),
       danger: true,
     });
     if (!ok) return;
@@ -699,17 +707,17 @@ export class App {
     await this.repo.deleteProject(meta);
     haptic('warning');
     this.s.projects = await this.repo.listProjects();
-    toast('Проект удалён');
+    toast(t('Проект удалён'));
     this.render();
   }
 
   private async projectMenu(meta: ProjectMeta, inWorkspace: boolean): Promise<void> {
     const choice = await menuSheet(meta.name, [
-      { id: 'rename', label: 'Переименовать', icon: 'edit' },
-      { id: 'duplicate', label: 'Дублировать', icon: 'duplicate' },
-      { id: 'export', label: 'Экспорт ZIP', icon: 'share' },
-      ...(inWorkspace ? [{ id: 'check', label: 'Проверка файлов', icon: 'shield' }] : []),
-      { id: 'delete', label: 'Удалить проект', icon: 'trash', danger: true },
+      { id: 'rename', label: t('Переименовать'), icon: 'edit' },
+      { id: 'duplicate', label: t('Дублировать'), icon: 'duplicate' },
+      { id: 'export', label: t('Экспорт ZIP'), icon: 'share' },
+      ...(inWorkspace ? [{ id: 'check', label: t('Проверка файлов'), icon: 'shield' }] : []),
+      { id: 'delete', label: t('Удалить проект'), icon: 'trash', danger: true },
     ]);
     if (choice === 'rename') await this.renameProject(meta);
     else if (choice === 'duplicate') {
@@ -717,7 +725,7 @@ export class App {
       const src = meta.id === this.s.project?.id ? this.s.project : await this.repo.openProject(meta);
       const copy = await this.repo.duplicateProject(src!);
       this.s.projects = await this.repo.listProjects();
-      toast(`Создана копия «${copy.name}»`, 'success');
+      toast(t('Создана копия «{name}»', { name: copy.name }), 'success');
       this.render();
     } else if (choice === 'export') await this.exportProject(meta);
     else if (choice === 'check') this.openDiagnostics();
@@ -745,9 +753,9 @@ export class App {
     const url = isImage ? URL.createObjectURL(new Blob([f.data as BlobPart], { type: `image/${extOf(path) === 'svg' ? 'svg+xml' : extOf(path)}` })) : '';
     await openSheet({
       title: basename(path),
-      body: `${isImage ? `<div class="image-preview"><img src="${url}" alt="${esc(path)}"></div>` : `<p class="sheet-text">${isTextPath(path) ? 'Файл не в кодировке UTF-8, поэтому открыт только для чтения. Его можно перекодировать через меню файла «⋯».' : 'Этот файл нельзя редактировать в приложении, но он входит в проект и в экспорт.'}</p>`}
+      body: `${isImage ? `<div class="image-preview"><img src="${url}" alt="${esc(path)}"></div>` : `<p class="sheet-text">${isTextPath(path) ? t('Файл не в кодировке UTF-8, поэтому открыт только для чтения. Его можно перекодировать через меню файла «⋯».') : t('Этот файл нельзя редактировать в приложении, но он входит в проект и в экспорт.')}</p>`}
         <div class="subtxt mono">${esc(path)} · ${formatBytes(f.data.byteLength)}</div>
-        <div class="sheet-actions"><button class="btn secondary full" data-sheet-close>Готово</button></div>`,
+        <div class="sheet-actions"><button class="btn secondary full" data-sheet-close>${t('Готово')}</button></div>`,
     });
     if (url) URL.revokeObjectURL(url);
   }
@@ -759,12 +767,12 @@ export class App {
     const choice = await menuSheet(
       basename(path),
       [
-        { id: 'open', label: p.files[path]!.text ? 'Открыть в редакторе' : 'Просмотреть', icon: p.files[path]!.text ? 'code' : 'eye' },
-        ...(!p.files[path]!.text && isTextPath(path) ? [{ id: 'convert', label: 'Преобразовать в UTF-8 для редактирования', icon: 'edit' }] : []),
-        { id: 'rename', label: 'Переименовать или переместить', icon: 'edit' },
-        ...(runnable ? [{ id: 'entry', label: 'Сделать файлом запуска', icon: 'flag' }] : []),
-        { id: 'share', label: 'Поделиться файлом', icon: 'share' },
-        { id: 'delete', label: 'Удалить файл', icon: 'trash', danger: true },
+        { id: 'open', label: p.files[path]!.text ? t('Открыть в редакторе') : t('Просмотреть'), icon: p.files[path]!.text ? 'code' : 'eye' },
+        ...(!p.files[path]!.text && isTextPath(path) ? [{ id: 'convert', label: t('Преобразовать в UTF-8 для редактирования'), icon: 'edit' }] : []),
+        { id: 'rename', label: t('Переименовать или переместить'), icon: 'edit' },
+        ...(runnable ? [{ id: 'entry', label: t('Сделать файлом запуска'), icon: 'flag' }] : []),
+        { id: 'share', label: t('Поделиться файлом'), icon: 'share' },
+        { id: 'delete', label: t('Удалить файл'), icon: 'trash', danger: true },
       ],
       path,
     );
@@ -775,7 +783,7 @@ export class App {
       await this.repo.setEntry(p, path);
       this.s.previewPage = /\.(html?|php)$/i.test(path) ? path : this.s.previewPage;
       this.previewDirty = true;
-      toast(`Файл запуска: ${basename(path)}`);
+      toast(t('Файл запуска: {name}', { name: basename(path) }));
       this.render();
     } else if (choice === 'share') {
       const f = p.files[path]!;
@@ -790,12 +798,15 @@ export class App {
     const enc = guessLegacyEncoding(f.data);
     const label = enc === 'windows-1251' ? 'Windows-1251' : 'UTF-16';
     const ok = await confirmSheet({
-      title: 'Преобразовать в UTF-8?',
-      message: `Файл сохранён не в UTF-8 (похоже на ${label}). Чтобы его редактировать, Codevia перекодирует его в UTF-8. Если на странице указана кодировка (например, <span class="mono">charset=windows-1251</span>), замените её на utf-8. Текущая версия сохранится в истории.`,
-      confirm: 'Преобразовать',
+      title: t('Преобразовать в UTF-8?'),
+      message: t(
+        'Файл сохранён не в UTF-8 (похоже на {encoding}). Чтобы его редактировать, Codevia перекодирует его в UTF-8. Если на странице указана кодировка (например, <span class="mono">charset=windows-1251</span>), замените её на utf-8. Текущая версия сохранится в истории.',
+        { encoding: label },
+      ),
+      confirm: t('Преобразовать'),
     });
     if (!ok) return;
-    await this.repo.createSnapshot(p, `Перед перекодировкой ${basename(path)}`, 'auto');
+    await this.repo.createSnapshot(p, t('Перед перекодировкой {name}', { name: basename(path) }), 'auto');
     const text = new TextDecoder(enc).decode(f.data).replace(/^\uFEFF/, '');
     p.files[path] = textFile(text);
     await this.repo.saveFile(p, path);
@@ -808,8 +819,8 @@ export class App {
       const path = normalizePath(v);
       const p = this.s.project!;
       const clash = Object.keys(p.files).find((x) => x.toLowerCase() === path.toLowerCase() && x !== except);
-      if (clash) return 'Файл с таким именем уже существует';
-      if (Object.keys(p.files).some((x) => x.startsWith(path + '/'))) return 'Это имя занято папкой';
+      if (clash) return t('Файл с таким именем уже существует');
+      if (Object.keys(p.files).some((x) => x.startsWith(path + '/'))) return t('Это имя занято папкой');
       return null;
     } catch (e) {
       return (e as Error).message;
@@ -821,13 +832,13 @@ export class App {
     if (!p) return;
     const suggestion = p.language === 'python' ? 'utils.py' : p.language === 'php' ? 'page.php' : 'page.html';
     const value = await promptSheet({
-      title: 'Новый файл',
-      label: 'Имя файла (можно с папкой)',
+      title: t('Новый файл'),
+      label: t('Имя файла (можно с папкой)'),
       value: suggestion,
       placeholder: 'css/theme.css',
-      confirm: 'Создать',
+      confirm: t('Создать'),
       mono: true,
-      help: 'Папки создаются автоматически: например, <span class="mono">js/main.js</span>.',
+      help: t('Папки создаются автоматически: например, <span class="mono">js/main.js</span>.'),
       validate: (v) => this.validateNewPath(v),
     });
     if (!value) return;
@@ -843,10 +854,10 @@ export class App {
     const p = this.s.project;
     if (!p) return;
     const value = await promptSheet({
-      title: 'Переименовать',
-      label: 'Новый путь',
+      title: t('Переименовать'),
+      label: t('Новый путь'),
       value: from,
-      confirm: 'Сохранить',
+      confirm: t('Сохранить'),
       mono: true,
       validate: (v) => this.validateNewPath(v, from),
     });
@@ -869,14 +880,14 @@ export class App {
     const p = this.s.project;
     if (!p) return;
     const ok = await confirmSheet({
-      title: 'Удалить файл?',
-      message: `<span class="mono">${esc(path)}</span> будет удалён. Перед удалением автоматически сохранится версия проекта — файл можно будет вернуть из истории.`,
-      confirm: 'Удалить',
+      title: t('Удалить файл?'),
+      message: t('<span class="mono">{name}</span> будет удалён. Перед удалением автоматически сохранится версия проекта — файл можно будет вернуть из истории.', { name: esc(path) }),
+      confirm: t('Удалить'),
       danger: true,
     });
     if (!ok) return;
     await this.flushSaves();
-    await this.repo.createSnapshot(p, `Перед удалением ${basename(path)}`, 'auto');
+    await this.repo.createSnapshot(p, t('Перед удалением {name}', { name: basename(path) }), 'auto');
     await this.repo.deleteFile(p, path);
     this.editor.forget(path);
     this.s.tabs = this.s.tabs.filter((t) => t !== path);
@@ -889,7 +900,7 @@ export class App {
     if (this.s.previewPage === path) this.pickPreviewPage();
     this.previewDirty = true;
     haptic('warning');
-    toast('Файл удалён. Вернуть можно в истории версий.');
+    toast(t('Файл удалён. Вернуть можно в истории версий.'));
     this.render();
   }
 
@@ -923,7 +934,7 @@ export class App {
       const timer = setTimeout(() => {
         if (this.runner.running) {
           this.runner.stop();
-          errors += `PHP не ответил за ${PHP_PREVIEW_TIMEOUT_MS / 1000} с — выполнение остановлено (возможен бесконечный цикл).\n`;
+          errors += `${t('PHP не ответил за {seconds} с — выполнение остановлено (возможен бесконечный цикл).', { seconds: PHP_PREVIEW_TIMEOUT_MS / 1000 })}\n`;
         }
       }, PHP_PREVIEW_TIMEOUT_MS);
       try {
@@ -934,7 +945,7 @@ export class App {
         clearTimeout(timer);
       }
       if (errors) notes.push({ level: 'error', text: `PHP: ${errors.trim()}\n` });
-      source = html || `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><pre style="white-space:pre-wrap;font:14px ui-monospace,monospace;padding:16px">${esc(text || errors || '(нет вывода)')}</pre></body></html>`;
+      source = html || `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><pre style="white-space:pre-wrap;font:14px ui-monospace,monospace;padding:16px">${esc(text || errors || t('(нет вывода)'))}</pre></body></html>`;
     } else {
       const f = p.files[page];
       source = f?.text ? f.content : '';
@@ -945,7 +956,7 @@ export class App {
       return;
     }
     const result = buildPreview(p.files, page, source, { allowNetwork: this.s.settings.previewNetwork, token });
-    for (const m of result.missing.slice(0, 20)) notes.push({ level: 'warn', text: `Не найден файл: ${m}\n` });
+    for (const m of result.missing.slice(0, 20)) notes.push({ level: 'warn', text: `${t('Не найден файл: {name}', { name: m })}\n` });
     this.previewToken = token;
     this.previewHtml = result.html;
     this.s.previewConsole = [];
@@ -995,7 +1006,7 @@ export class App {
       const p = this.s.project;
       const target = p && (p.files[path] ? path : p.files[`${path}/index.html`] ? `${path}/index.html` : null);
       if (!target || !/\.(html?|php)$/i.test(target)) {
-        toast(`Страница не найдена: ${path || '—'}`, 'error');
+        toast(t('Страница не найдена: {name}', { name: path || '—' }), 'error');
         return;
       }
       this.s.previewPage = target;
@@ -1004,7 +1015,7 @@ export class App {
       this.render();
     } else if (d.type === 'external') {
       const href = String(d.href).slice(0, 2000);
-      void copyText(href).then((ok) => toast(ok ? `Внешняя ссылка скопирована: ${href}` : `Внешняя ссылка: ${href}`));
+      void copyText(href).then((ok) => toast(ok ? t('Внешняя ссылка скопирована: {url}', { url: href }) : t('Внешняя ссылка: {url}', { url: href })));
     }
   }
 
@@ -1038,7 +1049,7 @@ export class App {
     const panel = document.getElementById(id);
     if (!panel) return;
     panel.querySelectorAll('.console-line').forEach((x) => x.remove());
-    if (!lines.length) panel.insertAdjacentHTML('afterbegin', '<span class="console-line system empty">Консоль пуста</span>');
+    if (!lines.length) panel.insertAdjacentHTML('afterbegin', `<span class="console-line system empty">${t('Консоль пуста')}</span>`);
     lines.forEach((l) => this.appendConsoleLine(id, l));
   }
 
@@ -1048,14 +1059,14 @@ export class App {
     const p = this.s.project;
     if (!p || p.language === 'web') return;
     if (this.runner.running) {
-      toast('Программа уже выполняется — дождитесь окончания или нажмите «Стоп»');
+      toast(t('Программа уже выполняется — дождитесь окончания или нажмите «Стоп»'));
       return;
     }
     const entry = p.entry && p.files[p.entry] ? p.entry : defaultEntry(Object.keys(p.files), p.language);
-    if (!entry) throw new Error('Нет файла для запуска');
+    if (!entry) throw new Error(t('Нет файла для запуска'));
     await this.flushSaves();
     const stdin = ($<HTMLTextAreaElement>('#run-stdin', this.root)?.value ?? this.s.run.stdin) || '';
-    this.s.run = { running: true, status: 'Подготовка…', output: [], exitCode: null, ms: null, stdin };
+    this.s.run = { running: true, status: t('Подготовка…'), output: [], exitCode: null, ms: null, stdin };
     this.outputChars = 0;
     this.render();
     const push = (level: ConsoleLine['level'], text: string) => {
@@ -1064,7 +1075,7 @@ export class App {
       if (this.outputChars > MAX_OUTPUT_CHARS) {
         if (this.runner.running) {
           this.runner.stop();
-          const l: ConsoleLine = { level: 'system', text: '\nВывод слишком большой — выполнение остановлено.\n' };
+          const l: ConsoleLine = { level: 'system', text: `\n${t('Вывод слишком большой — выполнение остановлено.')}\n` };
           this.s.run.output.push(l);
           this.appendConsoleLine('run-console', l);
         }
@@ -1080,7 +1091,7 @@ export class App {
       if (el) el.innerHTML = `<span class="spinner" aria-hidden="true"></span> ${esc(t)}`;
     };
     try {
-      setStatus('Выполняется…');
+      setStatus(t('Выполняется…'));
       const kind = p.language as RuntimeKind;
       const r = await this.runner.run(
         kind,
@@ -1122,17 +1133,17 @@ export class App {
     const p = this.s.project;
     if (!p) return;
     const label = await promptSheet({
-      title: 'Сохранить версию',
-      label: 'Описание',
-      value: `Версия от ${new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
-      confirm: 'Сохранить',
+      title: t('Сохранить версию'),
+      label: t('Описание'),
+      value: t('Версия от {date}', { date: fmtDateTime(new Date().toISOString()) }),
+      confirm: t('Сохранить'),
     });
     if (!label) return;
     await this.flushSaves();
     await this.repo.createSnapshot(p, label.slice(0, 120), 'manual');
     haptic('success');
     this.s.snapshots = await this.repo.listSnapshots(p.id);
-    toast('Версия сохранена', 'success');
+    toast(t('Версия сохранена'), 'success');
     this.render();
   }
 
@@ -1141,13 +1152,13 @@ export class App {
     const snap = this.s.snapshots.find((x) => x.id === id);
     if (!p || !snap) return;
     const ok = await confirmSheet({
-      title: 'Вернуть версию?',
-      message: `Файлы проекта будут заменены версией «${esc(snap.label)}». Текущее состояние сначала сохранится как отдельная версия.`,
-      confirm: 'Вернуть',
+      title: t('Вернуть версию?'),
+      message: t('Файлы проекта будут заменены версией «{name}». Текущее состояние сначала сохранится как отдельная версия.', { name: esc(snap.label) }),
+      confirm: t('Вернуть'),
     });
     if (!ok) return;
     await this.flushSaves();
-    this.setBusy('Восстанавливаю…');
+    this.setBusy(t('Восстанавливаю…'));
     try {
       await this.repo.restoreSnapshot(p, id);
     } finally {
@@ -1160,7 +1171,7 @@ export class App {
     this.previewDirty = true;
     this.s.snapshots = await this.repo.listSnapshots(p.id);
     haptic('success');
-    toast('Версия восстановлена', 'success');
+    toast(t('Версия восстановлена'), 'success');
     this.render();
   }
 
@@ -1168,7 +1179,7 @@ export class App {
     const p = this.s.project;
     const snap = this.s.snapshots.find((x) => x.id === id);
     if (!p || !snap) return;
-    const ok = await confirmSheet({ title: 'Удалить версию?', message: `Версия «${esc(snap.label)}» будет удалена.`, confirm: 'Удалить', danger: true });
+    const ok = await confirmSheet({ title: t('Удалить версию?'), message: t('Версия «{name}» будет удалена.', { name: esc(snap.label) }), confirm: t('Удалить'), danger: true });
     if (!ok) return;
     await this.repo.deleteSnapshot(p.id, id);
     this.s.snapshots = await this.repo.listSnapshots(p.id);
@@ -1271,7 +1282,7 @@ export class App {
         return this.saveSettings();
       case 'copy-code': {
         const ok = await copyText(this.editor.current());
-        toast(ok ? 'Код скопирован' : 'Не удалось скопировать', ok ? 'success' : 'error');
+        toast(ok ? t('Код скопирован') : t('Не удалось скопировать'), ok ? 'success' : 'error');
         return;
       }
       case 'refresh-preview':
@@ -1349,7 +1360,7 @@ export class App {
     const btn = $('[data-action="toggle-fullscreen"]', this.root);
     if (btn) {
       btn.innerHTML = icon(this.s.fullscreen ? 'close' : 'expand');
-      btn.setAttribute('aria-label', this.s.fullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран');
+      btn.setAttribute('aria-label', this.s.fullscreen ? t('Выйти из полноэкранного режима') : t('Во весь экран'));
       btn.focus({ preventScroll: true });
     }
   }
@@ -1404,7 +1415,7 @@ export class App {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      void this.flushSaves().then(() => toast(this.s.save === 'error' ? 'Ошибка сохранения' : 'Сохранено'));
+      void this.flushSaves().then(() => toast(this.s.save === 'error' ? t('Ошибка сохранения') : t('Сохранено')));
     } else if (mod && e.key === 'Enter' && this.s.route === 'workspace') {
       e.preventDefault();
       if (this.s.project?.language === 'web' || this.s.view === 'preview') {
