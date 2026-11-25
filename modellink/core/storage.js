@@ -85,6 +85,21 @@ export async function setAssetScale(id,mmPerPixel){
   if(mmPerPixel!==null&&!(Number.isFinite(mmPerPixel)&&mmPerPixel>0))throw new Error('Некорректный масштаб');
   asset.mmPerPixel=mmPerPixel;await put(STORE.assets,asset);return asset;
 }
+export async function renameProject(id,name,description){
+  const project=await getProject(id);if(!project)throw new Error('Проект не найден');
+  if(!String(name||'').trim())throw new Error('Введите название проекта');
+  project.name=String(name).trim().slice(0,100);if(description!==undefined)project.description=String(description).trim().slice(0,350);
+  project.updatedAt=Date.now();await put(STORE.projects,project);return project;
+}
+/** Renames every version of a file (they share groupId) and keeps the extension unless a new one is typed. */
+export async function renameAsset(id,newName){
+  const asset=await getAsset(id);if(!asset)throw new Error('Файл не найден');
+  let name=String(newName||'').trim().replace(/[\\/:*?"<>|]/g,'_').slice(0,150);if(!name)throw new Error('Введите имя файла');
+  const ext=asset.name.includes('.')?asset.name.split('.').at(-1):'';if(ext&&!name.toLowerCase().endsWith('.'+ext.toLowerCase())&&!/\.[a-z0-9]{1,6}$/i.test(name))name+='.'+ext;
+  for(const v of (await getAssets(asset.projectId)).filter(x=>x.groupId===asset.groupId)){v.name=name;v.path=name;v.kind=kindFor(name);await put(STORE.assets,v);}
+  return name;
+}
+export async function removeNote(id){await del(STORE.notes,id);}
 export async function removeAllData(){
   for(const store of Object.values(STORE)){for(const item of await all(store))await del(store,item.id);}
 }
@@ -118,7 +133,7 @@ export function kindFor(name){
   if(['svg','png','jpg','jpeg','gif','webp','bmp','heic','heif','tif','tiff'].includes(ext))return 'image';
   if(['txt','md','markdown','csv','tsv','json','xml','html','htm','css','js','mjs','ts','py','php','java','c','h','cpp','swift','kt','rb','go','rs','sh','yml','yaml','ini','cfg','conf','log','sql','gcode','nc','tex','toml','env','properties'].includes(ext))return 'text';
   if(['pdf'].includes(ext))return 'pdf';
-  if(['dxf'].includes(ext))return 'drawing';
+  if(['dxf','dwg'].includes(ext))return 'drawing';
   if(['obj','stl','glb'].includes(ext))return 'model';
   if(['mlink'].includes(ext))return 'bundle';
   if(['usdz','reality'].includes(ext))return 'ar';
@@ -128,7 +143,7 @@ export const capabilities={
   pdf:{label:'PDF',preview:'yes',note:'Встроенный PDF-просмотрщик'},
   svg:{label:'SVG',preview:'yes',note:'Векторная графика'},
   png:{label:'PNG',preview:'yes',note:'Изображение'},jpg:{label:'JPG',preview:'yes',note:'Изображение'},jpeg:{label:'JPEG',preview:'yes',note:'Изображение'},webp:{label:'WebP',preview:'yes',note:'Изображение'},gif:{label:'GIF',preview:'yes',note:'Изображение'},bmp:{label:'BMP',preview:'yes',note:'Изображение'},
-  dxf:{label:'DXF',preview:'partial',note:'Базовые линии, окружности, дуги, полилинии и подписи'},
+  dxf:{label:'DXF',preview:'yes',note:'Блоки, слои, цвета, сплайны, штриховки, размеры и тексты'},
   obj:{label:'OBJ',preview:'partial',note:'Полигональная геометрия; без материалов MTL'},
   stl:{label:'STL',preview:'yes',note:'Треугольные 3D-модели'},
   glb:{label:'GLB',preview:'partial',note:'Базовые треугольные glTF 2.0 модели; без расширений сжатия'},
@@ -137,7 +152,7 @@ export const capabilities={
   docx:{label:'DOCX',preview:'source',note:'Просмотр через Quick Look на iPhone'},xlsx:{label:'XLSX',preview:'source',note:'Просмотр через Quick Look на iPhone'},pptx:{label:'PPTX',preview:'source',note:'Просмотр через Quick Look на iPhone'},
   zip:{label:'ZIP',preview:'source',note:'Архив хранится и передаётся'},
   usdz:{label:'USDZ',preview:'yes',note:'3D и дополненная реальность через Quick Look на iPhone'},
-  dwg:{label:'DWG',preview:'source',note:'Оригинал хранится и передаётся; для просмотра сохраните копию в DXF или PDF'},
+  dwg:{label:'DWG',preview:'yes',note:'AutoCAD R13–2018+: пространство модели, блоки, слои, цвета, размеры; экспорт в DXF, PDF, SVG, PNG'},
   step:{label:'STEP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},stp:{label:'STP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},
   ifc:{label:'IFC',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB'},rvt:{label:'RVT',preview:'source',note:'Исходник можно сохранить и передать; прямого просмотра нет'},
   sldprt:{label:'SLDPRT',preview:'source',note:'Исходник можно сохранить и передать; для просмотра экспортируйте STEP'},

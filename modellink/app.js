@@ -1,10 +1,10 @@
-import {initDemo,getProjects,getProject,getAssets,getAsset,getAllAssets,getAllNotes,getNotes,createProject,addAsset,addNote,setNoteStatus,removeProject,removeAsset,setAssetScale,removeAllData,latestFiles,fileInfo,formatBytes,capabilities} from './core/storage.js';
+import {initDemo,getProjects,getProject,getAssets,getAsset,getAllAssets,getAllNotes,getNotes,createProject,addAsset,addNote,setNoteStatus,removeProject,removeAsset,renameProject,renameAsset,removeNote,setAssetScale,removeAllData,latestFiles,fileInfo,kindFor,formatBytes,capabilities} from './core/storage.js';
 import {parseDXF,parseOBJ,parseSTL,parseGLB,meshBounds} from './core/geometry.js';
 import {exportProject,importProjectPackage} from './core/pack.js';
 import {conversionTargets,dxfToSVG,meshToSTL,meshToOBJ,meshToPLY,meshToGLB,meshToUSDZ,jpegToPDF,baseName,extOf} from './core/convert.js';
 import {Capacitor,registerPlugin} from './vendor/capacitor-core.js';
 
-const APP_VERSION='0.4.0';
+const APP_VERSION='0.5.0';
 const IS_NATIVE=Capacitor.isNativePlatform();
 /** Native iOS bridge (ios/App/App/ModelLinkNativePlugin.swift); null in the browser. */
 const NativeML=IS_NATIVE?registerPlugin('ModelLinkNative'):null;
@@ -62,7 +62,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const date=t=>new Date(t).toLocaleDateString('ru-RU',{day:'numeric',month:'short'});
 const niceName=name=>String(name).length>54?String(name).slice(0,52)+'…':name;
 const featureDefs=[
-  ['drawing','Чертежи','PDF, DXF и изображения','pdf',''],
+  ['drawing','Чертежи','DWG, DXF, PDF и изображения','dwg',''],
   ['model','3D-модели','STL, OBJ и GLB','cube','lime'],
   ['measure','Измерения','Проверить расстояние','measure','violet'],
   ['notes','Замечания','Отметки прямо на файле','comment','orange'],
@@ -71,41 +71,45 @@ const featureDefs=[
 ];
 const navDefs=[['home','Главная','home'],['projects','Проекты','folders'],['notes','Замечания','comment'],['settings','Настройки','settings']];
 function notify(message){toastArea.textContent=message;toastArea.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toastArea.classList.remove('visible'),3700);}
-function header(){return `<header class="app-header"><div class="brand"><span class="brand-icon">${icon('box')}</span><span>ModelLink<span style="color:var(--blue)">.</span></span></div><div class="header-right"><span class="header-chip"><i class="dot"></i> Данные на устройстве</span><button data-action="go-settings" class="avatar" aria-label="Открыть настройки">ML</button></div></header>`;}
+function header(){return `<header class="app-header"><div class="brand"><span class="brand-icon">${icon('box')}</span><span>ModelLink<span style="color:var(--blue)">.</span></span></div><div class="header-right"><span class="header-chip"><i class="dot"></i> На устройстве</span><button data-action="go-settings" class="icon-button" aria-label="Настройки">${icon('settings')}</button></div></header>`;}
 function navItem([id,label,glyph]){return `<button class="nav-item ${state.tab===id?'active':''}" data-action="tab" data-tab="${id}" aria-label="${label}" ${state.tab===id?'aria-current="page"':''}>${icon(glyph)}<span>${label}</span></button>`;}
 function layout(content){return `<div class="app-layout"><aside class="side-nav"><div class="brand" style="padding:0 12px"><span class="brand-icon">${icon('box')}</span>ModelLink<span style="color:var(--blue)">.</span></div><div class="side-title">Рабочее пространство</div>${navDefs.map(navItem).join('')}<div class="side-note">Ваши файлы хранятся на этом устройстве. Для переноса проекта используйте «Поделиться».</div></aside><div class="main-area">${state.tab==='viewer'?'':header()}<main class="page ${state.tab==='viewer'?'viewer-page':''}">${content}</main></div></div>${state.tab==='viewer'?'':`<nav class="bottom-nav" aria-label="Основная навигация">${navDefs.map(navItem).join('')}</nav>`}`;}
 function sectionTitle(title,button='',action=''){return `<div class="section-heading"><h2>${title}</h2>${button?`<button class="link-button" data-action="${action}">${button} ${icon('arrow','small')}</button>`:''}</div>`;}
 function fileTypePreview(name){const cap=fileInfo(name);return cap.label||cap.ext;}
 function projectTile(p,assets,notes){const files=latestFiles(assets.filter(x=>x.projectId===p.id));const count=notes.filter(n=>n.projectId===p.id&&n.status==='open').length;return `<button class="project-card" data-action="open-project" data-id="${esc(p.id)}"><span class="project-thumb ${p.demo?'demo':''}">${icon(files.some(x=>x.kind==='model')?'cube':'folders')}</span><span class="project-body"><span class="project-title">${esc(p.name)}</span>${p.demo?` <span class="tag">ПРИМЕР</span>`:''}<div class="project-sub">${files.length} файлов · ${count} замечаний · ${date(p.updatedAt)}</div></span>${icon('arrow','small arrow-right')}</button>`;}
+function recentFiles(files){const list=latestFiles(files).slice(0,4);if(!list.length)return '';
+  return `<section style="margin-bottom:26px">${sectionTitle('Недавние файлы')}<div class="file-list">${list.map(f=>fileRow(f,true)).join('')}</div></section>`;}
 function homeView(projects,files,notes){const recents=projects.slice(0,3);
   return `<section class="home-head"><div class="eyebrow">Ваши проекты под рукой</div><h1>Чертежи и 3D.<br>Один экран.</h1><p class="lead">Открывайте, проверяйте и отправляйте файлы прямо с телефона.</p></section>
     <div class="quick-launch"><div><h2>С чего начнём?</h2><p>Откройте файл за пару касаний</p></div><div class="quick-launch-actions"><button class="btn white" data-action="import">${icon('upload','small')} Открыть файл</button><button class="btn ghost-white" data-action="new-project">${icon('plus','small')} Проект</button></div></div>
+    ${recentFiles(files)}
     <section>${sectionTitle('Что можно делать')}<div class="tools-grid">${featureDefs.map(([id,name,desc,glyph,color])=>`<button class="tool-card" data-action="feature" data-feature="${id}"><span class="tool-icon ${color}">${icon(glyph)}</span><span><span class="tool-name">${name}</span><div class="tool-desc">${desc}</div></span></button>`).join('')}</div></section>
     <section class="section">${sectionTitle('Последние проекты','Все проекты','go-projects')}<div class="project-list">${recents.length?recents.map(p=>projectTile(p,files,notes)).join(''):`<div class="empty">${icon('folders')}<h3>Здесь появятся ваши проекты</h3><p>Добавьте первый чертёж или модель</p><button class="btn primary" data-action="import">Открыть файл</button></div>`}</div></section>
-    <section class="section">${sectionTitle('Форматы файлов','Подробнее','formats')}<div class="format-rail">${['PDF','DXF','SVG','STL','OBJ','GLB'].concat(IS_NATIVE?['USDZ']:[],['DWG*','STEP*','IFC*']).map(x=>`<span class="format-tag">${x}</span>`).join('')}</div><p class="small-muted" style="margin-top:9px">* Исходники DWG, STEP, IFC сохраняются и передаются без изменений. Для просмотра добавьте копию в PDF, DXF, GLB или STL.</p></section>`;
+    <section class="section">${sectionTitle('Форматы файлов','Подробнее','formats')}<div class="format-rail">${['DWG','DXF','PDF','SVG','STL','OBJ','GLB'].concat(IS_NATIVE?['USDZ']:[],['STEP*','IFC*']).map(x=>`<span class="format-tag">${x}</span>`).join('')}</div><p class="small-muted" style="margin-top:9px">* STEP и IFC хранятся и передаются без изменений. Для просмотра добавьте копию в GLB или STL.</p></section>`;
 }
-function projectsView(projects,files,notes){let filtered=projects.filter(p=>p.name.toLowerCase().includes(state.search.toLowerCase()));if(state.filter==='demo')filtered=filtered.filter(p=>p.demo);if(state.filter==='mine')filtered=filtered.filter(p=>!p.demo);
+function projectsView(projects,files,notes){const q=state.search.trim().toLowerCase();let filtered=projects.filter(p=>p.name.toLowerCase().includes(q)||(q&&(p.description||'').toLowerCase().includes(q)));const fileHits=q?latestFiles(files).filter(f=>f.name.toLowerCase().includes(q)):[];if(state.filter==='demo')filtered=filtered.filter(p=>p.demo);if(state.filter==='mine')filtered=filtered.filter(p=>!p.demo);
   return `<div class="eyebrow">Рабочее пространство</div><div class="detail-top"><div><h1>Проекты</h1><p class="lead">Чертежи, модели и все версии</p></div><button class="btn primary" data-action="new-project">${icon('plus','small')} Создать</button></div>
-  <label class="search-field">${icon('search','small')}<input id="project-search" type="search" placeholder="Найти проект" value="${esc(state.search)}" aria-label="Поиск проекта"></label>
+  <label class="search-field">${icon('search','small')}<input id="project-search" type="search" placeholder="Найти проект или файл" value="${esc(state.search)}" aria-label="Поиск проекта"></label>
   <div class="segmented"><button class="chip ${state.filter==='all'?'active':''}" data-action="filter" data-filter="all">Все</button><button class="chip ${state.filter==='mine'?'active':''}" data-action="filter" data-filter="mine">Мои</button><button class="chip ${state.filter==='demo'?'active':''}" data-action="filter" data-filter="demo">Примеры</button></div>
-  <div class="project-list">${filtered.map(p=>projectTile(p,files,notes)).join('')||'<div class="empty"><h3>Ничего не найдено</h3><p>Измените запрос или создайте проект</p></div>'}</div>
+  <div class="project-list">${filtered.map(p=>projectTile(p,files,notes)).join('')||(fileHits.length?'':'<div class="empty"><h3>Ничего не найдено</h3><p>Измените запрос или создайте проект</p></div>')}</div>
+  ${fileHits.length?`<div class="section">${sectionTitle(`Файлы · ${fileHits.length}`)}<div class="file-list">${fileHits.slice(0,30).map(f=>fileRow(f,true)).join('')}</div></div>`:''}
   <div style="margin-top:24px"><button class="btn outline block" data-action="import-package">${icon('download','small')} Импортировать пакет .mlink</button></div>`;
 }
 function detailView(p,files,notes){const current=latestFiles(files),open=notes.filter(n=>n.status==='open');return `<div class="breadcrumbs"><button data-action="go-projects">Проекты</button>${icon('arrow','small')}<span>${esc(niceName(p.name))}</span></div>
 <div class="project-hero"><span class="eyebrow">${p.demo?'Демонстрационный проект':'Ваш проект'}</span><h1>${esc(p.name)}</h1><p>${esc(p.description||'Файлы и комментарии проекта')}</p><div class="info-stack"><span>${icon('file','small')} ${current.length} файлов</span><span>${icon('comment','small')} ${open.length} замечаний</span><span>${icon('history','small')} ${files.length-current.length} старых версий</span></div>
-<div class="action-bar"><button class="btn primary" data-action="import-here">${icon('plus','small')} Добавить файлы</button><button class="btn outline" data-action="share-project">${icon('share','small')} Поделиться</button></div></div>
+<div class="action-bar"><button class="btn primary" data-action="import-here">${icon('plus','small')} Добавить файлы</button><button class="btn outline" data-action="share-project">${icon('share','small')} Поделиться</button></div><div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn tiny outline" data-action="rename-project">${icon('edit','small')} Переименовать</button><button class="btn tiny outline" data-action="notes-report">${icon('pdf','small')} Отчёт по замечаниям</button></div></div>
 ${sectionTitle('Файлы')}<div class="file-list">${current.map(f=>fileRow(f)).join('')||`<div class="empty"><h3>Пока нет файлов</h3><p>Добавьте чертёж или 3D-модель</p></div>`}</div>
 <div class="section">${sectionTitle('Замечания')}<div>${open.slice(0,3).map((n,i)=>noteRow(n,i+1)).join('')||'<p class="small-muted">Открытых замечаний нет</p>'}</div></div>
 <div class="section"><button class="btn outline" data-action="project-versions">${icon('history','small')} История версий</button> <button class="btn outline" data-action="delete-project">${icon('trash','small')} Удалить проект</button></div>`;}
 function fileBadge(name,kind){const ext=String(name).split('.').at(-1).toLowerCase();const glyph=ext==='pdf'?'pdf':ext==='dwg'?'dwg':kind==='model'||kind==='ar'?'cube':kind==='drawing'?'layers':null;
   return glyph?`<span class="file-ext has-icon">${icon(glyph)}</span>`:`<span class="file-ext">${esc(fileInfo(name).label.slice(0,6))}</span>`;}
-function fileRow(f){const info=fileInfo(f.name);return `<button class="file-row" data-action="open-asset" data-id="${esc(f.id)}">${fileBadge(f.name,f.kind)}<span class="body"><h3>${esc(niceName(f.name))}</h3><p>${formatBytes(f.size)} · версия ${f.version} · ${info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр'}</p></span>${icon('arrow','small')}</button>`;}
-function noteRow(n,index){return `<div class="annotation-card"><span class="annotation-count">${index}</span><span class="body"><p>${esc(n.text)}</p><div class="meta">${date(n.createdAt)} · версия ${n.version} · <span class="status-text ${n.status==='resolved'?'resolved':''}">${n.status==='resolved'?'Проверено':'Открыто'}</span></div></span><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}" aria-label="Изменить статус">${n.status==='resolved'?'Вернуть':'Готово'}</button></div>`;}
+function fileRow(f,withProject=false){const info=fileInfo(f.name);const project=withProject?state.projectNames?.get(f.projectId):null;return `<button class="file-row" data-action="open-asset" data-id="${esc(f.id)}">${fileBadge(f.name,f.kind)}<span class="body"><h3>${esc(niceName(f.name))}</h3><p>${project?`${esc(project)} · `:''}${formatBytes(f.size)} · версия ${f.version}${withProject?` · ${date(f.createdAt)}`:` · ${info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр'}`}</p></span>${icon('arrow','small')}</button>`;}
+function noteRow(n,index){return `<div class="annotation-card"><span class="annotation-count">${index}</span><span class="body"><p>${esc(n.text)}</p><div class="meta">${date(n.createdAt)} · версия ${n.version} · <span class="status-text ${n.status==='resolved'?'resolved':''}">${n.status==='resolved'?'Проверено':'Открыто'}</span></div></span><span class="note-actions"><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}" aria-label="Изменить статус">${n.status==='resolved'?'Вернуть':'Готово'}</button><button class="btn tiny outline" data-action="delete-note" data-id="${n.id}" aria-label="Удалить замечание">${icon('trash','small')}</button></span></div>`;}
 function notesView(notes,files){return `<div class="eyebrow">Контроль изменений</div><h1>Замечания</h1><p class="lead">Нажмите на запись, чтобы открыть соответствующий файл</p><div class="section">${notes.map((n,i)=>{const asset=files.find(f=>f.id===n.assetId);return `<div class="annotation-card"><span class="annotation-count">${notes.length-i}</span><div class="body"><p>${esc(n.text)}</p><div class="meta">${esc(asset?.name||'Файл не найден')} · версия ${n.version} · ${date(n.createdAt)}</div><div class="row" style="margin-top:10px"><button class="btn tiny soft" data-action="open-asset" data-id="${esc(n.assetId)}">${icon('eye','small')} Открыть</button><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}">${n.status==='resolved'?'Вернуть':'Выполнено'}</button></div></div></div>`;}).join('')||`<div class="empty">${icon('pin','large')}<h3>Замечаний пока нет</h3><p>Откройте файл и нажмите «Отметить»</p></div>`}</div>`;}
 function settingsView(projects,files){return `<div class="eyebrow">ModelLink</div><h1>Настройки</h1><p class="lead">Простые инструменты без сложных меню</p><div class="two-col section"><div class="stat"><strong>${projects.length}</strong><p>проектов</p></div><div class="stat"><strong>${files.length}</strong><p>файлов и версий</p></div></div><div class="group-card section"><div class="setting-row"><div><strong>Тема оформления</strong><br><span>Светлая / тёмная</span></div><button class="btn outline tiny" data-action="theme">${icon('light','small')} ${state.theme==='dark'?'Светлая':'Тёмная'}</button></div><div class="setting-row"><div><strong>Поддерживаемые форматы</strong><br><span>Что открывается прямо в приложении</span></div><button class="icon-button" data-action="formats" aria-label="Форматы">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Импорт проекта</strong><br><span>Открыть резервный пакет .mlink</span></div><button class="icon-button" data-action="import-package" aria-label="Импорт пакета">${icon('download')}</button></div></div><div class="notice section">${icon('info','small')} &nbsp; Данные хранятся только на этом устройстве. Экспортируйте важные проекты в .mlink для резервной копии.</div><div class="group-card section"><div class="setting-row"><div><strong>О приложении</strong><br><span>Версия ${APP_VERSION}</span></div><button class="icon-button" data-action="about" aria-label="О приложении">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Конфиденциальность</strong><br><span>Данные не собираются</span></div><button class="icon-button" data-action="privacy" aria-label="Конфиденциальность">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Удалить все данные</strong><br><span>Проекты, файлы и замечания</span></div><button class="icon-button" data-action="erase-all" aria-label="Удалить все данные">${icon('trash')}</button></div></div><div class="section"><button class="btn outline" data-action="open-example">${icon('cube','small')} Посмотреть пример</button></div>`;}
 function viewerContent(f,allFiles,notes){const info=fileInfo(f.name);const siblings=allFiles.filter(x=>x.groupId===f.groupId).sort((a,b)=>b.version-a.version);
-  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${f.kind==='drawing'||f.kind==='model'?`<button class="btn tiny outline" data-action="zoom" data-k="1.25" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.8" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
-  return `<div class="breadcrumbs"><button data-action="back-project">${icon('chevron','small')} Проект</button></div><div class="viewer-header"><div style="min-width:0"><div class="eyebrow">${esc(info.label)} · Версия ${f.version}</div><div class="viewer-heading">${esc(f.name)}</div></div><div class="row"><button class="icon-button" data-action="export-file" aria-label="Экспорт в другой формат">${icon('export')}</button>${canQuickLook(f.name)?`<button class="icon-button" data-action="quicklook" aria-label="Открыть в Quick Look">${icon('eye')}</button>`:''}<button class="icon-button" data-action="${IS_NATIVE?'share-file':'download-file'}" aria-label="${IS_NATIVE?'Поделиться или сохранить в Файлы':'Скачать оригинал'}">${icon(IS_NATIVE?'share':'download')}</button>${IS_NATIVE?'':`<button class="icon-button" data-action="share-file" aria-label="Поделиться файлом">${icon('share')}</button>`}<button class="icon-button" data-action="delete-asset" aria-label="Удалить эту версию">${icon('trash')}</button></div></div>${toolbar}
+  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${['drawing','model','image'].includes(f.kind)?`<button class="btn tiny outline" data-action="zoom" data-k="1.4" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.7" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}${f.kind==='drawing'?`<button class="btn tiny outline" data-action="layers">${icon('layers','small')} Слои</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
+  return `<div class="breadcrumbs"><button data-action="back-project">${icon('chevron','small')} Проект</button></div><div class="viewer-header"><div style="min-width:0"><div class="eyebrow">${esc(info.label)} · Версия ${f.version}</div><div class="viewer-heading">${esc(f.name)}</div></div><div class="row"><button class="icon-button" data-action="export-file" aria-label="Экспорт в другой формат">${icon('export')}</button><button class="icon-button" data-action="share-file" aria-label="Поделиться">${icon('share')}</button><button class="icon-button" data-action="file-menu" aria-label="Ещё">${icon('dots')}</button></div></div>${toolbar}
   <div class="canvas-wrap" id="canvas-wrap"><div class="viewport-badge">${esc(info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр')}</div><div class="preview-body" id="preview-body"><div class="file-unsupported"><h3>Загружаем просмотр…</h3></div></div><div class="canvas-hint" id="canvas-hint">${f.kind==='model'?'Вращайте одним пальцем, масштаб — двумя':f.kind==='drawing'?'Двигайте одним пальцем, масштаб — двумя':'Коснитесь файла для отметки'}</div></div>
   <div class="viewer-data"><div class="section-heading"><h3>Замечания · ${notes.length}</h3><button class="link-button" data-action="quick-comment">${icon('plus','small')} Добавить</button></div>${notes.map((n,i)=>noteRow(n,i+1)).join('')||'<p class="small-muted">Здесь появятся замечания к этому файлу.</p>'}</div>
   <div class="section">${sectionTitle('Версии файла')}<div class="group-card">${siblings.map(v=>`<div class="version-item"><span>Версия ${v.version} ${v.id===f.id?'<span class="tag">ОТКРЫТА</span>':''}<br><small style="color:var(--muted)">${date(v.createdAt)} · ${formatBytes(v.size)}</small></span>${v.id===f.id?'':`<button class="btn tiny outline" data-action="open-asset" data-id="${v.id}">Открыть</button>`}</div>`).join('')}</div></div>`;}
@@ -116,7 +120,7 @@ function selectTab(tab){state.tab=tab;state.projectId=null;state.assetId=null;st
 function releasePreview(){if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=null;}}
 
 async function render(){
-  const projects=await getProjects(),files=await getAllAssets(),notes=await getAllNotes();state.projectIds=projects.map(p=>p.id);state.notes=notes;
+  const projects=await getProjects(),files=await getAllAssets(),notes=await getAllNotes();for(const f of files)f.kind=kindFor(f.name); /* kinds evolve between versions (DWG became viewable) */state.projectIds=projects.map(p=>p.id);state.projectNames=new Map(projects.map(p=>[p.id,p.name]));state.notes=notes;
   let body='';
   if(state.tab==='home')body=homeView(projects,files,notes);
   if(state.tab==='projects')body=projectsView(projects,files,notes);
@@ -137,7 +141,7 @@ async function openAsset(id){const asset=await getAsset(id);if(!asset){notify('�
 async function openProject(id){const p=await getProject(id);if(!p)return;state.projectId=id;state.assetId=null;state.tab='project';window.scrollTo(0,0);await render();}
 function filePickerAction(mode='all',projectId=null){
   state.pickerProject=projectId;state.pickerMode=mode;
-  const accepts={all:'',drawing:'.pdf,.dxf,.svg,.png,.jpg,.jpeg,.webp,.bmp',model:'.glb,.stl,.obj,.step,.stp,.ifc,.dwg,.rvt,.sldprt,.sldasm',package:'.mlink'};
+  const accepts={all:'',drawing:'.dwg,.pdf,.dxf,.svg,.png,.jpg,.jpeg,.webp,.bmp',model:'.glb,.stl,.obj,.step,.stp,.ifc,.dwg,.rvt,.sldprt,.sldasm',package:'.mlink'};
   filePicker.setAttribute('accept',accepts[mode]||'');filePicker.multiple=mode!=='package';
   if(NativeML){nativeChoose();return;}
   filePicker.value='';filePicker.click();
@@ -195,7 +199,7 @@ async function shareProject(){const p=await getProject(state.projectId);if(!p)re
 
 function formatModal(){
   const rows=Object.entries(capabilities).map(([ext,item])=>`<div class="setting-row"><div><strong>${esc(item.label)} <span style="font-weight:500">.${esc(ext)}</span></strong><br><span>${esc(item.note)}</span></div><span class="tag" style="color:${item.preview==='yes'?'#138a62':item.preview==='source'?'#b06d1b':'#4264c8'}">${item.preview==='yes'?'Просмотр':item.preview==='partial'?'Частично':'Исходник'}</span></div>`).join('');
-  modal('Форматы и возможности',`<p class="small-muted" style="margin-bottom:14px">Открыть, сохранить и передать можно файлы любых расширений (до 100 МБ). Кнопка «Экспорт» в просмотре преобразует файл в другие форматы.</p><div class="group-card">${rows}</div><p class="plan-warning">DWG, STEP, IFC и другие закрытые CAD-форматы хранятся и передаются без изменений. Для просмотра на телефоне добавьте в проект копию в PDF, DXF, GLB или STL.</p>`);
+  modal('Форматы и возможности',`<p class="small-muted" style="margin-bottom:14px">Открыть, сохранить и передать можно файлы любых расширений (до 100 МБ). Кнопка «Экспорт» в просмотре преобразует файл в другие форматы.</p><div class="group-card">${rows}</div><p class="plan-warning">DWG (R13–2018+) и DXF открываются со слоями, блоками и цветами. STEP, IFC и другие 3D-форматы САПР хранятся и передаются без изменений: для просмотра добавьте копию в GLB или STL.</p>`);
 }
 function newProjectModal(){modal('Новый проект',`<form id="create-project"><label class="field">Название проекта<input name="name" maxlength="100" required autofocus placeholder="Например, Завод · фасад" /></label><label class="field">Описание (необязательно)<textarea name="description" maxlength="350" placeholder="Что хранится в проекте"></textarea></label><button class="btn primary block" type="submit">${icon('plus','small')} Создать проект</button></form>`);dialog.querySelector('input')?.focus();}
 function newNoteModal(point){state.pendingPoint=point;state.pendingLocationType='normalized';modal('Новое замечание',`<form id="create-note"><p class="small-muted" style="margin-bottom:13px">Замечание будет прикреплено к открытой версии файла.</p><label class="field">Что нужно проверить?<textarea name="text" autofocus required maxlength="1200" placeholder="Например, проверить ширину прохода…"></textarea></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить замечание</button></form>`);}
@@ -205,7 +209,7 @@ function formatLength(mm){if(mm>=1000)return `${(mm/1000).toFixed(mm>=100000?1:3
 function askDeleteAsset(){modal('Удалить версию файла?',`<p class="lead" style="margin-bottom:22px">Будет удалена открытая версия и её замечания. Другие версии этого файла останутся.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-delete-asset">Удалить</button></div>`);}
 function askEraseAll(){modal('Удалить все данные?',`<p class="lead" style="margin-bottom:22px">Будут удалены все проекты, файлы, версии и замечания на этом устройстве. Сначала экспортируйте нужные проекты в .mlink.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-erase-all">Удалить всё</button></div>`);}
 function privacyModal(){modal('Конфиденциальность',`<div class="prose"><p><strong>ModelLink не собирает данные.</strong> В приложении нет учётных записей, рекламы, аналитики и отслеживания.</p><p>Проекты, файлы, версии и замечания хранятся только на этом устройстве. Приложение не отправляет их на серверы и не обращается к сети.</p><p>Файл покидает устройство, только когда вы сами отправляете его через меню «Поделиться» (AirDrop, «Файлы», почта и т.&nbsp;д.).</p><p>Удалить все данные можно в «Настройках» или удалив приложение.</p></div>`);}
-function aboutModal(){modal('О приложении',`<div class="prose"><p><strong>ModelLink ${APP_VERSION}</strong>. Чертежи, 3D-модели, замечания и версии проектов на телефоне.</p><p>Открывает любой файл. Просмотр: PDF, изображения (включая HEIC и TIFF), SVG, DXF, STL, OBJ, GLB, текст и код${IS_NATIVE?', а также Office, iWork, USDZ (AR), аудио и видео через Quick Look':''}.</p><p>Экспорт: DXF → SVG, PDF, PNG, JPEG; 3D → USDZ, STL, OBJ, GLB, PLY, PNG; изображения → PNG, JPEG, PDF${IS_NATIVE?'; PDF → страницы PNG/JPEG; текст, HTML, RTF → PDF':''}; любой файл → ZIP. Всё преобразуется на устройстве.</p><p>Измерения на DXF выводятся в единицах чертежа, на изображениях — в пикселях или в миллиметрах после калибровки. Перед производственными решениями сверяйте размеры в CAD-программе.</p><p class="small-muted">Компоненты с открытым кодом: JSZip (MIT), Capacitor (MIT).</p></div>`);}
+function aboutModal(){modal('О приложении',`<div class="prose"><p><strong>ModelLink ${APP_VERSION}</strong>. Чертежи, 3D-модели, замечания и версии проектов на телефоне.</p><p>Открывает любой файл. Просмотр: чертежи DWG (R13–2018+) и DXF со слоями, блоками и цветами; PDF, изображения (включая HEIC и TIFF), SVG, STL, OBJ, GLB, текст и код${IS_NATIVE?', а также Office, iWork, USDZ (AR), аудио и видео через Quick Look':''}.</p><p>Экспорт: DWG → DXF, PDF, SVG, PNG, JPEG; DXF → PDF, SVG, PNG, JPEG; 3D → USDZ, STL, OBJ, GLB, PLY, PNG; изображения → PNG, JPEG, PDF${IS_NATIVE?'; PDF → страницы PNG/JPEG; текст, HTML, RTF → PDF':''}; любой файл → ZIP. Всё преобразуется на устройстве.</p><p>Измерения на DWG/DXF привязываются к ближайшей точке и выводятся в единицах чертежа (мм, м…), на изображениях — в пикселях или в миллиметрах после калибровки. Перед производственными решениями сверяйте размеры в CAD-программе.</p><p class="small-muted">Компоненты с открытым кодом: acad-ts (MIT, порт ACadSharp), JSZip (MIT), Capacitor (MIT).</p></div>`);}
 function askDeleteProject(){modal('Удалить проект?',`<p class="lead" style="margin-bottom:22px">Будут удалены все локальные файлы, версии и замечания этого проекта. Действие нельзя отменить.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-delete">Удалить</button></div>`);}
 function versionsModal(projectId){getAssets(projectId).then(files=>{
   const groups=new Map();for(const f of files){if(!groups.has(f.groupId))groups.set(f.groupId,[]);groups.get(f.groupId).push(f);}
@@ -256,6 +260,15 @@ async function actionHandler(button){const action=button.dataset.action;
   if(action==='toggle-note'){const note=state.notes.find(n=>n.id===button.dataset.id);if(note)await setNoteStatus(note.id,note.status==='resolved'?'open':'resolved');await render();return;}
   if(action==='viewer-tool'){state.viewerTool=button.dataset.tool;state.viewer?.setTool?.(state.viewerTool);if(state.viewerTool==='measure'&&!state.viewer?.measure)notify('Измерения доступны для DXF и изображений');if(state.viewerTool==='comment')notify('Коснитесь места для замечания');app.querySelectorAll('[data-action="viewer-tool"]').forEach(b=>{const on=b.dataset.tool===state.viewerTool;b.classList.toggle('soft',on);b.classList.toggle('active-tool',on);b.classList.toggle('outline',!on);});return;}
   if(action==='fit'){state.viewer?.fit?.();return;}
+  if(action==='file-menu'){const f=await getAsset(state.assetId);if(!f)return;const item=(act,ic,label,extra='')=>`<button class="file-row" data-action="${act}"${extra}><span class="file-ext has-icon">${icon(ic)}</span><span class="body"><h3>${label}</h3></span></button>`;
+    modal(niceName(f.name),`<div class="file-list">${canQuickLook()?item('quicklook','eye','Открыть в Quick Look'):''}${item('export-file','export','Экспорт в другой формат')}${IS_NATIVE?item('share-file','share','Отправить или сохранить в «Файлы»'):item('download-file','download','Скачать оригинал')}${item('rename-asset','edit','Переименовать')}${item('delete-asset','trash','Удалить эту версию')}</div><p class="small-muted" style="margin-top:12px">${formatBytes(f.size)} · версия ${f.version} · добавлен ${date(f.createdAt)}</p>`);return;}
+  if(action==='rename-project'){const p=await getProject(state.projectId);if(p)modal('Переименовать проект',`<form id="rename-project"><label class="field">Название<input name="name" maxlength="100" required value="${esc(p.name)}"></label><label class="field">Описание<textarea name="description" maxlength="350">${esc(p.description||'')}</textarea></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить</button></form>`);return;}
+  if(action==='rename-asset'){const f=await getAsset(state.assetId);if(f)modal('Переименовать файл',`<form id="rename-asset"><label class="field">Имя файла (все версии)<input name="name" maxlength="150" required value="${esc(f.name)}"></label><button class="btn primary block" type="submit">${icon('check','small')} Сохранить</button></form>`);return;}
+  if(action==='delete-note'){await removeNote(button.dataset.id);notify('Замечание удалено');await render();return;}
+  if(action==='notes-report'){await notesReport();return;}
+  if(action==='layers'){layersModal();return;}
+  if(action==='layers-all'){state.viewer?.setAllLayers?.(button.dataset.on==='1');layersModal();return;}
+  if(action==='cad-bg'){try{localStorage.setItem('modellink-cad-bg',cadDark()?'light':'dark');}catch{}state.viewer?.redraw?.();return;}
   if(action==='zoom'){state.viewer?.zoom?.(Number(button.dataset.k)||1);return;}
   if(action==='quick-comment'){newNoteModal({x:.5,y:.5});return;}
   if(action==='feature'){
@@ -271,8 +284,21 @@ async function actionHandler(button){const action=button.dataset.action;
   }
 }
 
+// ---------------------------------------------------------------- notes report
+async function notesReport(){
+  const p=await getProject(state.projectId);if(!p)return;const files=await getAssets(p.id),notes=(await getNotes(p.id)).sort((a,b)=>a.createdAt-b.createdAt);
+  if(!notes.length){notify('В проекте нет замечаний');return;}
+  const byId=new Map(files.map(f=>[f.id,f]));const open=notes.filter(n=>n.status!=='resolved').length;
+  const when=t=>new Date(t).toLocaleString('ru-RU',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const html=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>${esc(p.name)} — замечания</title><style>body{font:11pt -apple-system,Helvetica,Arial,sans-serif;color:#172236;margin:0}h1{font-size:20pt;margin:0 0 4pt}.sub{color:#66738a;margin-bottom:16pt}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:6pt 5pt;border-bottom:1px solid #dfe4ec}th{font-size:9pt;color:#66738a;text-transform:uppercase}.st{font-weight:600}.open{color:#b06d1b}.done{color:#138a62}td.n{width:20pt;color:#66738a}</style></head><body><h1>${esc(p.name)}</h1><div class="sub">Отчёт по замечаниям · ${when(Date.now())} · всего ${notes.length}, открыто ${open}${p.description?` · ${esc(p.description)}`:''}</div><table><thead><tr><th>№</th><th>Замечание</th><th>Файл</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${notes.map((n,i)=>{const f=byId.get(n.assetId);return `<tr><td class="n">${i+1}</td><td>${esc(n.text)}</td><td>${esc(f?.name||'—')}<br><span style="color:#66738a">версия ${n.version}</span></td><td class="st ${n.status==='resolved'?'done':'open'}">${n.status==='resolved'?'Выполнено':'Открыто'}</td><td>${when(n.createdAt)}</td></tr>`;}).join('')}</tbody></table></body></html>`;
+  const base=`${p.name.replace(/[^\wа-яА-ЯёЁ -]/g,'_').slice(0,40)||'ModelLink'} — замечания`;
+  const blob=new Blob([html],{type:'text/html'});
+  if(NativeML){notify('Готовим PDF…');const r=await withNativeExport(blob,`${base}.html`,id=>NativeML.convertExport({exportId:id,to:'pdf'}));const ids=(r.files||[]).map(x=>x.id);try{await NativeML.shareStaged({ids});}finally{for(const id of ids)await NativeML.deleteStaged({id}).catch(()=>{});}return;}
+  downloadBlob(blob,`${base}.html`);notify('Отчёт сохранён (HTML, откройте и распечатайте в PDF)');
+}
+
 // ---------------------------------------------------------------- conversion
-const MIME={svg:'image/svg+xml',png:'image/png',jpeg:'image/jpeg',pdf:'application/pdf',stl:'model/stl',obj:'model/obj',ply:'application/octet-stream',glb:'model/gltf-binary',usdz:'model/vnd.usdz+zip',zip:'application/zip'};
+const MIME={dxf:'image/vnd.dxf',svg:'image/svg+xml',png:'image/png',jpeg:'image/jpeg',pdf:'application/pdf',stl:'model/stl',obj:'model/obj',ply:'application/octet-stream',glb:'model/gltf-binary',usdz:'model/vnd.usdz+zip',zip:'application/zip'};
 const EXT={jpeg:'jpg'};
 const outName=(f,to)=>`${baseName(f.name)}.${EXT[to]||to}`;
 const toFile=(f,to,data)=>new File([data],outName(f,to),{type:MIME[to]||'application/octet-stream'});
@@ -301,7 +327,9 @@ async function runConversion(f,to,engine){
   if(engine==='zip'){if(!window.JSZip)throw new Error('Не удалось загрузить ZIP-модуль');const zip=new window.JSZip();zip.file(f.name,f.blob);return {files:[toFile(f,'zip',await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}}))]};}
   if(engine==='native'){const r=await withNativeExport(f.blob,f.name,id=>NativeML.convertExport({exportId:id,to}));return {staged:r.files||[]};}
   const ext=extOf(f.name);
-  if(ext==='dxf'){const svg=dxfToSVG(parseDXF(await f.blob.text()));if(to==='svg')return {files:[toFile(f,'svg',svg)]};
+  if(ext==='dxf'||ext==='dwg'){
+    if(to==='dxf'){const {bytes}=await cadRun('dxf',f);return {files:[toFile(f,'dxf',bytes)]};}
+    const svg=dxfToSVG(await loadDrawing(f),{hiddenLayers:hiddenLayers.get(f.id)||null});if(to==='svg')return {files:[toFile(f,'svg',svg)]};
     return {files:[await canvasTo(await rasterize(new Blob([svg],{type:'image/svg+xml'}),{maxSide:3600,minSide:2400}),to,f)]};}
   if(['stl','obj','glb'].includes(ext)){
     if(to==='png'){const scene=document.getElementById('scene');if(!scene||state.assetId!==f.id)throw new Error('Откройте модель, чтобы сохранить снимок');return {files:[toFile(f,'png',await canvasBlob(scene,'image/png'))]};}
@@ -333,26 +361,45 @@ async function convertAction(button){
 const viewerRuntime={};
 async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=document.getElementById('preview-body'),wrap=document.getElementById('canvas-wrap');if(!host)return;
   if(f.kind==='image'){
-    previewUrl=URL.createObjectURL(f.blob);host.innerHTML=`<img class="preview-image" src="${previewUrl}" alt="${esc(f.name)}">`;
-    const image=host.querySelector('img');image.addEventListener('error',()=>{host.innerHTML=`<div class="file-unsupported">${icon('image','large')}<h3>${esc(f.name)}</h3><p>Это изображение нельзя показать здесь.</p><div class="row" style="justify-content:center">${canQuickLook()?`<button class="btn primary" data-action="quicklook">${icon('eye','small')} Открыть</button>`:''}<button class="btn outline" data-action="export-file">${icon('export','small')} Экспорт</button></div></div>`;});image.addEventListener('load',()=>{
-      const rect=image.getBoundingClientRect(),ratio=Math.min(rect.width/image.naturalWidth,rect.height/image.naturalHeight);
-      const nw=image.naturalWidth*ratio,nh=image.naturalHeight*ratio,left=(rect.width-nw)/2,top=(rect.height-nh)/2;
-      state.viewer={measure:true,setTool(){},fit(){},pxToWorld(e){return{x:(e.clientX-rect.left-left)/nw,y:(e.clientY-rect.top-top)/nh}},pictureBounds:{left,top,width:nw,height:nh}};
-      for(const [i,n] of state.notes.filter(n=>n.assetId===f.id).entries()){
-        const pin=document.createElement('button');pin.className='image-annotation';pin.textContent=String(i+1);pin.style.left=`${left+nw*(n.point?.x??.5)}px`;pin.style.top=`${top+nh*(n.point?.y??.5)}px`;pin.title=n.text;host.append(pin);
-      }
+    previewUrl=URL.createObjectURL(f.blob);
+    host.innerHTML=`<div class="zoom-stage"><div class="zoom-layer"><img class="preview-image" src="${previewUrl}" alt="${esc(f.name)}" draggable="false"></div></div>`;
+    const stage=host.querySelector('.zoom-stage'),layer=host.querySelector('.zoom-layer'),image=host.querySelector('img');
+    const t={s:1,x:0,y:0};let box=null;
+    const apply=()=>{layer.style.transform=`translate(${t.x}px,${t.y}px) scale(${t.s})`;layer.style.setProperty('--inv',String(1/t.s));};
+    const clamp=()=>{const r=stage.getBoundingClientRect();if(t.s<=1){t.s=Math.max(1,t.s);t.x=0;t.y=0;return;}t.x=Math.min(0,Math.max(r.width-r.width*t.s,t.x));t.y=Math.min(0,Math.max(r.height-r.height*t.s,t.y));};
+    const zoomAt=(k,sx,sy)=>{const ns=Math.max(1,Math.min(12,t.s*k));t.x=sx-(sx-t.x)*ns/t.s;t.y=sy-(sy-t.y)*ns/t.s;t.s=ns;clamp();apply();};
+    const local=e=>{const r=stage.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
+    const toImage=(sx,sy)=>{const lx=(sx-t.x)/t.s,ly=(sy-t.y)/t.s;return {x:(lx-box.left)/box.width,y:(ly-box.top)/box.height};};
+    const addPin=(cls,p,text)=>{const el=document.createElement(cls==='measure-dot'?'span':'button');el.className=cls;if(text)el.textContent=text;el.style.left=`${box.left+box.width*p.x}px`;el.style.top=`${box.top+box.height*p.y}px`;layer.append(el);return el;};
+    image.addEventListener('error',()=>{host.innerHTML=`<div class="file-unsupported">${icon('image','large')}<h3>${esc(f.name)}</h3><p>Это изображение нельзя показать здесь.</p><div class="row" style="justify-content:center">${canQuickLook()?`<button class="btn primary" data-action="quicklook">${icon('eye','small')} Открыть</button>`:''}<button class="btn outline" data-action="export-file">${icon('export','small')} Экспорт</button></div></div>`;});
+    image.addEventListener('load',()=>{
+      const r=layer.getBoundingClientRect(),ratio=Math.min(r.width/image.naturalWidth,r.height/image.naturalHeight);
+      const nw=image.naturalWidth*ratio,nh=image.naturalHeight*ratio;box={left:(r.width-nw)/2,top:(r.height-nh)/2,width:nw,height:nh};
+      state.notes.filter(n=>n.assetId===f.id).forEach((n,i)=>{const pin=addPin('image-annotation',n.point||{x:.5,y:.5},String(i+1));pin.title=n.text;pin.setAttribute('aria-label',`Замечание ${i+1}: ${n.text}`);});
+      const hint=document.getElementById('canvas-hint');if(hint)hint.textContent='Масштаб — 2 пальца или двойной тап';
     });
-    host.addEventListener('click',e=>{
-      if(e.target.closest('.image-annotation'))return;
-      if(!state.viewer)return;
-      const p=state.viewer.pxToWorld(e);if(p.x<0||p.x>1||p.y<0||p.y>1)return;
-      if(state.viewerTool==='comment')newNoteModal(p);
-      if(state.viewerTool==='measure'){
-        state.measurePoints=state.measurePoints||[];if(state.measurePoints.length>=2){state.measurePoints=[];host.querySelectorAll('.measure-dot').forEach(x=>x.remove());}
-        state.measurePoints.push(p);const bounds=state.viewer.pictureBounds;const dot=document.createElement('span');dot.className='measure-dot';dot.style.left=`${bounds.left+bounds.width*p.x}px`;dot.style.top=`${bounds.top+bounds.height*p.y}px`;host.append(dot);
-        if(state.measurePoints.length===2){const [a,b]=state.measurePoints;const pixels=Math.hypot((a.x-b.x)*image.naturalWidth,(a.y-b.y)*image.naturalHeight);measureResultModal(pixels,f.mmPerPixel);}
-      }
-    });return;
+    const touches=new Map();let pinch=null,drag=null,lastTap=0;
+    stage.addEventListener('pointerdown',e=>{if(e.target.closest('.image-annotation'))return;stage.setPointerCapture(e.pointerId);touches.set(e.pointerId,local(e));
+      if(touches.size===2){const [a,c]=[...touches.values()];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),s:t.s,m:[(a[0]+c[0])/2,(a[1]+c[1])/2],x:t.x,y:t.y};drag=null;return;}
+      drag={start:local(e),last:local(e),moved:false};});
+    stage.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,local(e));
+      if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];const ns=Math.max(1,Math.min(12,pinch.s*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));
+        t.x=m[0]-(pinch.m[0]-pinch.x)*ns/pinch.s;t.y=m[1]-(pinch.m[1]-pinch.y)*ns/pinch.s;t.s=ns;clamp();apply();return;}
+      if(!drag)return;const p=local(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
+      if(drag.moved&&t.s>1){t.x+=p[0]-drag.last[0];t.y+=p[1]-drag.last[1];clamp();apply();}drag.last=p;});
+    const end=e=>{touches.delete(e.pointerId);if(pinch){if(touches.size<2)pinch=null;drag=null;return;}const d=drag;drag=null;if(!d||d.moved||!box||e.type==='pointercancel')return;
+      const [sx,sy]=local(e);const p=toImage(sx,sy);const inside=p.x>=0&&p.x<=1&&p.y>=0&&p.y<=1;
+      if(state.viewerTool==='comment'){if(inside)newNoteModal(p);return;}
+      if(state.viewerTool==='measure'){if(!inside)return;state.measurePoints=state.measurePoints||[];if(state.measurePoints.length>=2){state.measurePoints=[];layer.querySelectorAll('.measure-dot').forEach(x=>x.remove());}
+        state.measurePoints.push(p);addPin('measure-dot',p);haptic();
+        if(state.measurePoints.length===2){const [a,c]=state.measurePoints;measureResultModal(Math.hypot((a.x-c.x)*image.naturalWidth,(a.y-c.y)*image.naturalHeight),f.mmPerPixel);}return;}
+      const now=Date.now();if(now-lastTap<320){if(t.s>1.05){t.s=1;clamp();apply();}else zoomAt(2.5,sx,sy);lastTap=0;}else lastTap=now;};
+    stage.addEventListener('pointerup',end);stage.addEventListener('pointercancel',end);
+    stage.addEventListener('wheel',e=>{e.preventDefault();const [sx,sy]=local(e);zoomAt(e.deltaY>0?.88:1.14,sx,sy);},{passive:false});
+    state.measurePoints=[];
+    state.viewer={measure:true,setTool(tool){if(tool!=='measure'){state.measurePoints=[];layer.querySelectorAll('.measure-dot').forEach(x=>x.remove());}},
+      fit(){t.s=1;t.x=0;t.y=0;apply();},zoom(k){const r=stage.getBoundingClientRect();zoomAt(k,r.width/2,r.height/2);}};
+    return;
   }
   if(f.kind==='ar'||(f.kind==='pdf'&&NativeML)){
     host.innerHTML=`<div class="file-unsupported">${icon(f.kind==='pdf'?'file':'cube','large')}<h3>${esc(f.name)}</h3><p>${f.kind==='pdf'?'Все страницы, поиск по тексту и масштабирование в системном просмотрщике.':'Объёмная модель и режим дополненной реальности в системном просмотрщике.'}</p>${canQuickLook(f.name)?`<button class="btn primary" data-action="quicklook">${icon('eye','small')} Открыть ${f.kind==='pdf'?'PDF':'модель'}</button>`:''}</div>`;
@@ -371,6 +418,7 @@ async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=d
     state.viewer={measure:false,setTool(){},fit(){}};
     return;
   }
+  if(f.kind==='drawing'){await activateCadViewer(f,host,wrap);return;}
   if(f.kind==='drawing'||f.kind==='model'){
     try{
       let drawing,mesh;
@@ -465,6 +513,126 @@ async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=d
   host.innerHTML=`<div class="file-unsupported">${icon('file','large')}<h3>${esc(f.name)}</h3><p>${esc(info.note)}. Файл сохранён без изменений, его можно скачать или отправить.</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn primary" data-action="quicklook">${icon('eye','small')} Открыть</button>`:''}<button class="btn ${canQuickLook()?'outline':'primary'}" data-action="export-file">${icon('export','small')} Экспорт</button><button class="btn outline" data-action="share-file">${icon('share','small')} Отправить</button></div></div>`;
   document.getElementById('canvas-hint').textContent='Исходник доступен для передачи';state.viewer={measure:false,setTool(){},fit(){}};
 }
+// ---------------------------------------------------------------- DWG / DXF viewer
+const drawingCache=new Map();let cadWorker=null,cadSeq=0;const cadPending=new Map();
+function cadWorkerCall(msg){
+  if(!cadWorker){try{
+    cadWorker=new Worker(new URL('./core/cad-worker.js',import.meta.url),{type:'module'});
+    cadWorker.onmessage=e=>{const p=cadPending.get(e.data.id);if(!p)return;cadPending.delete(e.data.id);e.data.ok?p.resolve(e.data.result):p.reject(new Error(e.data.error));};
+    cadWorker.onerror=()=>{for(const p of cadPending.values())p.reject(Object.assign(new Error('worker'),{worker:true}));cadPending.clear();cadWorker?.terminate();cadWorker=null;};
+  }catch{return null;}}
+  return new Promise((resolve,reject)=>{const id=++cadSeq;cadPending.set(id,{resolve,reject});cadWorker.postMessage({...msg,id});});
+}
+async function cadRun(op,f){
+  const bytes=await f.blob.arrayBuffer();
+  try{const r=cadWorkerCall({op,bytes,name:f.name});if(r)return await r;}catch(e){if(!e.worker)throw e;}
+  const [lib,cad]=await Promise.all([import('./vendor/acad-ts.min.js'),import('./core/cad.js')]);
+  return cad.cadOp(lib,op,new Uint8Array(bytes),f.name);
+}
+async function loadDrawing(f){
+  if(drawingCache.has(f.id))return drawingCache.get(f.id);
+  const {drawing}=await cadRun('drawing',f);
+  if(drawingCache.size>4)drawingCache.delete(drawingCache.keys().next().value);
+  drawingCache.set(f.id,drawing);return drawing;
+}
+const viewStates=new Map(),hiddenLayers=new Map();
+const toneLight=c=>{if(!c)return c;const n=parseInt(c.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255,l=(.299*r+.587*g+.114*b)/255;if(l<.55)return c;const k=.55/l*.8;return '#'+[r,g,b].map(v=>Math.round(v*k).toString(16).padStart(2,'0')).join('');};
+function cadDark(){try{return localStorage.getItem('modellink-cad-bg')!=='light';}catch{return true;}}
+async function activateCadViewer(f,host,wrap){
+  host.innerHTML=`<div class="file-unsupported"><span class="spinner" aria-hidden="true"></span><h3>Открываем чертёж…</h3><p>${f.size>4e6?'Большой файл — это может занять до минуты':'Читаем геометрию, слои и блоки'}</p></div>`;
+  const hint=document.getElementById('canvas-hint');
+  let drawing;
+  try{drawing=await loadDrawing(f);}
+  catch(e){
+    if(state.assetId!==f.id)return;
+    host.innerHTML=`<div class="file-unsupported">${icon('warning','large')}<h3>Не удалось открыть чертёж</h3><p>${esc(e.message)}</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn outline" data-action="quicklook">${icon('eye','small')} Quick Look</button>`:''}<button class="btn outline" data-action="share-file">${icon('share','small')} Отправить оригинал</button></div></div>`;
+    if(hint)hint.textContent='Оригинал сохранён без изменений';state.viewer={measure:false,setTool(){},fit(){}};return;
+  }
+  if(state.assetId!==f.id||!host.isConnected)return;
+  host.innerHTML='<canvas id="scene" aria-label="Чертёж"></canvas><div class="cad-info" id="cad-info"></div>';
+  const canvas=host.querySelector('canvas'),info=host.querySelector('#cad-info');
+  const b=drawing.bounds,unit=drawing.units||'ед.';
+  const hidden=hiddenLayers.get(f.id)||new Set(drawing.layers.filter(l=>!l.visible).map(l=>l.name));hiddenLayers.set(f.id,hidden);
+  const vs=viewStates.get(f.id)||{zoom:1,cx:(b.minX+b.maxX)/2,cy:(b.minY+b.maxY)/2};viewStates.set(f.id,vs);
+  let w=0,h=0,dpr=1,groups=[],texts=[],dots=[],snap=new Float64Array(0),measure=[],frame=0;
+  const base=()=>Math.min((w-32)/Math.max(1e-9,b.maxX-b.minX),(h-32)/Math.max(1e-9,b.maxY-b.minY));
+  const scale=()=>base()*vs.zoom;
+  const toScreen=(x,y)=>{const k=scale();return [(x-vs.cx)*k+w/2,h/2-(y-vs.cy)*k];};
+  const toWorld=(sx,sy)=>{const k=scale();return [(sx-w/2)/k+vs.cx,(h/2-sy)/k+vs.cy];};
+  function build(){
+    const map=new Map();texts=[];dots=[];const sp=[];
+    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,path:new Path2D()};map.set(key,g);}return g.path;};
+    for(const e of drawing.entities){
+      if(hidden.has(e.layer))continue;
+      if(e.type==='line'){const p=group(e);p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
+      else if(e.type==='polyline'){const p=group(e);e.points.forEach((q,i)=>i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]));if(e.closed)p.closePath();if(sp.length<6e5)for(const q of e.points.length>200?[e.points[0],e.points.at(-1)]:e.points)sp.push(q[0],q[1]);}
+      else if(e.type==='circle'){if(e.r>0){const p=group(e);p.moveTo(e.c[0]+e.r,e.c[1]);p.arc(e.c[0],e.c[1],e.r,0,Math.PI*2);}else dots.push(e);if(sp.length<6e5)sp.push(e.c[0],e.c[1]);}
+      else if(e.type==='arc'){const p=group(e);const s=e.start*Math.PI/180,t=e.end*Math.PI/180;p.moveTo(e.c[0]+e.r*Math.cos(s),e.c[1]+e.r*Math.sin(s));p.arc(e.c[0],e.c[1],e.r,s,t,false);}
+      else if(e.type==='point')dots.push({c:e.p,color:e.color});
+      else if(e.type==='text')texts.push(e);
+    }
+    groups=[...map.values()].sort((a,c)=>(c.fill-a.fill));snap=Float64Array.from(sp);
+  }
+  function draw(){
+    frame=0;const ctx=canvas.getContext('2d');const dark=cadDark();const ink=dark?'#e7ecf4':'#1d2a40';const k=scale();
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=dark?'#141a24':'#ffffff';ctx.fillRect(0,0,w,h);
+    ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='round';ctx.lineJoin='round';
+    for(const g of groups){const c=(dark?g.color:toneLight(g.color))||ink;
+      if(g.fill){ctx.globalAlpha=g.hatch?.22:.8;ctx.fillStyle=c;ctx.fill(g.path);ctx.globalAlpha=1;}
+      ctx.strokeStyle=c;ctx.stroke(g.path);}
+    ctx.restore();ctx.setTransform(dpr,0,0,dpr,0,0);
+    for(const d of dots){const [x,y]=toScreen(d.c[0],d.c[1]);if(x<-4||y<-4||x>w+4||y>h+4)continue;ctx.fillStyle=(dark?d.color:toneLight(d.color))||ink;ctx.fillRect(x-1.5,y-1.5,3,3);}
+    let shown=0;const minPx=texts.length>4000?6:3;
+    for(const t of texts){const px=t.height*k;if(px<minPx)continue;const [x,y]=toScreen(t.p[0],t.p[1]);if(x<-w||x>2*w||y<-60||y>h+60)continue;if(++shown>6000)break;
+      ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline='alphabetic';ctx.fillStyle=(dark?t.color:toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
+    if(measure.length){ctx.strokeStyle='#4f8cff';ctx.fillStyle='#4f8cff';ctx.lineWidth=2;const pts=measure.map(p=>toScreen(p[0],p[1]));
+      if(pts.length===2){ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(...pts[0]);ctx.lineTo(...pts[1]);ctx.stroke();ctx.setLineDash([]);
+        const len=Math.hypot(measure[1][0]-measure[0][0],measure[1][1]-measure[0][1]);const label=`${fmtNum(len)} ${unit}`;const mx=(pts[0][0]+pts[1][0])/2,my=(pts[0][1]+pts[1][1])/2;
+        ctx.font='600 13px -apple-system,system-ui,sans-serif';const tw=ctx.measureText(label).width;ctx.fillStyle='#2e61f2';ctx.beginPath();ctx.roundRect?ctx.roundRect(mx-tw/2-8,my-24,tw+16,22,8):ctx.rect(mx-tw/2-8,my-24,tw+16,22);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(label,mx,my-8);ctx.fillStyle='#4f8cff';}
+      for(const [x,y] of pts){ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}}
+    state.notes.filter(n=>n.assetId===f.id).forEach((n,i)=>{const p=n.locationType==='world'?toScreen(n.point.x,n.point.y):[n.point.x*w,n.point.y*h];drawPin(ctx,p[0],p[1],i+1);});
+  }
+  const redraw=()=>{if(!frame)frame=requestAnimationFrame(draw);};
+  const resize=()=>{dpr=Math.min(3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
+  const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;redraw();};
+  const snapTo=(sx,sy)=>{let best=-1,bd=16*16;const k=scale();for(let i=0;i<snap.length;i+=2){const x=(snap[i]-vs.cx)*k+w/2,y=h/2-(snap[i+1]-vs.cy)*k;const d=(x-sx)**2+(y-sy)**2;if(d<bd){bd=d;best=i;}}return best<0?toWorld(sx,sy):[snap[best],snap[best+1]];};
+  const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${drawing.entities.length.toLocaleString('ru-RU')} объектов${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}`;};
+  build();updateInfo();
+  const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
+  const touches=new Map();let pinch=null,drag=null,lastTap=0;
+  canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);touches.set(e.pointerId,pos(e));
+    if(touches.size===2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),zoom:vs.zoom,world:toWorld(...m)};drag=null;return;}
+    drag={start:pos(e),last:pos(e),moved:false};});
+  canvas.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,pos(e));
+    if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.05,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;redraw();return;}
+    if(!drag)return;const p=pos(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
+    if(drag.moved){const k=scale();vs.cx-=(p[0]-drag.last[0])/k;vs.cy+=(p[1]-drag.last[1])/k;drag.last=p;redraw();}});
+  const end=e=>{touches.delete(e.pointerId);if(pinch){if(touches.size<2)pinch=null;drag=null;return;}
+    const d=drag;drag=null;if(!d||d.moved||e.type==='pointercancel')return;const [sx,sy]=pos(e);
+    if(state.viewerTool==='measure'){const p=snapTo(sx,sy);if(measure.length>=2)measure=[];measure.push(p);
+      if(measure.length===2){const dx=measure[1][0]-measure[0][0],dy=measure[1][1]-measure[0][1];notify(`Расстояние ${fmtNum(Math.hypot(dx,dy))} ${unit} · ΔX ${fmtNum(Math.abs(dx))} · ΔY ${fmtNum(Math.abs(dy))}`);haptic();}
+      else haptic();redraw();return;}
+    if(state.viewerTool==='comment'){const [x,y]=toWorld(sx,sy);newNoteModal({x,y});state.pendingLocationType='world';return;}
+    const now=Date.now();if(now-lastTap<320){zoomAt(2.2,sx,sy);lastTap=0;}else lastTap=now;};
+  canvas.addEventListener('pointerup',end);canvas.addEventListener('pointercancel',end);
+  canvas.addEventListener('wheel',e=>{e.preventDefault();const [sx,sy]=pos(e);zoomAt(e.deltaY>0?.88:1.14,sx,sy);},{passive:false});
+  const ro=typeof ResizeObserver==='function'?new ResizeObserver(resize):null;ro?.observe(wrap);
+  if(hint)hint.textContent='1 палец — сдвиг · 2 — масштаб · двойной тап — ближе';
+  state.viewer={measure:true,
+    zoom(k){zoomAt(k,w/2,h/2);},
+    fit(){vs.zoom=1;vs.cx=(b.minX+b.maxX)/2;vs.cy=(b.minY+b.maxY)/2;measure=[];redraw();},
+    setTool(t){if(t!=='measure')measure=[];redraw();},
+    layers:drawing.layers,hidden,
+    setLayer(name,on){on?hidden.delete(name):hidden.add(name);build();updateInfo();redraw();},
+    setAllLayers(on){if(on)hidden.clear();else drawing.layers.forEach(l=>hidden.add(l.name));build();updateInfo();redraw();},
+    redraw,cleanup(){ro?.disconnect();if(frame)cancelAnimationFrame(frame);}};
+  resize();
+}
+function versionLabelUI(v){return ({AC1012:'R13',AC1014:'R14',AC1015:'2000',AC1018:'2004',AC1021:'2007',AC1024:'2010',AC1027:'2013',AC1032:'2018+'})[v]||v;}
+function fmtNum(v){const a=Math.abs(v);return a>=1000?v.toLocaleString('ru-RU',{maximumFractionDigits:1}):a>=1?v.toLocaleString('ru-RU',{maximumFractionDigits:2}):v.toLocaleString('ru-RU',{maximumSignificantDigits:3});}
+function haptic(){try{navigator.vibrate?.(8);}catch{}}
+function layersModal(){const v=state.viewer;if(!v?.layers){notify('Слои есть только у чертежей DWG и DXF');return;}
+  modal('Слои',`<div class="row" style="margin-bottom:12px"><button class="btn tiny soft" data-action="layers-all" data-on="1">Показать все</button><button class="btn tiny outline" data-action="layers-all" data-on="0">Скрыть все</button></div><div class="group-card layer-list">${v.layers.map(l=>`<label class="setting-row layer-row"><span class="layer-swatch" style="background:${l.color||'var(--ink)'}"></span><span class="layer-name"><strong>${esc(l.name)}</strong><br><span>${l.count.toLocaleString('ru-RU')} объектов</span></span><input type="checkbox" data-layer="${esc(l.name)}" ${v.hidden.has(l.name)?'':'checked'} aria-label="Показывать слой ${esc(l.name)}"></label>`).join('')}</div>`);}
 function drawPin(ctx,x,y,index){ctx.save();ctx.fillStyle='#2e61f2';ctx.strokeStyle='white';ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='white';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(index),x,y);ctx.restore();}
 
 document.addEventListener('click',async e=>{
@@ -477,11 +645,14 @@ dialog.addEventListener('submit',async e=>{
   e.preventDefault();const form=e.target;
   try{
     if(form.id==='create-project'){const fd=new FormData(form);const p=await createProject(fd.get('name'),fd.get('description'));closeModal();await openProject(p.id);notify('Проект создан');}
+    if(form.id==='rename-project'){const fd=new FormData(form);await renameProject(state.projectId,fd.get('name'),fd.get('description'));closeModal();notify('Сохранено');await render();return;}
+    if(form.id==='rename-asset'){const name=await renameAsset(state.assetId,new FormData(form).get('name'));closeModal();notify(`Файл: ${name}`);await render();return;}
     if(form.id==='calibrate'){const length=Number(String(new FormData(form).get('length')).replace(',','.'));if(!(length>0)||!(state.lastPixels>0))throw new Error('Введите длину больше нуля');await setAssetScale(state.assetId,length/state.lastPixels);closeModal();notify(`Масштаб задан: ${formatLength(length)} = ${state.lastPixels.toFixed(1)} пикс.`);state.measurePoints=[];await render();state.viewerTool='measure';state.viewer?.setTool?.('measure');app.querySelectorAll('[data-action="viewer-tool"]').forEach(b=>{const on=b.dataset.tool==='measure';b.classList.toggle('soft',on);b.classList.toggle('active-tool',on);b.classList.toggle('outline',!on);});return;}
     if(form.id==='create-note'){const f=await getAsset(state.assetId);const fd=new FormData(form);if(!f)throw new Error('Сначала откройте файл');await addNote({projectId:f.projectId,assetId:f.id,text:fd.get('text'),point:state.pendingPoint||{x:.5,y:.5},locationType:state.pendingLocationType||'normalized'});state.pendingPoint=null;state.pendingLocationType='normalized';state.viewerTool='view';closeModal();await render();notify('Замечание сохранено');}
   }catch(err){notify(err.message||'Не удалось сохранить');}
 });
 document.addEventListener('input',e=>{if(e.target.id==='project-search'){const el=e.target;state.search=el.value;const start=el.selectionStart;render().then(()=>{const next=document.getElementById('project-search');next?.focus();next?.setSelectionRange(start,start);});}});
+document.addEventListener('change',e=>{const t=e.target;if(t.matches?.('input[data-layer]')&&state.viewer?.setLayer)state.viewer.setLayer(t.dataset.layer,t.checked);});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)nativeDrain();});
 async function init(){
   if(NativeML)NativeML.addListener('inboxChanged',()=>nativeDrain()).catch(console.warn);

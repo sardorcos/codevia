@@ -8,28 +8,35 @@ const escXml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 export function baseName(name){const s=String(name||'file').split('/').at(-1);const i=s.lastIndexOf('.');return (i>0?s.slice(0,i):s)||'file';}
 export function extOf(name){const s=String(name||'');const i=s.lastIndexOf('.');return i>0?s.slice(i+1).toLowerCase():'';}
 
-// ---------------------------------------------------------------- DXF → SVG
-export function dxfToSVG(drawing,{stroke='#1d2a40',background='#ffffff',margin=0.04}={}){
+// ---------------------------------------------------------------- drawing (DXF/DWG) → SVG
+export function dxfToSVG(drawing,{stroke='#1d2a40',background='#ffffff',margin=0.04,hiddenLayers=null}={}){
   const b=drawing.bounds;const w=Math.max(1e-9,b.maxX-b.minX),h=Math.max(1e-9,b.maxY-b.minY);
   const pad=Math.max(w,h)*margin;const vbW=w+pad*2,vbH=h+pad*2;
-  const X=x=>n6(x-b.minX+pad),Y=y=>n6(b.maxY-y+pad); // flip Y: DXF is Y-up
-  const sw=n6(Math.max(vbW,vbH)/900);const parts=[];
+  const X=x=>n6(x-b.minX+pad),Y=y=>n6(b.maxY-y+pad); // flip Y: CAD is Y-up
+  const sw=n6(Math.max(vbW,vbH)/1200);const parts=[];
+  const tone=c=>{if(!c||background!=='#ffffff')return c;const n=parseInt(c.slice(1),16),r=n>>16&255,g=n>>8&255,bb=n&255,l=(0.299*r+0.587*g+0.114*bb)/255;if(l<0.55)return c;const k=0.55/l*0.8;return '#'+[r,g,bb].map(v=>Math.round(v*k).toString(16).padStart(2,'0')).join('');};
+  const col=e=>tone(e.color)||stroke;
   for(const e of drawing.entities){
-    if(e.type==='line')parts.push(`<line x1="${X(e.a[0])}" y1="${Y(e.a[1])}" x2="${X(e.b[0])}" y2="${Y(e.b[1])}"/>`);
-    else if(e.type==='circle')parts.push(`<circle cx="${X(e.c[0])}" cy="${Y(e.c[1])}" r="${n6(e.r)}"/>`);
+    if(hiddenLayers&&hiddenLayers.has(e.layer))continue;
+    const c=col(e),st=e.color?` stroke="${c}"`:'';
+    if(e.type==='line')parts.push(`<line x1="${X(e.a[0])}" y1="${Y(e.a[1])}" x2="${X(e.b[0])}" y2="${Y(e.b[1])}"${st}/>`);
+    else if(e.type==='circle'){if(e.r>0)parts.push(`<circle cx="${X(e.c[0])}" cy="${Y(e.c[1])}" r="${n6(e.r)}"${st}/>`);else parts.push(`<circle cx="${X(e.c[0])}" cy="${Y(e.c[1])}" r="${sw}" fill="${c}" stroke="none"/>`);}
     else if(e.type==='arc'){
       const s=e.start*Math.PI/180,t=e.end*Math.PI/180;let sweep=t-s;while(sweep<=0)sweep+=Math.PI*2;
       const p1=[e.c[0]+e.r*Math.cos(s),e.c[1]+e.r*Math.sin(s)],p2=[e.c[0]+e.r*Math.cos(t),e.c[1]+e.r*Math.sin(t)];
-      parts.push(`<path d="M${X(p1[0])} ${Y(p1[1])}A${n6(e.r)} ${n6(e.r)} 0 ${sweep>Math.PI?1:0} 0 ${X(p2[0])} ${Y(p2[1])}"/>`);
+      parts.push(`<path d="M${X(p1[0])} ${Y(p1[1])}A${n6(e.r)} ${n6(e.r)} 0 ${sweep>Math.PI?1:0} 0 ${X(p2[0])} ${Y(p2[1])}"${st}/>`);
     }
-    else if(e.type==='polyline')parts.push(`<${e.closed?'polygon':'polyline'} points="${e.points.map(p=>`${X(p[0])},${Y(p[1])}`).join(' ')}"/>`);
-    else if(e.type==='point')parts.push(`<circle cx="${X(e.p[0])}" cy="${Y(e.p[1])}" r="${sw}" fill="${stroke}"/>`);
-    else if(e.type==='text')parts.push(`<text x="${X(e.p[0])}" y="${Y(e.p[1])}" font-size="${n6(e.height)}" fill="${stroke}" stroke="none">${escXml(e.text)}</text>`);
+    else if(e.type==='polyline'){const tag=e.closed?'polygon':'polyline';const fill=e.fill?` fill="${c}" fill-opacity="${e.hatch?0.18:0.85}"`:'';
+      parts.push(`<${tag} points="${e.points.map(p=>`${X(p[0])},${Y(p[1])}`).join(' ')}"${st}${fill}/>`);}
+    else if(e.type==='point')parts.push(`<circle cx="${X(e.p[0])}" cy="${Y(e.p[1])}" r="${sw}" fill="${c}" stroke="none"/>`);
+    else if(e.type==='text'){const anchor=e.align==='center'?'middle':e.align==='right'?'end':'start';const rot=e.rotation?` transform="rotate(${n6(-e.rotation*180/Math.PI)} ${X(e.p[0])} ${Y(e.p[1])})"`:'';
+      parts.push(`<text x="${X(e.p[0])}" y="${Y(e.p[1])}" font-size="${n6(e.height)}" fill="${c}" stroke="none" text-anchor="${anchor}"${rot}>${escXml(e.text)}</text>`);}
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n6(vbW)} ${n6(vbH)}" width="${n6(vbW)}" height="${n6(vbH)}">`+
     `<rect x="0" y="0" width="${n6(vbW)}" height="${n6(vbH)}" fill="${background}"/>`+
     `<g fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" font-family="Arial, sans-serif">${parts.join('')}</g></svg>\n`;
 }
+export const drawingToSVG=dxfToSVG;
 
 // ---------------------------------------------------------------- meshes
 function bounds(mesh){const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(const v of mesh.vertices)for(let j=0;j<3;j++){if(v[j]<min[j])min[j]=v[j];if(v[j]>max[j])max[j]=v[j];}return {min,max};}
@@ -143,7 +150,7 @@ export const MESH_EXT=new Set(['stl','obj','glb']);
 export function conversionTargets(name,{native=false}={}){
   const ext=extOf(name),t=[];
   const add=(to,label,engine,note='')=>{if(to!==ext&&!(to==='jpeg'&&ext==='jpg'))t.push({to,label,engine,note});};
-  if(ext==='dxf'){add('svg','SVG — вектор','js');add('pdf','PDF','js');add('png','PNG','js');add('jpeg','JPEG','js');}
+  if(ext==='dxf'||ext==='dwg'){add('pdf','PDF','js','Видимые слои, белый фон');add('svg','SVG — вектор','js');add('png','PNG','js');add('jpeg','JPEG','js');if(ext==='dwg')add('dxf','DXF (ASCII)','js','Открывается в любой CAD-программе');}
   if(MESH_EXT.has(ext)){add('usdz','USDZ — AR на iPhone','js');add('stl','STL','js');add('obj','OBJ','js');add('glb','GLB (glTF)','js');add('ply','PLY','js');add('png','PNG — снимок вида','js');}
   if(IMAGE_EXT.has(ext)){const e=native&&['heic','heif','tif','tiff'].includes(ext)?'native':'js';add('png','PNG',e);add('jpeg','JPEG',e);add('pdf','PDF',e);}
   if(ext==='pdf'&&native){add('png','PNG — страницы','native','Каждая страница отдельным файлом');add('jpeg','JPEG — страницы','native','Каждая страница отдельным файлом');}

@@ -43,7 +43,7 @@ test('JPEG → PDF has a valid xref table',()=>{
 });
 test('conversion targets per format',()=>{
   const to=(n,o)=>conversionTargets(n,o).map(t=>t.to);
-  assert.deepEqual(to('plan.dxf'),['svg','pdf','png','jpeg','zip']);
+  assert.deepEqual(to('plan.dxf'),['pdf','svg','png','jpeg','zip']);assert.deepEqual(to('plan.dwg'),['pdf','svg','png','jpeg','dxf','zip']);
   assert.ok(to('part.stl').includes('usdz'));assert.ok(!to('part.stl').includes('stl'));
   assert.deepEqual(to('doc.pdf'),['zip']);assert.ok(to('doc.pdf',{native:true}).includes('png'));
   assert.ok(to('photo.HEIC',{native:true}).every(t=>t));assert.equal(conversionTargets('photo.heic',{native:true})[0].engine,'native');
