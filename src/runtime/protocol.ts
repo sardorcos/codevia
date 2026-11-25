@@ -15,6 +15,10 @@ export interface RunRequest {
   query?: string;
   /** Absolute URL of bundled runtime assets (Pyodide). */
   base?: string;
+  /** Interface language for messages produced by the runtime itself. */
+  lang?: 'en' | 'ru';
+  /** Python: allow downloading packages that are not bundled (Pyodide CDN, PyPI via micropip). */
+  allowNetwork?: boolean;
 }
 
 export type WorkerMessage =
@@ -23,5 +27,39 @@ export type WorkerMessage =
   | { type: 'stdout'; id: string; text: string }
   | { type: 'stderr'; id: string; text: string }
   | { type: 'html'; id: string; html: string }
+  /** An image produced by the program (matplotlib figure, PIL Image.show()), base64 PNG. */
+  | { type: 'image'; id: string; mime: string; data: string }
   | { type: 'done'; id: string; exitCode: number; ms: number }
   | { type: 'fatal'; id?: string; message: string };
+
+/**
+ * Collects small writes into larger messages: a program printing in a tight loop must not flood the
+ * main thread with one message per line. Flushes by size or age (checked on every write, because a
+ * synchronous Python run never yields to timers) and explicitly before input and at the end.
+ */
+export class OutputBatcher {
+  private buf = '';
+  private last = 0;
+
+  constructor(
+    private send: (text: string) => void,
+    private maxChars = 4096,
+    private maxAgeMs = 50,
+    private now: () => number = () => performance.now(),
+  ) {}
+
+  write(text: string): void {
+    if (!text) return;
+    if (!this.buf) this.last = this.now();
+    this.buf += text;
+    if (this.buf.length >= this.maxChars || this.now() - this.last >= this.maxAgeMs) this.flush();
+  }
+
+  flush(): void {
+    if (!this.buf) return;
+    const text = this.buf;
+    this.buf = '';
+    this.last = this.now();
+    this.send(text);
+  }
+}

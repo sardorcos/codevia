@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/copy-runtimes.mjs && node scripts/licenses.mjs && tsc --noEmit && vite build",
+    "build": "node scripts/copy-runtimes.mjs && node scripts/pyodide-packages.mjs && node scripts/licenses.mjs && tsc --noEmit && vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
@@ -37,7 +37,8 @@
     "@lezer/highlight": "^1.2.5",
     "codemirror": "^6.0.2",
     "php-wasm": "^0.2.0",
-    "pyodide": "^314.0.8"
+    "pyodide": "^314.0.8",
+    "sucrase": "^3.35.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.2",

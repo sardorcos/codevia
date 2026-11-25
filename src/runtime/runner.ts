@@ -2,13 +2,15 @@ import { makeId } from '../core/bytes';
 import type { Files } from '../core/types';
 import type { RunFile, RunRequest, WorkerMessage } from './protocol';
 
-export type RuntimeKind = 'python' | 'php';
+export type RuntimeKind = 'python' | 'php' | 'javascript';
 
 export interface RunCallbacks {
   onStatus?(text: string): void;
   onStdout(text: string): void;
   onStderr(text: string): void;
   onHtml?(html: string): void;
+  /** An image produced by the program (matplotlib figure, PIL image), base64 data. */
+  onImage?(mime: string, data: string): void;
 }
 
 export interface RunOutcome {
@@ -18,9 +20,15 @@ export interface RunOutcome {
 }
 
 function createWorker(kind: RuntimeKind): Worker {
-  return kind === 'python'
-    ? new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module', name: 'python' })
-    : new Worker(new URL('./php.worker.ts', import.meta.url), { type: 'module', name: 'php' });
+  if (kind === 'python') return new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module', name: 'python' });
+  if (kind === 'javascript') return new Worker(new URL('./js.worker.ts', import.meta.url), { type: 'module', name: 'javascript' });
+  return new Worker(new URL('./php.worker.ts', import.meta.url), { type: 'module', name: 'php' });
+}
+
+/** Options every run and preload carries (interface language, package downloads). */
+export interface RuntimeOptions {
+  lang?: 'en' | 'ru';
+  allowNetwork?: boolean;
 }
 
 const toRunFiles = (files: Files, kind: RuntimeKind): RunFile[] =>
@@ -100,6 +108,9 @@ export class Runner {
       case 'html':
         cb?.onHtml?.(m.html);
         break;
+      case 'image':
+        cb?.onImage?.(m.mime, m.data);
+        break;
       case 'done': {
         const a = this.active;
         this.active = null;
@@ -117,11 +128,14 @@ export class Runner {
     }
   }
 
+  /** Language and network permission sent with every request; the app updates it from Settings. */
+  options: RuntimeOptions = {};
+
   preload(kind: RuntimeKind): void {
     // Only one heavy runtime at a time.
     for (const other of [...this.workers.keys()]) if (other !== kind && !this.active) this.dispose(other);
     this.touchIdle();
-    this.worker(kind).postMessage({ type: 'preload', base: this.assetBase });
+    this.worker(kind).postMessage({ type: 'preload', base: this.assetBase, ...this.options });
   }
 
   get running(): boolean {
@@ -137,7 +151,7 @@ export class Runner {
     this.callbacks = cb;
     return new Promise<RunOutcome>((resolve, reject) => {
       this.active = { kind, id, finish: resolve, fail: reject };
-      const req: RunRequest = { type: 'run', id, entry, files: toRunFiles(files, kind), base: this.assetBase, ...extra };
+      const req: RunRequest = { type: 'run', id, entry, files: toRunFiles(files, kind), base: this.assetBase, ...this.options, ...extra };
       w.postMessage(req);
     });
   }
