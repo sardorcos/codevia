@@ -49,7 +49,7 @@ test('latestFiles selects most recent revisions',()=>{
 });
 test('format handling distinguishes viewing from transfer',()=>{
   assert.equal(kindFor('drawing.DXF'),'drawing');assert.equal(kindFor('model.STEP'),'source');
-  assert.equal(fileInfo('factory.STEP').preview,'source');assert.equal(fileInfo('assembly.GLB').preview,'partial');
+  assert.equal(fileInfo('factory.STEP').preview,'source');assert.equal(fileInfo('assembly.GLB').preview,'yes');assert.equal(kindFor('scene.MAX'),'model');assert.equal(kindFor('plan.dwg'),'drawing');assert.equal(kindFor('car.fbx'),'model');
 });
 test('package paths reject traversal and invalid manifest',()=>{
   assert.ok(validPath('files/0000'));assert.equal(validPath('../outside'),false);assert.equal(validPath('/absolute'),false);

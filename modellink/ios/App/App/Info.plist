@@ -41,6 +41,13 @@
 				<string>org.iso.iges</string>
 				<string>public.3d-content</string>
 				<string>com.pixar.universal-scene-description-mobile</string>
+				<string>com.autodesk.fbx</string>
+				<string>com.autodesk.3ds-max</string>
+				<string>com.autodesk.3ds</string>
+				<string>org.khronos.collada.digital-asset-exchange</string>
+				<string>public.polygon-file-format</string>
+				<string>com.microsoft.3mf</string>
+				<string>org.khronos.gltf</string>
 			</array>
 		</dict>
 		<dict>
@@ -336,6 +343,125 @@
 				<key>public.mime-type</key>
 				<array>
 					<string>model/iges</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель FBX</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.autodesk.fbx</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>fbx</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Сцена 3ds Max</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.autodesk.3ds-max</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>max</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель 3DS</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.autodesk.3ds</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>3ds</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель Collada</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.khronos.collada.digital-asset-exchange</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>dae</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель PLY</string>
+			<key>UTTypeIdentifier</key>
+			<string>public.polygon-file-format</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ply</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель 3MF</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.microsoft.3mf</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>3mf</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Модель glTF</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.khronos.gltf</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>gltf</string>
 				</array>
 			</dict>
 		</dict>

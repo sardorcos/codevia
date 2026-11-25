@@ -134,7 +134,7 @@ export function kindFor(name){
   if(['txt','md','markdown','csv','tsv','json','xml','html','htm','css','js','mjs','ts','py','php','java','c','h','cpp','swift','kt','rb','go','rs','sh','yml','yaml','ini','cfg','conf','log','sql','gcode','nc','tex','toml','env','properties'].includes(ext))return 'text';
   if(['pdf'].includes(ext))return 'pdf';
   if(['dxf','dwg'].includes(ext))return 'drawing';
-  if(['obj','stl','glb'].includes(ext))return 'model';
+  if(['obj','stl','glb','gltf','fbx','3ds','dae','ply','3mf','max'].includes(ext))return 'model';
   if(['mlink'].includes(ext))return 'bundle';
   if(['usdz','reality'].includes(ext))return 'ar';
   return 'source';
@@ -144,13 +144,16 @@ export const capabilities={
   svg:{label:'SVG',preview:'yes',note:'Векторная графика'},
   png:{label:'PNG',preview:'yes',note:'Изображение'},jpg:{label:'JPG',preview:'yes',note:'Изображение'},jpeg:{label:'JPEG',preview:'yes',note:'Изображение'},webp:{label:'WebP',preview:'yes',note:'Изображение'},gif:{label:'GIF',preview:'yes',note:'Изображение'},bmp:{label:'BMP',preview:'yes',note:'Изображение'},
   dxf:{label:'DXF',preview:'yes',note:'Блоки, слои, цвета, сплайны, штриховки, размеры и тексты'},
-  obj:{label:'OBJ',preview:'partial',note:'Полигональная геометрия; без материалов MTL'},
+  obj:{label:'OBJ',preview:'yes',note:'Полигональная геометрия; без материалов MTL'},
   stl:{label:'STL',preview:'yes',note:'Треугольные 3D-модели'},
-  glb:{label:'GLB',preview:'partial',note:'Базовые треугольные glTF 2.0 модели; без расширений сжатия'},
+  glb:{label:'GLB',preview:'yes',note:'glTF 2.0: материалы, текстуры, иерархия'},
   heic:{label:'HEIC',preview:'yes',note:'Фото iPhone; конвертация в JPEG, PNG и PDF'},tif:{label:'TIFF',preview:'yes',note:'Изображение'},tiff:{label:'TIFF',preview:'yes',note:'Изображение'},
   txt:{label:'TXT',preview:'yes',note:'Текст; экспорт в PDF'},csv:{label:'CSV',preview:'yes',note:'Таблица как текст; экспорт в PDF'},json:{label:'JSON',preview:'yes',note:'Текст'},xml:{label:'XML',preview:'yes',note:'Текст'},gcode:{label:'G-code',preview:'yes',note:'Программа ЧПУ как текст'},
   docx:{label:'DOCX',preview:'source',note:'Просмотр через Quick Look на iPhone'},xlsx:{label:'XLSX',preview:'source',note:'Просмотр через Quick Look на iPhone'},pptx:{label:'PPTX',preview:'source',note:'Просмотр через Quick Look на iPhone'},
   zip:{label:'ZIP',preview:'source',note:'Архив хранится и передаётся'},
+  fbx:{label:'FBX',preview:'yes',note:'Autodesk FBX: сетки, материалы, текстуры, иерархия'},'3ds':{label:'3DS',preview:'yes',note:'3D Studio: сетки и материалы'},
+  dae:{label:'DAE',preview:'yes',note:'Collada'},ply:{label:'PLY',preview:'yes',note:'Сетки и облака точек'},'3mf':{label:'3MF',preview:'yes',note:'Формат 3D-печати'},gltf:{label:'glTF',preview:'partial',note:'glTF со встроенными данными; для внешних файлов используйте GLB'},
+  max:{label:'MAX',preview:'partial',note:'3ds Max: Editable Poly/Mesh и примитивы, миниатюра и свойства сцены; модификаторы, сплайны и прокси не вычисляются'},
   usdz:{label:'USDZ',preview:'yes',note:'3D и дополненная реальность через Quick Look на iPhone'},
   dwg:{label:'DWG',preview:'yes',note:'AutoCAD R13–2018+: пространство модели, блоки, слои, цвета, размеры; экспорт в DXF, PDF, SVG, PNG'},
   step:{label:'STEP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},stp:{label:'STP',preview:'source',note:'Оригинал хранится и передаётся; для просмотра добавьте копию в GLB или STL'},

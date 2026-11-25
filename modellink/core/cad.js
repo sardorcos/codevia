@@ -47,8 +47,21 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
   let truncated = false;
   const ocs = (p, n) => (n && n.z < -0.5 ? [-p.x, p.y] : [p.x, p.y]); // extrusion (0,0,-1) mirrors X
   const pts = (list, n) => list.map(p => ocs(p, n));
+  const ltGlobal = Number(doc.header?.lineTypeScale) > 0 ? Number(doc.header.lineTypeScale) : 1;
+  const dashOf = ent => {
+    try {
+      const lt = ent.getActiveLineType ? ent.getActiveLineType() : ent.lineType;
+      const segs = lt?.segments; if (!segs || segs.length < 2) return null;
+      const k = ltGlobal * (Number(ent.lineTypeScale) > 0 ? Number(ent.lineTypeScale) : 1);
+      const total = segs.reduce((a, g) => a + Math.abs(g.length || 0), 0); if (!(total > 0)) return null;
+      const dash = segs.map(g => Math.max(Math.abs(g.length || 0), total * 0.03) * k);
+      if (dash.length % 2) dash.push(total * 0.03 * k);
+      return dash;
+    } catch { return null; }
+  };
   const push = (prim, ent, inherited) => {
     if (out.length >= MAX_PRIMITIVES) { truncated = true; return; }
+    if (prim.type !== 'text' && !prim.fill) { const d = dashOf(ent); if (d) prim.dash = d; }
     const layer = ent.layer;
     const layerName = layer?.name ?? '0';
     if (!layers.has(layerName)) layers.set(layerName, { name: layerName, color: aciHex(layer?.color), visible: layer ? layer.isOn !== false && !((layer.layerFlags ?? 0) & 1) : true, count: 0 });
@@ -102,14 +115,29 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
         }
         case 'TextEntity': case 'AttributeEntity': {
           const value = ent.value; if (!value) return;
-          const base = (ent.horizontalAlignment || ent.verticalAlignment) && ent.alignmentPoint ? ent.alignmentPoint : ent.insertPoint;
+          const ha = ent.horizontalAlignment || 0, va = ent.verticalAlignment || 0;
+          const hasAlign = (ha || va) && ent.alignmentPoint && (ent.alignmentPoint.x || ent.alignmentPoint.y);
+          let base = hasAlign ? ent.alignmentPoint : ent.insertPoint, align = alignOf(ha), valign = ['alphabetic', 'bottom', 'middle', 'top'][va] || 'alphabetic', rotation = ent.rotation || 0;
+          if ((ha === 3 || ha === 5) && hasAlign) { // Aligned / Fit: text spans insert → alignment point
+            base = { x: (ent.insertPoint.x + ent.alignmentPoint.x) / 2, y: (ent.insertPoint.y + ent.alignmentPoint.y) / 2 };
+            rotation = Math.atan2(ent.alignmentPoint.y - ent.insertPoint.y, ent.alignmentPoint.x - ent.insertPoint.x); align = 'center';
+          }
+          if (ha === 4) valign = 'middle';
           const [x, y] = ocs(base, ent.normal);
-          push({ type: 'text', p: [x, y], text: cleanText(value), height: ent.height || 2.5, rotation: ent.rotation || 0, align: alignOf(ent.horizontalAlignment) }, ent, inherited);
+          push({ type: 'text', p: [x, y], text: cleanText(value).replace(/\n/g, ' '), height: ent.height || 2.5, rotation, align, valign, width: ent.widthFactor || 1 }, ent, inherited);
           return;
         }
         case 'MText': {
           const text = cleanText(ent.plainText ?? ent.value ?? ''); if (!text) return;
-          const lines = text.split('\n'); const h = ent.height || 2.5;
+          const h = ent.height || 2.5, boxW = ent.rectangleWidth || 0;
+          const lines = [];
+          for (const para of text.split('\n')) { // wrap to the MTEXT frame width (approximate glyph width)
+            if (!(boxW > 0)) { lines.push(para); continue; }
+            const max = Math.max(1, Math.floor(boxW / (h * 0.62)));
+            let cur = '';
+            for (const word of para.split(' ')) { if (cur && (cur + ' ' + word).length > max) { lines.push(cur); cur = word; } else cur = cur ? cur + ' ' + word : word; }
+            lines.push(cur);
+          }
           const rot = ent.rotation ?? (ent.alignmentPoint ? Math.atan2(ent.alignmentPoint.y, ent.alignmentPoint.x) : 0);
           const ap = ent.attachmentPoint || 1; const col = (ap - 1) % 3; const row = Math.floor((ap - 1) / 3);
           const dy = row === 0 ? h : row === 1 ? h - (lines.length - 1) * h * 0.83 : h - (lines.length - 1) * h * 1.66;
@@ -138,7 +166,13 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
   };
 
   for (const ent of doc.modelSpace?.entities || []) visit(ent, 0, null);
-  return finish(out, [...layers.values()], truncated);
+  let space = 'model';
+  if (!out.length && doc.paperSpace) { // drawing lives only on a sheet
+    for (const ent of doc.paperSpace.entities || []) if (ent.constructor?.name !== 'Viewport') visit(ent, 0, null);
+    space = 'paper';
+  }
+  const d = finish(out, [...layers.values()], truncated); d.space = space;
+  return d;
 }
 
 function alignOf(h) { return h === 1 || h === 4 ? 'center' : h === 2 ? 'right' : 'left'; }
@@ -166,22 +200,22 @@ export function finish(entities, layers, truncated = false) {
     const add = (x, y) => { if (Number.isFinite(x) && Number.isFinite(y)) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } };
     if (e.type === 'line') { add(...e.a); add(...e.b); }
     else if (e.type === 'polyline') for (const p of e.points) add(p[0], p[1]);
-    else if (e.type === 'circle') { add(e.c[0] - e.r, e.c[1] - e.r); add(e.c[0] + e.r, e.c[1] + e.r); }
-    else if (e.type === 'text') { add(...e.p); add(e.p[0] + e.height * e.text.length * 0.6, e.p[1] + e.height); }
+    else if (e.type === 'circle' || e.type === 'arc') { add(e.c[0] - e.r, e.c[1] - e.r); add(e.c[0] + e.r, e.c[1] + e.r); }
+    else if (e.type === 'text') { add(...e.p); add(e.p[0] + e.height * e.text.length * 0.6 * Math.cos(e.rotation || 0), e.p[1] + e.height); }
+    else if (e.type === 'point') add(...e.p);
     if (x0 <= x1) boxes.push([x0, y0, x1, y1]);
   }
   if (!boxes.length) throw new Error('В чертеже нет видимой 2D-геометрии в пространстве модели');
-  const q = (arr, f) => { const s = Float64Array.from(arr).sort(); return s[Math.min(s.length - 1, Math.max(0, Math.round((s.length - 1) * f)))]; };
-  const full = i => [Math.min(...boxes.map(b => b[i])), Math.max(...boxes.map(b => b[i + 2]))];
-  // Trim objects lying far from everything else (a stray point 1000 km away would shrink the plan to a dot).
-  const pick = i => {
-    const f = full(i); if (boxes.length < 20) return f;
-    const lo = q(boxes.map(b => b[i]), 0.05), hi = q(boxes.map(b => b[i + 2]), 0.95), span = (hi - lo) || 1;
-    if (f[1] - f[0] <= span * 6) return f;
-    return [Math.max(f[0], lo - span * 0.1), Math.min(f[1], hi + span * 0.1)];
-  };
-  const [minX, maxX] = pick(0), [minY, maxY] = pick(1);
-  return { entities, layers: layers.sort((a, b) => b.count - a.count), bounds: { minX, minY, maxX, maxY }, truncated };
+  // Drop only real strays: objects whose centre lies far outside the interquartile range of all centres.
+  const q = (arr, f) => arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * f)))];
+  const cx = Float64Array.from(boxes.map(b => (b[0] + b[2]) / 2)).sort(), cy = Float64Array.from(boxes.map(b => (b[1] + b[3]) / 2)).sort();
+  const fence = (arr) => { const lo = q(arr, 0.25), hi = q(arr, 0.75), iqr = Math.max(hi - lo, (arr[arr.length - 1] - arr[0]) * 0.02, 1e-9); return [lo - iqr * 4, hi + iqr * 4]; };
+  const [fx0, fx1] = fence(cx), [fy0, fy1] = fence(cy);
+  let kept = boxes.length > 20 ? boxes.filter(b => { const x = (b[0] + b[2]) / 2, y = (b[1] + b[3]) / 2; return x >= fx0 && x <= fx1 && y >= fy0 && y <= fy1; }) : boxes;
+  if (kept.length < boxes.length * 0.5) kept = boxes;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of kept) { if (b[0] < minX) minX = b[0]; if (b[1] < minY) minY = b[1]; if (b[2] > maxX) maxX = b[2]; if (b[3] > maxY) maxY = b[3]; }
+  return { entities, layers: layers.sort((a, b) => b.count - a.count), bounds: { minX, minY, maxX, maxY }, truncated, strays: boxes.length - kept.length };
 }
 
 /** Pale CAD colours (yellow, cyan, light grey) are unreadable on white: darken them for light backgrounds. */

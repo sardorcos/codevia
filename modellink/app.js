@@ -4,7 +4,7 @@ import {exportProject,importProjectPackage} from './core/pack.js';
 import {conversionTargets,dxfToSVG,meshToSTL,meshToOBJ,meshToPLY,meshToGLB,meshToUSDZ,jpegToPDF,baseName,extOf} from './core/convert.js';
 import {Capacitor,registerPlugin} from './vendor/capacitor-core.js';
 
-const APP_VERSION='0.5.0';
+const APP_VERSION='0.6.0';
 const IS_NATIVE=Capacitor.isNativePlatform();
 /** Native iOS bridge (ios/App/App/ModelLinkNativePlugin.swift); null in the browser. */
 const NativeML=IS_NATIVE?registerPlugin('ModelLinkNative'):null;
@@ -63,7 +63,7 @@ const date=t=>new Date(t).toLocaleDateString('ru-RU',{day:'numeric',month:'short
 const niceName=name=>String(name).length>54?String(name).slice(0,52)+'…':name;
 const featureDefs=[
   ['drawing','Чертежи','DWG, DXF, PDF и изображения','dwg',''],
-  ['model','3D-модели','STL, OBJ и GLB','cube','lime'],
+  ['model','3D-модели','FBX, MAX, OBJ, STL, GLB…','cube','lime'],
   ['measure','Измерения','Проверить расстояние','measure','violet'],
   ['notes','Замечания','Отметки прямо на файле','comment','orange'],
   ['versions','Версии','Сохранить все редакции','history','sky'],
@@ -85,7 +85,7 @@ function homeView(projects,files,notes){const recents=projects.slice(0,3);
     ${recentFiles(files)}
     <section>${sectionTitle('Что можно делать')}<div class="tools-grid">${featureDefs.map(([id,name,desc,glyph,color])=>`<button class="tool-card" data-action="feature" data-feature="${id}"><span class="tool-icon ${color}">${icon(glyph)}</span><span><span class="tool-name">${name}</span><div class="tool-desc">${desc}</div></span></button>`).join('')}</div></section>
     <section class="section">${sectionTitle('Последние проекты','Все проекты','go-projects')}<div class="project-list">${recents.length?recents.map(p=>projectTile(p,files,notes)).join(''):`<div class="empty">${icon('folders')}<h3>Здесь появятся ваши проекты</h3><p>Добавьте первый чертёж или модель</p><button class="btn primary" data-action="import">Открыть файл</button></div>`}</div></section>
-    <section class="section">${sectionTitle('Форматы файлов','Подробнее','formats')}<div class="format-rail">${['DWG','DXF','PDF','SVG','STL','OBJ','GLB'].concat(IS_NATIVE?['USDZ']:[],['STEP*','IFC*']).map(x=>`<span class="format-tag">${x}</span>`).join('')}</div><p class="small-muted" style="margin-top:9px">* STEP и IFC хранятся и передаются без изменений. Для просмотра добавьте копию в GLB или STL.</p></section>`;
+    <section class="section">${sectionTitle('Форматы файлов','Подробнее','formats')}<div class="format-rail">${['DWG','DXF','PDF','FBX','MAX','OBJ','STL','GLB','3DS'].concat(IS_NATIVE?['USDZ']:[],['STEP*','IFC*']).map(x=>`<span class="format-tag">${x}</span>`).join('')}</div><p class="small-muted" style="margin-top:9px">* STEP и IFC хранятся и передаются без изменений. Для просмотра добавьте копию в GLB или STL.</p></section>`;
 }
 function projectsView(projects,files,notes){const q=state.search.trim().toLowerCase();let filtered=projects.filter(p=>p.name.toLowerCase().includes(q)||(q&&(p.description||'').toLowerCase().includes(q)));const fileHits=q?latestFiles(files).filter(f=>f.name.toLowerCase().includes(q)):[];if(state.filter==='demo')filtered=filtered.filter(p=>p.demo);if(state.filter==='mine')filtered=filtered.filter(p=>!p.demo);
   return `<div class="eyebrow">Рабочее пространство</div><div class="detail-top"><div><h1>Проекты</h1><p class="lead">Чертежи, модели и все версии</p></div><button class="btn primary" data-action="new-project">${icon('plus','small')} Создать</button></div>
@@ -108,7 +108,7 @@ function noteRow(n,index){return `<div class="annotation-card"><span class="anno
 function notesView(notes,files){return `<div class="eyebrow">Контроль изменений</div><h1>Замечания</h1><p class="lead">Нажмите на запись, чтобы открыть соответствующий файл</p><div class="section">${notes.map((n,i)=>{const asset=files.find(f=>f.id===n.assetId);return `<div class="annotation-card"><span class="annotation-count">${notes.length-i}</span><div class="body"><p>${esc(n.text)}</p><div class="meta">${esc(asset?.name||'Файл не найден')} · версия ${n.version} · ${date(n.createdAt)}</div><div class="row" style="margin-top:10px"><button class="btn tiny soft" data-action="open-asset" data-id="${esc(n.assetId)}">${icon('eye','small')} Открыть</button><button class="btn tiny ${n.status==='resolved'?'outline':'soft'}" data-action="toggle-note" data-id="${n.id}">${n.status==='resolved'?'Вернуть':'Выполнено'}</button></div></div></div>`;}).join('')||`<div class="empty">${icon('pin','large')}<h3>Замечаний пока нет</h3><p>Откройте файл и нажмите «Отметить»</p></div>`}</div>`;}
 function settingsView(projects,files){return `<div class="eyebrow">ModelLink</div><h1>Настройки</h1><p class="lead">Простые инструменты без сложных меню</p><div class="two-col section"><div class="stat"><strong>${projects.length}</strong><p>проектов</p></div><div class="stat"><strong>${files.length}</strong><p>файлов и версий</p></div></div><div class="group-card section"><div class="setting-row"><div><strong>Тема оформления</strong><br><span>Светлая / тёмная</span></div><button class="btn outline tiny" data-action="theme">${icon('light','small')} ${state.theme==='dark'?'Светлая':'Тёмная'}</button></div><div class="setting-row"><div><strong>Поддерживаемые форматы</strong><br><span>Что открывается прямо в приложении</span></div><button class="icon-button" data-action="formats" aria-label="Форматы">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Импорт проекта</strong><br><span>Открыть резервный пакет .mlink</span></div><button class="icon-button" data-action="import-package" aria-label="Импорт пакета">${icon('download')}</button></div></div><div class="notice section">${icon('info','small')} &nbsp; Данные хранятся только на этом устройстве. Экспортируйте важные проекты в .mlink для резервной копии.</div><div class="group-card section"><div class="setting-row"><div><strong>О приложении</strong><br><span>Версия ${APP_VERSION}</span></div><button class="icon-button" data-action="about" aria-label="О приложении">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Конфиденциальность</strong><br><span>Данные не собираются</span></div><button class="icon-button" data-action="privacy" aria-label="Конфиденциальность">${icon('arrow')}</button></div><div class="setting-row"><div><strong>Удалить все данные</strong><br><span>Проекты, файлы и замечания</span></div><button class="icon-button" data-action="erase-all" aria-label="Удалить все данные">${icon('trash')}</button></div></div><div class="section"><button class="btn outline" data-action="open-example">${icon('cube','small')} Посмотреть пример</button></div>`;}
 function viewerContent(f,allFiles,notes){const info=fileInfo(f.name);const siblings=allFiles.filter(x=>x.groupId===f.groupId).sort((a,b)=>b.version-a.version);
-  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${['drawing','model','image'].includes(f.kind)?`<button class="btn tiny outline" data-action="zoom" data-k="1.4" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.7" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}${f.kind==='drawing'?`<button class="btn tiny outline" data-action="layers">${icon('layers','small')} Слои</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
+  const toolbar=`<div class="viewer-tools"><button class="btn tiny ${state.viewerTool==='view'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="view">${icon('eye','small')} Вид</button><button class="btn tiny ${state.viewerTool==='comment'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="comment">${icon('comment','small')} Отметить</button><button class="btn tiny ${state.viewerTool==='measure'?'soft active-tool':'outline'}" data-action="viewer-tool" data-tool="measure">${icon('measure','small')} Измерить</button>${['drawing','model','image'].includes(f.kind)?`<button class="btn tiny outline" data-action="zoom" data-k="1.4" aria-label="Приблизить">${icon('zoom-in','small')}</button><button class="btn tiny outline" data-action="zoom" data-k="0.7" aria-label="Отдалить">${icon('zoom-out','small')}</button>`:''}${f.kind==='model'?`<button class="btn tiny outline" data-action="wireframe">${icon('cube','small')} Каркас</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>${f.name.toLowerCase().endsWith('.max')?`<button class="btn tiny outline" data-action="max-props">${icon('info','small')} Свойства</button>`:''}`:''}${f.kind==='drawing'?`<button class="btn tiny outline" data-action="layers">${icon('layers','small')} Слои</button><button class="btn tiny outline" data-action="cad-bg" aria-label="Светлый или тёмный фон">${icon('light','small')} Фон</button>`:''}<button class="btn tiny outline" data-action="fit">${icon('fit','small')} Вписать</button></div>`;
   return `<div class="breadcrumbs"><button data-action="back-project">${icon('chevron','small')} Проект</button></div><div class="viewer-header"><div style="min-width:0"><div class="eyebrow">${esc(info.label)} · Версия ${f.version}</div><div class="viewer-heading">${esc(f.name)}</div></div><div class="row"><button class="icon-button" data-action="export-file" aria-label="Экспорт в другой формат">${icon('export')}</button><button class="icon-button" data-action="share-file" aria-label="Поделиться">${icon('share')}</button><button class="icon-button" data-action="file-menu" aria-label="Ещё">${icon('dots')}</button></div></div>${toolbar}
   <div class="canvas-wrap" id="canvas-wrap"><div class="viewport-badge">${esc(info.preview==='source'?'Оригинал':info.preview==='partial'?'Базовый просмотр':'Просмотр')}</div><div class="preview-body" id="preview-body"><div class="file-unsupported"><h3>Загружаем просмотр…</h3></div></div><div class="canvas-hint" id="canvas-hint">${f.kind==='model'?'Вращайте одним пальцем, масштаб — двумя':f.kind==='drawing'?'Двигайте одним пальцем, масштаб — двумя':'Коснитесь файла для отметки'}</div></div>
   <div class="viewer-data"><div class="section-heading"><h3>Замечания · ${notes.length}</h3><button class="link-button" data-action="quick-comment">${icon('plus','small')} Добавить</button></div>${notes.map((n,i)=>noteRow(n,i+1)).join('')||'<p class="small-muted">Здесь появятся замечания к этому файлу.</p>'}</div>
@@ -141,7 +141,7 @@ async function openAsset(id){const asset=await getAsset(id);if(!asset){notify('�
 async function openProject(id){const p=await getProject(id);if(!p)return;state.projectId=id;state.assetId=null;state.tab='project';window.scrollTo(0,0);await render();}
 function filePickerAction(mode='all',projectId=null){
   state.pickerProject=projectId;state.pickerMode=mode;
-  const accepts={all:'',drawing:'.dwg,.pdf,.dxf,.svg,.png,.jpg,.jpeg,.webp,.bmp',model:'.glb,.stl,.obj,.step,.stp,.ifc,.dwg,.rvt,.sldprt,.sldasm',package:'.mlink'};
+  const accepts={all:'',drawing:'.dwg,.pdf,.dxf,.svg,.png,.jpg,.jpeg,.webp,.bmp',model:'.glb,.gltf,.fbx,.obj,.stl,.3ds,.dae,.ply,.3mf,.max,.usdz,.step,.stp,.ifc',package:'.mlink'};
   filePicker.setAttribute('accept',accepts[mode]||'');filePicker.multiple=mode!=='package';
   if(NativeML){nativeChoose();return;}
   filePicker.value='';filePicker.click();
@@ -209,7 +209,7 @@ function formatLength(mm){if(mm>=1000)return `${(mm/1000).toFixed(mm>=100000?1:3
 function askDeleteAsset(){modal('Удалить версию файла?',`<p class="lead" style="margin-bottom:22px">Будет удалена открытая версия и её замечания. Другие версии этого файла останутся.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-delete-asset">Удалить</button></div>`);}
 function askEraseAll(){modal('Удалить все данные?',`<p class="lead" style="margin-bottom:22px">Будут удалены все проекты, файлы, версии и замечания на этом устройстве. Сначала экспортируйте нужные проекты в .mlink.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-erase-all">Удалить всё</button></div>`);}
 function privacyModal(){modal('Конфиденциальность',`<div class="prose"><p><strong>ModelLink не собирает данные.</strong> В приложении нет учётных записей, рекламы, аналитики и отслеживания.</p><p>Проекты, файлы, версии и замечания хранятся только на этом устройстве. Приложение не отправляет их на серверы и не обращается к сети.</p><p>Файл покидает устройство, только когда вы сами отправляете его через меню «Поделиться» (AirDrop, «Файлы», почта и т.&nbsp;д.).</p><p>Удалить все данные можно в «Настройках» или удалив приложение.</p></div>`);}
-function aboutModal(){modal('О приложении',`<div class="prose"><p><strong>ModelLink ${APP_VERSION}</strong>. Чертежи, 3D-модели, замечания и версии проектов на телефоне.</p><p>Открывает любой файл. Просмотр: чертежи DWG (R13–2018+) и DXF со слоями, блоками и цветами; PDF, изображения (включая HEIC и TIFF), SVG, STL, OBJ, GLB, текст и код${IS_NATIVE?', а также Office, iWork, USDZ (AR), аудио и видео через Quick Look':''}.</p><p>Экспорт: DWG → DXF, PDF, SVG, PNG, JPEG; DXF → PDF, SVG, PNG, JPEG; 3D → USDZ, STL, OBJ, GLB, PLY, PNG; изображения → PNG, JPEG, PDF${IS_NATIVE?'; PDF → страницы PNG/JPEG; текст, HTML, RTF → PDF':''}; любой файл → ZIP. Всё преобразуется на устройстве.</p><p>Измерения на DWG/DXF привязываются к ближайшей точке и выводятся в единицах чертежа (мм, м…), на изображениях — в пикселях или в миллиметрах после калибровки. Перед производственными решениями сверяйте размеры в CAD-программе.</p><p class="small-muted">Компоненты с открытым кодом: acad-ts (MIT, порт ACadSharp), JSZip (MIT), Capacitor (MIT).</p></div>`);}
+function aboutModal(){modal('О приложении',`<div class="prose"><p><strong>ModelLink ${APP_VERSION}</strong>. Чертежи, 3D-модели, замечания и версии проектов на телефоне.</p><p>Открывает любой файл. Просмотр: чертежи DWG (R13–2018+) и DXF со слоями, блоками и цветами; PDF, изображения (включая HEIC и TIFF), SVG; 3D: FBX, 3ds Max (.max), OBJ, STL, GLB/glTF, 3DS, DAE, PLY, 3MF; текст и код${IS_NATIVE?', а также Office, iWork, USDZ (AR), аудио и видео через Quick Look':''}.</p><p>Экспорт: DWG → DXF, PDF, SVG, PNG, JPEG; DXF → PDF, SVG, PNG, JPEG; 3D (в т.ч. FBX и MAX) → USDZ, GLB, OBJ, STL, PLY, PNG; изображения → PNG, JPEG, PDF${IS_NATIVE?'; PDF → страницы PNG/JPEG; текст, HTML, RTF → PDF':''}; любой файл → ZIP. Всё преобразуется на устройстве.</p><p>Измерения на DWG/DXF привязываются к ближайшей точке и выводятся в единицах чертежа (мм, м…), на изображениях — в пикселях или в миллиметрах после калибровки. Перед производственными решениями сверяйте размеры в CAD-программе.</p><p class="small-muted">Компоненты с открытым кодом: acad-ts (MIT, порт ACadSharp), three.js (MIT), JSZip (MIT), Capacitor (MIT).</p></div>`);}
 function askDeleteProject(){modal('Удалить проект?',`<p class="lead" style="margin-bottom:22px">Будут удалены все локальные файлы, версии и замечания этого проекта. Действие нельзя отменить.</p><div class="row"><button class="btn outline" data-action="close-modal" style="flex:1">Отмена</button><button class="btn danger" style="flex:1" data-action="confirm-delete">Удалить</button></div>`);}
 function versionsModal(projectId){getAssets(projectId).then(files=>{
   const groups=new Map();for(const f of files){if(!groups.has(f.groupId))groups.set(f.groupId,[]);groups.get(f.groupId).push(f);}
@@ -267,6 +267,8 @@ async function actionHandler(button){const action=button.dataset.action;
   if(action==='delete-note'){await removeNote(button.dataset.id);notify('Замечание удалено');await render();return;}
   if(action==='notes-report'){await notesReport();return;}
   if(action==='layers'){layersModal();return;}
+  if(action==='wireframe'){wireframe=!wireframe;state.viewer?.wireframe?.(wireframe);return;}
+  if(action==='max-props'){maxPropsModal();return;}
   if(action==='layers-all'){state.viewer?.setAllLayers?.(button.dataset.on==='1');layersModal();return;}
   if(action==='cad-bg'){try{localStorage.setItem('modellink-cad-bg',cadDark()?'light':'dark');}catch{}state.viewer?.redraw?.();return;}
   if(action==='zoom'){state.viewer?.zoom?.(Number(button.dataset.k)||1);return;}
@@ -298,6 +300,7 @@ async function notesReport(){
 }
 
 // ---------------------------------------------------------------- conversion
+const MODEL_EXTS=new Set(['glb','gltf','fbx','obj','stl','3ds','dae','ply','3mf','max']);
 const MIME={dxf:'image/vnd.dxf',svg:'image/svg+xml',png:'image/png',jpeg:'image/jpeg',pdf:'application/pdf',stl:'model/stl',obj:'model/obj',ply:'application/octet-stream',glb:'model/gltf-binary',usdz:'model/vnd.usdz+zip',zip:'application/zip'};
 const EXT={jpeg:'jpg'};
 const outName=(f,to)=>`${baseName(f.name)}.${EXT[to]||to}`;
@@ -331,10 +334,12 @@ async function runConversion(f,to,engine){
     if(to==='dxf'){const {bytes}=await cadRun('dxf',f);return {files:[toFile(f,'dxf',bytes)]};}
     const svg=dxfToSVG(await loadDrawing(f),{hiddenLayers:hiddenLayers.get(f.id)||null});if(to==='svg')return {files:[toFile(f,'svg',svg)]};
     return {files:[await canvasTo(await rasterize(new Blob([svg],{type:'image/svg+xml'}),{maxSide:3600,minSide:2400}),to,f)]};}
-  if(['stl','obj','glb'].includes(ext)){
-    if(to==='png'){const scene=document.getElementById('scene');if(!scene||state.assetId!==f.id)throw new Error('Откройте модель, чтобы сохранить снимок');return {files:[toFile(f,'png',await canvasBlob(scene,'image/png'))]};}
-    const mesh=await parseMesh(f);
-    const data={stl:()=>meshToSTL(mesh),obj:()=>meshToOBJ(mesh,baseName(f.name)),ply:()=>meshToPLY(mesh),glb:()=>meshToGLB(mesh),usdz:()=>meshToUSDZ(mesh,{upAxis:ext==='stl'?'Z':'Y'})}[to];
+  if(MODEL_EXTS.has(ext)){
+    if(to==='png'){if(state.assetId!==f.id||!state.viewer?.snapshot)throw new Error('Откройте модель, чтобы сохранить снимок');return {files:[toFile(f,'png',await state.viewer.snapshot())]};}
+    if(to==='thumb'){const m=await loadModelCached(f);if(!m.info?.thumbnail)throw new Error('В файле нет миниатюры');const c=await rasterize(new Blob([m.info.thumbnail],{type:'image/bmp'}));return {files:[toFile(f,'png',await canvasBlob(c,'image/png'))]};}
+    const {objectToMesh}=await import('./core/model3d.js');const m=await loadModelCached(f);let mesh=objectToMesh(m.root);
+    if(to==='stl'||to==='ply')mesh={vertices:mesh.vertices.map(([x,y,z])=>[x,-z,y]),faces:mesh.faces}; // printers expect Z-up
+    const data={stl:()=>meshToSTL(mesh),obj:()=>meshToOBJ(mesh,baseName(f.name)),ply:()=>meshToPLY(mesh),glb:()=>meshToGLB(mesh),usdz:()=>meshToUSDZ(mesh,{upAxis:'Y'})}[to];
     if(!data)throw new Error('Неизвестный формат');return {files:[toFile(f,to,data())]};}
   if(f.kind==='image')return {files:[await canvasTo(await rasterize(f.blob,{minSide:ext==='svg'?2000:0}),to,f)]};
   throw new Error('Такое преобразование недоступно');
@@ -419,6 +424,7 @@ async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=d
     return;
   }
   if(f.kind==='drawing'){await activateCadViewer(f,host,wrap);return;}
+  if(f.kind==='model'){const handled=await activateModelViewer(f,host,wrap);if(handled)return;}
   if(f.kind==='drawing'||f.kind==='model'){
     try{
       let drawing,mesh;
@@ -513,6 +519,47 @@ async function activateViewer(f){if(!f)return;const info=fileInfo(f.name),host=d
   host.innerHTML=`<div class="file-unsupported">${icon('file','large')}<h3>${esc(f.name)}</h3><p>${esc(info.note)}. Файл сохранён без изменений, его можно скачать или отправить.</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn primary" data-action="quicklook">${icon('eye','small')} Открыть</button>`:''}<button class="btn ${canQuickLook()?'outline':'primary'}" data-action="export-file">${icon('export','small')} Экспорт</button><button class="btn outline" data-action="share-file">${icon('share','small')} Отправить</button></div></div>`;
   document.getElementById('canvas-hint').textContent='Исходник доступен для передачи';state.viewer={measure:false,setTool(){},fit(){}};
 }
+// ---------------------------------------------------------------- 3D viewer (three.js)
+const modelCache=new Map();
+async function loadModelCached(f){if(modelCache.has(f.id))return modelCache.get(f.id);const {loadModel}=await import('./core/model3d.js');const m=await loadModel(f.blob,f.name);if(modelCache.size>1)modelCache.delete(modelCache.keys().next().value);modelCache.set(f.id,m);return m;}
+let wireframe=false;
+async function activateModelViewer(f,host,wrap){
+  const ext=extOf(f.name),hint=document.getElementById('canvas-hint');
+  host.innerHTML=`<div class="file-unsupported"><span class="spinner" aria-hidden="true"></span><h3>Открываем модель…</h3><p>${f.size>8e6?'Большая модель — это может занять время':'Загружаем геометрию и материалы'}</p></div>`;
+  let model;
+  try{model=await loadModelCached(f);}
+  catch(e){
+    if(state.assetId!==f.id)return true;
+    if(['stl','obj','glb'].includes(ext)&&/import|module|WebGL/i.test(e.message))return false; // fall back to the canvas viewer
+    host.innerHTML=`<div class="file-unsupported">${icon('warning','large')}<h3>Не удалось открыть модель</h3><p>${esc(e.message)}</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn outline" data-action="quicklook">${icon('eye','small')} Quick Look</button>`:''}<button class="btn outline" data-action="share-file">${icon('share','small')} Отправить оригинал</button></div></div>`;
+    state.viewer={measure:false,setTool(){},fit(){}};return true;
+  }
+  if(state.assetId!==f.id||!host.isConnected)return true;
+  const info=model.info||{};
+  if(!info.meshes){ // .max without readable geometry: thumbnail + properties
+    const url=info.thumbnail?URL.createObjectURL(new Blob([info.thumbnail],{type:'image/bmp'})):null;if(url)previewUrl=url;
+    host.innerHTML=`<div class="max-card">${url?`<img src="${url}" alt="Миниатюра сцены">`:icon('cube','large')}<p>${esc(info.error||'Геометрия этой сцены хранится в объектах, которые приложение пока не вычисляет (модификаторы, сплайны, прокси).')}</p><div class="row" style="justify-content:center;flex-wrap:wrap"><button class="btn outline" data-action="max-props">${icon('info','small')} Свойства сцены</button><button class="btn outline" data-action="export-file">${icon('export','small')} Экспорт</button></div></div>`;
+    if(hint)hint.textContent='Миниатюра, сохранённая 3ds Max';state.viewer={measure:false,setTool(){},fit(){},maxInfo:info};return true;
+  }
+  host.innerHTML='<canvas id="scene3d" aria-label="3D-модель"></canvas><div class="model-overlay" id="model-overlay"></div><div class="cad-info" id="cad-info"></div>';
+  const canvas=host.querySelector('canvas'),overlay=host.querySelector('#model-overlay'),badge=host.querySelector('#cad-info');
+  let viewer;
+  try{const {createViewer}=await import('./core/model3d.js');
+    viewer=await createViewer(model,{canvas,overlay,dark:cadDark,notes:state.notes.filter(n=>n.assetId===f.id),
+      onTap(kind,data){if(kind==='comment'){newNoteModal(data);state.pendingLocationType='model3d';}else if(kind==='measured'){notify(`Расстояние: ${fmtNum(data)} ед. модели`);haptic();}else if(kind==='miss'&&state.viewerTool!=='view')notify('Коснитесь поверхности модели');}});}
+  catch(e){if(['stl','obj','glb'].includes(ext))return false;throw e;}
+  if(wireframe)viewer.setWireframe(true);
+  badge.textContent=`${ext.toUpperCase()} · ${info.triangles.toLocaleString('ru-RU')} треугольников${info.objects?` · объектов: ${info.objects}`:''}${info.skipped?.length?` · пропущено: ${info.skipped.length} типов`:''}`;setTimeout(()=>badge.classList.add('faded'),3500);
+  if(info.warning)notify(info.warning);
+  if(hint)hint.textContent='1 палец — вращение · 2 — масштаб и сдвиг';
+  state.viewer={measure:true,model:true,maxInfo:ext==='max'?info:null,fit:()=>viewer.fit(),zoom:k=>viewer.zoom(k),setTool:t=>viewer.setTool(t),redraw:()=>{viewer.setBackground();},
+    wireframe:on=>viewer.setWireframe(on),snapshot:()=>viewer.snapshot(),root:model.root,cleanup:()=>viewer.dispose()};
+  viewer.setTool(state.viewerTool);return true;
+}
+function maxPropsModal(){const inf=state.viewer?.maxInfo;if(!inf){notify('Свойства доступны для файлов 3ds Max');return;}
+  const secs=(inf.sections||[]).filter(s=>s.items.length);
+  modal('Свойства сцены 3ds Max',`${inf.skipped?.length?`<p class="notice warn" style="margin-bottom:12px">Не показаны объекты: ${esc(inf.skipped.join(', '))}. Для полной геометрии экспортируйте сцену из 3ds Max в FBX или OBJ.</p>`:''}${secs.map(s=>`<div class="group-card" style="margin-bottom:12px"><div style="font-size:14px;font-weight:750;margin:12px 0 6px">${esc(s.name)}</div>${s.items.slice(0,80).map(i=>`<div class="prop-item">${esc(i)}</div>`).join('')}${s.items.length>80?`<div class="prop-item">… ещё ${s.items.length-80}</div>`:''}</div>`).join('')||'<p class="small-muted">Свойства не найдены</p>'}`);}
+
 // ---------------------------------------------------------------- DWG / DXF viewer
 const drawingCache=new Map();let cadWorker=null,cadSeq=0;const cadPending=new Map();
 function cadWorkerCall(msg){
@@ -545,7 +592,7 @@ async function activateCadViewer(f,host,wrap){
   try{drawing=await loadDrawing(f);}
   catch(e){
     if(state.assetId!==f.id)return;
-    host.innerHTML=`<div class="file-unsupported">${icon('warning','large')}<h3>Не удалось открыть чертёж</h3><p>${esc(e.message)}</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn outline" data-action="quicklook">${icon('eye','small')} Quick Look</button>`:''}<button class="btn outline" data-action="share-file">${icon('share','small')} Отправить оригинал</button></div></div>`;
+    host.innerHTML=`<div class="file-unsupported">${icon('warning','large')}<h3>Не удалось открыть чертёж</h3><p>${esc(e.message)}</p><div class="row" style="justify-content:center;flex-wrap:wrap">${canQuickLook()?`<button class="btn outline" data-action="quicklook">${icon('eye','small')} Quick Look</button>`:''}<button class="btn outline" data-action="export-file">${icon('export','small')} Экспорт</button><button class="btn outline" data-action="share-file">${icon('share','small')} Отправить оригинал</button></div></div>`;
     if(hint)hint.textContent='Оригинал сохранён без изменений';state.viewer={measure:false,setTool(){},fit(){}};return;
   }
   if(state.assetId!==f.id||!host.isConnected)return;
@@ -561,7 +608,7 @@ async function activateCadViewer(f,host,wrap){
   const toWorld=(sx,sy)=>{const k=scale();return [(sx-w/2)/k+vs.cx,(h/2-sy)/k+vs.cy];};
   function build(){
     const map=new Map();texts=[];dots=[];const sp=[];
-    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,path:new Path2D()};map.set(key,g);}return g.path;};
+    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):''}|${e.dash?e.dash.join(','):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,dash:e.dash||null,path:new Path2D()};map.set(key,g);}return g.path;};
     for(const e of drawing.entities){
       if(hidden.has(e.layer))continue;
       if(e.type==='line'){const p=group(e);p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
@@ -579,12 +626,12 @@ async function activateCadViewer(f,host,wrap){
     ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='round';ctx.lineJoin='round';
     for(const g of groups){const c=(dark?g.color:toneLight(g.color))||ink;
       if(g.fill){ctx.globalAlpha=g.hatch?.22:.8;ctx.fillStyle=c;ctx.fill(g.path);ctx.globalAlpha=1;}
-      ctx.strokeStyle=c;ctx.stroke(g.path);}
+      ctx.strokeStyle=c;if(g.dash&&g.dash[0]*k>1.5)ctx.setLineDash(g.dash);ctx.stroke(g.path);if(g.dash)ctx.setLineDash([]);}
     ctx.restore();ctx.setTransform(dpr,0,0,dpr,0,0);
     for(const d of dots){const [x,y]=toScreen(d.c[0],d.c[1]);if(x<-4||y<-4||x>w+4||y>h+4)continue;ctx.fillStyle=(dark?d.color:toneLight(d.color))||ink;ctx.fillRect(x-1.5,y-1.5,3,3);}
     let shown=0;const minPx=texts.length>4000?6:3;
     for(const t of texts){const px=t.height*k;if(px<minPx)continue;const [x,y]=toScreen(t.p[0],t.p[1]);if(x<-w||x>2*w||y<-60||y>h+60)continue;if(++shown>6000)break;
-      ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline='alphabetic';ctx.fillStyle=(dark?t.color:toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
+      ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);if(t.width&&t.width!==1)ctx.scale(t.width,1);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline=t.valign||'alphabetic';ctx.fillStyle=(dark?t.color:toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
     if(measure.length){ctx.strokeStyle='#4f8cff';ctx.fillStyle='#4f8cff';ctx.lineWidth=2;const pts=measure.map(p=>toScreen(p[0],p[1]));
       if(pts.length===2){ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(...pts[0]);ctx.lineTo(...pts[1]);ctx.stroke();ctx.setLineDash([]);
         const len=Math.hypot(measure[1][0]-measure[0][0],measure[1][1]-measure[0][1]);const label=`${fmtNum(len)} ${unit}`;const mx=(pts[0][0]+pts[1][0])/2,my=(pts[0][1]+pts[1][1])/2;
@@ -596,8 +643,8 @@ async function activateCadViewer(f,host,wrap){
   const resize=()=>{dpr=Math.min(3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
   const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;redraw();};
   const snapTo=(sx,sy)=>{let best=-1,bd=16*16;const k=scale();for(let i=0;i<snap.length;i+=2){const x=(snap[i]-vs.cx)*k+w/2,y=h/2-(snap[i+1]-vs.cy)*k;const d=(x-sx)**2+(y-sy)**2;if(d<bd){bd=d;best=i;}}return best<0?toWorld(sx,sy):[snap[best],snap[best+1]];};
-  const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${drawing.entities.length.toLocaleString('ru-RU')} объектов${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}`;};
-  build();updateInfo();
+  const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${drawing.entities.length.toLocaleString('ru-RU')} объектов${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}`;};
+  build();updateInfo();setTimeout(()=>info.classList.add('faded'),3500);
   const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
   const touches=new Map();let pinch=null,drag=null,lastTap=0;
   canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);touches.set(e.pointerId,pos(e));

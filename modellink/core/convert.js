@@ -18,7 +18,7 @@ export function dxfToSVG(drawing,{stroke='#1d2a40',background='#ffffff',margin=0
   const col=e=>tone(e.color)||stroke;
   for(const e of drawing.entities){
     if(hiddenLayers&&hiddenLayers.has(e.layer))continue;
-    const c=col(e),st=e.color?` stroke="${c}"`:'';
+    const c=col(e),st=(e.color?` stroke="${c}"`:'')+(e.dash?` stroke-dasharray="${e.dash.map(n6).join(' ')}"`:'');
     if(e.type==='line')parts.push(`<line x1="${X(e.a[0])}" y1="${Y(e.a[1])}" x2="${X(e.b[0])}" y2="${Y(e.b[1])}"${st}/>`);
     else if(e.type==='circle'){if(e.r>0)parts.push(`<circle cx="${X(e.c[0])}" cy="${Y(e.c[1])}" r="${n6(e.r)}"${st}/>`);else parts.push(`<circle cx="${X(e.c[0])}" cy="${Y(e.c[1])}" r="${sw}" fill="${c}" stroke="none"/>`);}
     else if(e.type==='arc'){
@@ -30,7 +30,7 @@ export function dxfToSVG(drawing,{stroke='#1d2a40',background='#ffffff',margin=0
       parts.push(`<${tag} points="${e.points.map(p=>`${X(p[0])},${Y(p[1])}`).join(' ')}"${st}${fill}/>`);}
     else if(e.type==='point')parts.push(`<circle cx="${X(e.p[0])}" cy="${Y(e.p[1])}" r="${sw}" fill="${c}" stroke="none"/>`);
     else if(e.type==='text'){const anchor=e.align==='center'?'middle':e.align==='right'?'end':'start';const rot=e.rotation?` transform="rotate(${n6(-e.rotation*180/Math.PI)} ${X(e.p[0])} ${Y(e.p[1])})"`:'';
-      parts.push(`<text x="${X(e.p[0])}" y="${Y(e.p[1])}" font-size="${n6(e.height)}" fill="${c}" stroke="none" text-anchor="${anchor}"${rot}>${escXml(e.text)}</text>`);}
+      const base=e.valign==='middle'?' dominant-baseline="central"':e.valign==='top'?' dominant-baseline="hanging"':'';parts.push(`<text x="${X(e.p[0])}" y="${Y(e.p[1])}" font-size="${n6(e.height)}" fill="${c}" stroke="none" text-anchor="${anchor}"${base}${rot}>${escXml(e.text)}</text>`);}
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n6(vbW)} ${n6(vbH)}" width="${n6(vbW)}" height="${n6(vbH)}">`+
     `<rect x="0" y="0" width="${n6(vbW)}" height="${n6(vbH)}" fill="${background}"/>`+
@@ -143,7 +143,7 @@ export function jpegToPDF(jpeg,width,height){
 // ---------------------------------------------------------------- what can a file become
 export const TEXT_EXT=new Set(['txt','md','markdown','csv','tsv','json','xml','html','htm','css','js','mjs','ts','py','php','java','c','h','cpp','swift','kt','rb','go','rs','sh','yml','yaml','ini','cfg','conf','log','sql','gcode','nc','tex','svg','toml','env','properties']);
 export const IMAGE_EXT=new Set(['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tif','tiff']);
-export const MESH_EXT=new Set(['stl','obj','glb']);
+export const MESH_EXT=new Set(['stl','obj','glb','gltf','fbx','3ds','dae','ply','3mf','max']);
 /**
  * Conversion targets for a file. `engine`: 'js' (here + canvas), 'native' (iOS: PDFKit/UIKit) or 'zip'.
  */
@@ -151,7 +151,7 @@ export function conversionTargets(name,{native=false}={}){
   const ext=extOf(name),t=[];
   const add=(to,label,engine,note='')=>{if(to!==ext&&!(to==='jpeg'&&ext==='jpg'))t.push({to,label,engine,note});};
   if(ext==='dxf'||ext==='dwg'){add('pdf','PDF','js','Видимые слои, белый фон');add('svg','SVG — вектор','js');add('png','PNG','js');add('jpeg','JPEG','js');if(ext==='dwg')add('dxf','DXF (ASCII)','js','Открывается в любой CAD-программе');}
-  if(MESH_EXT.has(ext)){add('usdz','USDZ — AR на iPhone','js');add('stl','STL','js');add('obj','OBJ','js');add('glb','GLB (glTF)','js');add('ply','PLY','js');add('png','PNG — снимок вида','js');}
+  if(MESH_EXT.has(ext)){add('usdz','USDZ — AR на iPhone','js');add('glb','GLB (glTF)','js');add('obj','OBJ','js');add('stl','STL — 3D-печать','js');add('ply','PLY','js');add('png','PNG — снимок вида','js');if(ext==='max')add('thumb','PNG — миниатюра из файла','js');}
   if(IMAGE_EXT.has(ext)){const e=native&&['heic','heif','tif','tiff'].includes(ext)?'native':'js';add('png','PNG',e);add('jpeg','JPEG',e);add('pdf','PDF',e);}
   if(ext==='pdf'&&native){add('png','PNG — страницы','native','Каждая страница отдельным файлом');add('jpeg','JPEG — страницы','native','Каждая страница отдельным файлом');}
   if(native&&(TEXT_EXT.has(ext)&&ext!=='svg'||['rtf'].includes(ext)))add('pdf','PDF','native',ext==='html'||ext==='htm'?'Вёрстка HTML':'');
