@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="robots" content="noindex" />
+  <title>Codevia tools (dev)</title>
+</head>
+<body>
+  <!-- Development page only: `npm run dev`, then open /tools.html. Not part of the production build
+       (Vite builds index.html only). Mounts each tool with an in-memory ToolContext. -->
+  <div id="app"></div>
+  <div id="sheet-root"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="/src/tools/dev/harness.ts"></script>
+</body>
+</html>

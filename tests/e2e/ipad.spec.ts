@@ -35,7 +35,8 @@ test('iPad: Python project runs in the side pane; ⌘1–⌘4 and the side switc
   await page.locator('.split-side').getByRole('button', { name: 'Запустить' }).click();
   await expect(page.locator('#run-console')).toContainText('Сумма заказов', { timeout: 60_000 });
   await page.locator('.side-switch button', { hasText: 'Просмотр' }).click();
-  await expect(page.locator('.split-side .empty-state')).toBeVisible();
+  // No HTML page: the README is rendered as Markdown in the preview.
+  await expect(page.frameLocator('#live-preview').locator('article.markdown-body h1')).toBeVisible();
   await page.keyboard.press(`${mod(page)}+4`);
   await expect(page.locator('.split-side #run-console')).toBeVisible();
 });

@@ -333,7 +333,7 @@ export function codeView(s: AppState, p: Project): string {
 // ---------------- workspace: preview ----------------
 
 export function previewView(s: AppState, p: Project): string {
-  const pages = Object.keys(p.files).filter((x) => /\.html?$/i.test(x) || (p.language === 'php' && /\.php$/i.test(x)));
+  const pages = Object.keys(p.files).filter((x) => /\.(html?|md|markdown)$/i.test(x) || (p.language === 'php' && /\.php$/i.test(x)));
   const errors = s.previewConsole.filter((l) => l.level === 'error').length;
   if (!s.previewPage) {
     const runs = p.language === 'python' || p.language === 'javascript';

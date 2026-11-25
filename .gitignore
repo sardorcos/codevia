@@ -19,3 +19,4 @@ release/
 
 # Temporary agent worktrees
 .claude/worktrees/
+public/libs/

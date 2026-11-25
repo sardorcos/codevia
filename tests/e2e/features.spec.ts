@@ -214,3 +214,19 @@ test('inspector opens from Tools on the live preview and shows the DOM tree and 
   await panel.getByRole('button', { name: 'Закрыть' }).first().click();
   await expect(panel).toHaveCount(0);
 });
+
+test('libraries: Bootstrap is added offline in one tap (files copied, tags inserted, preview uses it)', async ({ page }) => {
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
+  await start(page, '?e2e=1');
+  await openProject(page, 'Сайт-портфолио');
+  await page.getByRole('button', { name: 'Инструменты' }).click();
+  await page.locator('[data-tool="libraries"]').click();
+  await page.locator('.tool-lib-card[data-lib="bootstrap"] [data-act="add"]').click();
+  await expect(page.locator('.tool-lib-card[data-lib="bootstrap"]')).toContainText(/Убрать|Удалить|Добавлено/, { timeout: 15_000 });
+  await page.locator('.tool-layer').getByRole('button', { name: 'Закрыть' }).first().click();
+  const files = await page.evaluate(() => Object.keys((globalThis as unknown as { __codevia: { s: { project: { files: Record<string, unknown> } } } }).__codevia.s.project.files));
+  expect(files.some((f) => f.startsWith('libs/bootstrap/') && f.endsWith('.css'))).toBe(true);
+  const html = await page.evaluate(() => ((globalThis as unknown as { __codevia: { s: { project: { files: Record<string, { content: string }> } } } }).__codevia.s.project.files['index.html']!.content));
+  expect(html).toMatch(/<link[^>]+libs\/bootstrap\/[^"]+\.css/);
+  expect(html).toMatch(/<script[^>]+libs\/bootstrap\/[^"]+\.js/);
+});

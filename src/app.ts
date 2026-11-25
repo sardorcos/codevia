@@ -21,6 +21,7 @@ import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen 
 import * as V from './ui/views';
 import { closeTool, onToolOpen, openTool, pickTool, registeredTools, registerTools, setToolPeek } from './ui/tool-host';
 import { githubTools } from './tools/github';
+import { TOOLS } from './tools';
 import { createInspectorTool, type InspectorBridge, type InspectorRequest, type PreviewMessage } from './tools/inspector';
 import type { ToolContext } from './tools/types';
 
@@ -29,6 +30,13 @@ const MAX_OUTPUT_CHARS = 400_000;
 const AUTO_SNAPSHOT_AFTER_MS = 12 * 60 * 60 * 1000;
 const BACKUP_LIMIT_BYTES = 150 * 1024 * 1024;
 const PHP_PREVIEW_TIMEOUT_MS = 15_000;
+/** Reading style for Markdown files in the preview (light and dark). */
+const MARKDOWN_PAGE_CSS = `:root{color-scheme:light dark}body{margin:0;padding:24px 20px 48px;font:16px/1.6 -apple-system,system-ui,sans-serif;color:#1f2328;background:#fff}
+.markdown-body{max-width:760px;margin:0 auto}h1,h2{border-bottom:1px solid #d8dee4;padding-bottom:.3em}a{color:#0969da}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em}code{background:rgba(175,184,193,.2);padding:.15em .35em;border-radius:6px}
+pre{background:#f6f8fa;padding:14px;border-radius:8px;overflow:auto}pre code{background:none;padding:0}img{max-width:100%}
+table{border-collapse:collapse;display:block;overflow:auto}th,td{border:1px solid #d0d7de;padding:6px 12px}blockquote{margin:0;padding:0 1em;color:#59636e;border-left:.25em solid #d0d7de}
+@media (prefers-color-scheme:dark){body{color:#e6edf3;background:#0d1117}h1,h2{border-color:#30363d}a{color:#4493f8}pre{background:#161b22}th,td{border-color:#30363d}blockquote{color:#9198a1;border-color:#30363d}}`;
 
 const NEW_FILE_CONTENT: Record<string, (name: string) => string> = {
   html: (n) => `<!doctype html>\n<html lang="${getLang()}">\n<head>\n  <meta charset="utf-8" />\n  <meta name="viewport" content="width=device-width, initial-scale=1" />\n  <title>${n}</title>\n</head>\n<body>\n\n</body>\n</html>\n`,
@@ -78,7 +86,7 @@ export class App {
   constructor(private root: HTMLElement) {
     this.editor = createEditor((path, text) => this.onEdit(path, text), false);
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
-    registerTools([...githubTools, createInspectorTool(this.inspectorBridge)]);
+    registerTools([...TOOLS, ...githubTools, createInspectorTool(this.inspectorBridge)]);
     onToolOpen((id) => {
       // The inspector works on the live preview: make sure it is on screen behind/beside the panel.
       if (id !== 'inspector' || !this.s.project) return;
@@ -468,7 +476,13 @@ export class App {
     const ext = p.language === 'php' ? /\.php$/i : /\.html?$/i;
     const pages = Object.keys(p.files).filter((x) => ext.test(x) || /\.html?$/i.test(x));
     this.s.previewPage =
-      (p.entry && pages.includes(p.entry) ? p.entry : undefined) ?? defaultEntry(pages, p.language) ?? pages.find((x) => /\.html?$/i.test(x)) ?? '';
+      (p.entry && pages.includes(p.entry) ? p.entry : undefined) ??
+      defaultEntry(pages, p.language) ??
+      pages.find((x) => /\.html?$/i.test(x)) ??
+      // No page at all: show the README (or any Markdown file) instead of an empty preview.
+      Object.keys(p.files).find((x) => /^readme\.(md|markdown)$/i.test(x)) ??
+      Object.keys(p.files).find((x) => /\.(md|markdown)$/i.test(x)) ??
+      '';
   }
 
   private async newProject(): Promise<void> {
@@ -1222,6 +1236,12 @@ export class App {
       }
       if (errors) notes.push({ level: 'error', text: `PHP: ${errors.trim()}\n` });
       source = html || `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><pre style="white-space:pre-wrap;font:14px ui-monospace,monospace;padding:16px">${esc(text || errors || t('(нет вывода)'))}</pre></body></html>`;
+    } else if (/\.(md|markdown)$/i.test(page)) {
+      // Markdown pages render as styled, sanitized HTML; relative images come from the project.
+      const f = p.files[page];
+      const { renderMarkdown, projectImageUrl } = await import('./tools/markdown/preview-entry');
+      const body = renderMarkdown(f?.text ? f.content : '', { resolveImage: (src) => projectImageUrl(p.files, page, src) });
+      source = `<!doctype html><html lang="${getLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${MARKDOWN_PAGE_CSS}</style></head><body><article class="markdown-body">${body}</article></body></html>`;
     } else {
       const f = p.files[page];
       source = f?.text ? f.content : '';
@@ -1304,7 +1324,7 @@ export class App {
       const path = typeof d.path === 'string' ? d.path : '';
       const p = this.s.project;
       const target = p && (p.files[path] ? path : p.files[`${path}/index.html`] ? `${path}/index.html` : null);
-      if (!target || !/\.(html?|php)$/i.test(target)) {
+      if (!target || !/\.(html?|php|md|markdown)$/i.test(target)) {
         toast(t('Страница не найдена: {name}', { name: path || '—' }), 'error');
         return;
       }
