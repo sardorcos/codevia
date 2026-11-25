@@ -260,3 +260,22 @@ describe('more languages', () => {
     expect(pickPluralForm(7, 'файл|файли|файлів|файлу', 'uk')).toBe('файлів');
   });
 });
+
+describe('English dictionaries', () => {
+  it('never give one Russian key two different English texts', () => {
+    const root = fileURLToPath(new URL('../../src/i18n/', import.meta.url));
+    const files = ['en.ts', ...(readdirSync(join(root, 'en')) as string[]).map((f) => `en/${f}`)];
+    const seen = new Map<string, [string, string]>();
+    const clashes: string[] = [];
+    for (const f of files) {
+      const text = readFileSync(join(root, f), 'utf8');
+      for (const m of text.matchAll(/^\s*(?:'((?:\\.|[^'\\])*)'|([A-Za-zА-Яа-яЁё]+)):\s*\n?\s*'((?:\\.|[^'\\])*)'/gm)) {
+        const key = m[1] ?? m[2]!;
+        const prev = seen.get(key);
+        if (prev && prev[1] !== m[3]) clashes.push(`${key}: ${prev[0]} vs ${f}`);
+        else seen.set(key, [f, m[3]!]);
+      }
+    }
+    expect(clashes).toEqual([]);
+  });
+});

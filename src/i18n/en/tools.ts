@@ -46,7 +46,6 @@ export default {
   'Ожидалась запятая или «}»': 'Expected a comma or “}”',
   'Ожидалась запятая или «]»': 'Expected a comma or “]”',
   'Строки в JSON пишутся в двойных кавычках': 'JSON strings use double quotes',
-  'Лишние данные после JSON': 'Unexpected data after the JSON value',
 
   // JSON tool
   'Действия с JSON': 'JSON actions',

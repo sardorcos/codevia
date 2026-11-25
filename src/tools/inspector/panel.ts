@@ -370,7 +370,7 @@ export class InspectorPanel {
         <div class="insp-tabs" role="tablist" aria-label="${esc(t('Инспектор'))}">
           ${TABS.map((tab) => `<button type="button" role="tab" class="insp-tab" id="insp-tab-${tab}" data-act="tab" data-tab="${tab}" aria-controls="insp-pane-${tab}">${esc(tabTitle(tab))}</button>`).join('')}
         </div>
-        <button type="button" class="insp-pick" data-act="pick" aria-pressed="false" aria-label="${esc(t('Выбрать элемент касанием'))}">${PICK_ICON}<span>${esc(t('Выбрать'))}</span></button>
+        <button type="button" class="insp-pick" data-act="pick" aria-pressed="false" aria-label="${esc(t('Выбрать элемент касанием'))}">${PICK_ICON}<span>${esc(t('Выбрать элемент'))}</span></button>
       </div>
       <div class="insp-hint" data-slot="pick-hint" role="status" hidden>
         <span>${esc(t('Коснитесь элемента в предпросмотре'))}</span>

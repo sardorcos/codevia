@@ -24,6 +24,9 @@ import urllib.request
 API = "https://api.appstoreconnect.apple.com"
 SCREENSHOT_TYPE = "APP_IPHONE_67"  # the 6.7"/6.9" slot; accepts 1320 x 2868
 # Apple Watch screenshot slots by pixel size (one watch size is enough for the listing).
+# 13" iPad slot (required for iPad apps): 2048 x 2732 or 2064 x 2752, portrait or landscape.
+IPAD_TYPES = {(2048, 2732): "APP_IPAD_PRO_3GEN_129", (2732, 2048): "APP_IPAD_PRO_3GEN_129",
+              (2064, 2752): "APP_IPAD_PRO_3GEN_129", (2752, 2064): "APP_IPAD_PRO_3GEN_129"}
 WATCH_TYPES = {(416, 496): "APP_WATCH_SERIES_10", (422, 514): "APP_WATCH_ULTRA", (410, 502): "APP_WATCH_ULTRA",
                (396, 484): "APP_WATCH_SERIES_7", (368, 448): "APP_WATCH_SERIES_4", (312, 390): "APP_WATCH_SERIES_3"}
 
@@ -262,6 +265,9 @@ def apply_version_localizations(asc, version, meta, base_dir):
     result = {}
     for locale, loc in meta["locales"].items():
         attrs = {k: loc[k] for k in ("description", "keywords", "promotionalText") if k in loc}
+        # "What's New" exists only for updates; the first version of an app rejects it.
+        if loc.get("whatsNew") and meta.get("isUpdate"):
+            attrs["whatsNew"] = loc["whatsNew"]
         attrs["supportUrl"] = meta["supportUrl"]
         if meta.get("marketingUrl"):
             attrs["marketingUrl"] = meta["marketingUrl"]
@@ -277,6 +283,12 @@ def apply_version_localizations(asc, version, meta, base_dir):
         shots = sorted((base_dir / loc["screenshots"]).glob("*.png")) if loc.get("screenshots") else []
         if shots:
             upload_screenshots(asc, lid, shots, SCREENSHOT_TYPE)
+        ipad = sorted((base_dir / loc["ipadScreenshots"]).glob("*.png")) if loc.get("ipadScreenshots") else []
+        if ipad:
+            size = png_size(ipad[0])
+            if size not in IPAD_TYPES:
+                raise SystemExit(f"Unsupported iPad screenshot size {size}")
+            upload_screenshots(asc, lid, ipad, IPAD_TYPES[size])
         watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png")) if loc.get("watchScreenshots") else []
         if watch:
             size = png_size(watch[0])
