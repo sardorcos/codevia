@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { LIBS } from './libs-manifest.mjs';
 
 const tree = JSON.parse(execSync('npm ls --omit=dev --all --json', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
 const seen = new Map();
@@ -23,6 +24,26 @@ for (const [name, version] of [...seen].sort(([a], [b]) => a.localeCompare(b))) 
   for (const f of files) parts.push(readFileSync(join(dir, f), 'utf8').trim(), '');
   if (!files.length) parts.push(`Licensed under ${license}.`, '');
   parts.push('');
+}
+const MIT_TEXT = `Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`;
+
+// Front-end libraries shipped in public/libs (devDependencies copied by copy-libs.mjs).
+for (const lib of LIBS) {
+  const dir = join('node_modules', lib.pkg);
+  if (!existsSync(dir) || seen.has(lib.pkg)) continue;
+  const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  const license = typeof pkg.license === 'string' ? pkg.license : pkg.license?.type ?? 'see package';
+  const files = readdirSync(dir).filter((f) => /^(licen[cs]e|copying|notice)/i.test(f));
+  parts.push(`${lib.pkg}@${pkg.version} — ${license} (bundled for offline use in Tools → Libraries)`, '-'.repeat(60));
+  for (const f of files) parts.push(readFileSync(join(dir, f), 'utf8').trim(), '');
+  if (!files.length && license === 'MIT' && lib.copyright) parts.push(`MIT License\n\n${lib.copyright}\n\n${MIT_TEXT}`, '');
+  else if (!files.length) parts.push(`Licensed under ${license}.`, '');
+  parts.push('');
+  seen.set(lib.pkg, pkg.version);
 }
 parts.push(
   'CPython (bundled inside Pyodide) — Python Software Foundation License Version 2. https://docs.python.org/3/license.html',
