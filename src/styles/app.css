@@ -1366,3 +1366,13 @@ mark {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Images produced by programs (matplotlib, PIL) inside the console. */
+.console-line .console-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 6px 0;
+  border-radius: 8px;
+  background: #fff;
+}

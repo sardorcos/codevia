@@ -3,7 +3,7 @@ import { basename, dirname, extOf, fileKind, isTextPath } from '../core/paths';
 import { searchProject } from '../core/search';
 import type { Language, Project, ProjectMeta } from '../core/types';
 import type { AppState, ConsoleLine } from '../state';
-import { fmtNumber, plural, t, tc, type RuForms } from '../i18n';
+import { fmtNumber, LANG_NAMES, plural, preferredLang, SUPPORTED_LANGS, t, tc, type RuForms } from '../i18n';
 import { esc, fmtDate, fmtDateTime, icon } from './dom';
 import { errorLog } from './errors';
 
@@ -312,7 +312,13 @@ export function previewView(s: AppState, p: Project): string {
 export function consolePanel(lines: ConsoleLine[], id: string, hidden = false): string {
   return `<div class="console" id="${id}" role="log" aria-label="${t('Консоль')}" tabindex="0" ${hidden ? 'hidden' : ''}>${
     lines.length
-      ? lines.map((l) => `<span class="console-line ${l.level}">${esc(l.text)}</span>`).join('')
+      ? lines
+          .map((l) =>
+            l.image
+              ? `<span class="console-line ${l.level}"><img class="console-image" alt="${esc(t('Изображение из программы'))}" src="data:${esc(l.image.mime)};base64,${esc(l.image.data)}"></span>`
+              : `<span class="console-line ${l.level}">${esc(l.text)}</span>`,
+          )
+          .join('')
       : `<span class="console-line system empty">${t('Консоль пуста')}</span>`
   }<button class="btn ghost tiny console-clear" data-action="clear-console" data-target="${id}">${t('Очистить')}</button></div>`;
 }
@@ -432,6 +438,11 @@ export function settingsView(s: AppState, storageKind: string, totalSize: number
       <button class="${st.density === 'compact' ? 'active' : ''}" data-action="density" data-value="compact" aria-pressed="${st.density === 'compact'}">${t('Компактный')}</button>
       <button class="${st.density === 'comfortable' ? 'active' : ''}" data-action="density" data-value="comfortable" aria-pressed="${st.density === 'comfortable'}">${t('Просторный')}</button>
     </div>
+    <label class="setting-row"><span class="row-main"><span class="row-title">${t('Язык интерфейса')}</span></span>
+      <select id="ui-language" class="select">
+        <option value="system" ${preferredLang() ? '' : 'selected'}>${t('Как в системе')}</option>
+        ${SUPPORTED_LANGS.map((l) => `<option value="${l}" ${preferredLang() === l ? 'selected' : ''}>${esc(LANG_NAMES[l])}</option>`).join('')}
+      </select></label>
     <h2 class="section-heading">${t('Редактор')}</h2>
     <div class="setting-row"><span class="row-main"><span class="row-title" id="font-label">${t('Размер шрифта кода')}</span><span class="row-description">${st.editorFont} pt</span></span>
       <div class="stepper"><button class="icon-btn" data-action="font" data-delta="-1" aria-label="${t('Уменьшить шрифт')}" ${st.editorFont <= 11 ? 'disabled' : ''}>A−</button>
@@ -442,6 +453,12 @@ export function settingsView(s: AppState, storageKind: string, totalSize: number
     <label class="setting-row switch-row"><span class="row-main"><span class="row-title">${t('Разрешить интернет в предпросмотре')}</span>
       <span class="row-description">${t('Нужно для CDN (Bootstrap, Google Fonts). Страница сможет обращаться к внешним сайтам по HTTPS.')}</span></span>
       <input type="checkbox" class="switch" data-setting="previewNetwork" ${st.previewNetwork ? 'checked' : ''}></label>
+    <h2 class="section-heading">${t('Python')}</h2>
+    <label class="setting-row switch-row"><span class="row-main"><span class="row-title">${t('Загружать пакеты Python')}</span>
+      <span class="row-description">${t('Пакеты, которых нет в приложении, скачиваются при первом import с CDN Pyodide или PyPI и дальше работают офлайн.')}</span></span>
+      <input type="checkbox" class="switch" data-setting="pythonDownloads" ${st.pythonDownloads !== false ? 'checked' : ''}></label>
+    <div class="setting-row"><span class="row-main"><span class="row-title">${t('Встроены (работают без интернета)')}</span>
+      <span class="row-description">numpy, pandas, matplotlib, scipy, scikit-learn, sympy, pillow, beautifulsoup4, regex, pyyaml, networkx ${t('и их зависимости')}</span></span></div>
     <h2 class="section-heading">${t('Хранение')}</h2>
     <div class="setting-row"><span class="row-main"><span class="row-title">${t('Проекты на устройстве')}</span>
       <span class="row-description">${plural(s.projects.length, PROJECTS)} · ${formatBytes(totalSize)} · ${storageKind === 'fs' ? t('папка «Файлы» → Codevia Pocket') : s.volatile ? t('временно, не сохраняется') : t('память браузера')}</span></span></div>
@@ -466,6 +483,9 @@ export function privacyView(): string {
     <p>${t('Python и PHP выполняются локально внутри приложения. Код не отправляется на серверы.')}</p>
     <h2>${t('Сеть')}</h2>
     <p>${t('Приложение работает без интернета. Если вы включите «Разрешить интернет в предпросмотре», страницы ваших проектов смогут загружать внешние ресурсы (например, шрифты с CDN) — эти запросы делает ваш код, а не приложение.')}</p>
+    <p>${t('Сеть используется только по вашему действию: загрузка пакетов Python, которых нет в приложении (CDN Pyodide, PyPI), запросы HTTP-клиента и работа с GitHub. У разработчика нет серверов — данные идут напрямую в эти сервисы.')}</p>
+    <h2>GitHub</h2>
+    <p>${t('Если вы подключите GitHub, токен доступа хранится в Связке ключей iOS только на этом устройстве и отправляется только на github.com. Код проекта отправляется в ваш репозиторий только когда вы нажимаете «Отправить». Отключить доступ можно в настройках приложения и на github.com.')}</p>
     <h2>${t('Экспорт')}</h2>
     <p>${t('Файлы покидают устройство только когда вы сами экспортируете или отправляете их через системное меню «Поделиться».')}</p>
     <h2>${t('Контакты')}</h2>
@@ -476,7 +496,9 @@ export function privacyView(): string {
 export function licensesView(): string {
   const items: Array<[string, string, string]> = [
     ['Pyodide / CPython', 'MPL-2.0 / PSF License', t('Python в WebAssembly')],
-    ['PHP (php-wasm, WordPress Playground)', 'PHP License 3.01 / GPL-2.0-or-later', t('PHP 8.3 в WebAssembly')],
+    ['PHP (php-wasm)', 'Apache-2.0 / PHP License 3.01', t('PHP 8.3 в WebAssembly')],
+    ['sucrase', 'MIT', t('TypeScript и JSX')],
+    ['NumPy, pandas, Matplotlib, SciPy, scikit-learn, SymPy, Pillow…', 'BSD / MIT / PSF / HPND', t('Встроенные пакеты Python (полные тексты лицензий — ниже)')],
     ['CodeMirror 6', 'MIT', t('Редактор кода')],
     ['Lezer', 'MIT', t('Парсеры для подсветки')],
     ['Capacitor', 'MIT', t('Нативная оболочка iOS')],

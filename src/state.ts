@@ -8,6 +8,8 @@ export type SaveState = 'saved' | 'saving' | 'error';
 export interface ConsoleLine {
   level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'stdout' | 'stderr' | 'system';
   text: string;
+  /** An image the program produced (matplotlib figure, PIL image): base64 data. */
+  image?: { mime: string; data: string };
 }
 
 export interface AppState {

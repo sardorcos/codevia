@@ -68,6 +68,8 @@ export interface Settings {
   editorFont: number;
   wrapLines: boolean;
   previewNetwork: boolean;
+  /** Python: download packages that are not built in (Pyodide CDN, PyPI) on first import. */
+  pythonDownloads: boolean;
   onboardingDone: boolean;
 }
 
@@ -76,6 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   editorFont: 14,
   wrapLines: false,
   previewNetwork: false,
+  pythonDownloads: true,
   onboardingDone: false,
 };
 

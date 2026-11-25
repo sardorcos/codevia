@@ -2,12 +2,12 @@ import { formatBytes, guessLegacyEncoding, makeId } from './core/bytes';
 import { toProjectFile } from './core/files';
 import { reportText, scanProject } from './core/diagnostics';
 import { basename, extOf, fileKind, isJunkPath, isTextPath, normalizePath, sanitizeImportName, uniquePath } from './core/paths';
-import { buildPreview } from './core/preview';
+import { buildPreview, needsTranspile } from './core/preview';
 import { defaultEntry, detectLanguage, templateFiles, templateLanguage, type TemplateId } from './core/templates';
 import { binaryFile, LIMITS, textFile, type Files, type Project, type ProjectFile, type ProjectMeta } from './core/types';
 import { stripCommonRoot, unzip, zipFiles } from './core/zip';
 import { createEditor, type EditorHost } from './editor/editor';
-import { getLang, plural, t } from './i18n';
+import { getLang, plural, setPreferredLang, t, type Lang } from './i18n';
 import { copyText, haptic, initNativeChrome, isNative, pickFiles, shareFile } from './platform/native';
 import { Runner, type RuntimeKind } from './runtime/runner';
 import { initialState, type AppState, type ConsoleLine, type Route, type View } from './state';
@@ -47,6 +47,11 @@ export class App {
   private editorPath = '';
   private returnRoute: Route = 'home';
   private outputChars = 0;
+  /** Urlencoded body of a form posted in the preview, for the next PHP render. */
+  private previewPost: string | null = null;
+  private consoleQueue = new Map<string, ConsoleLine[]>();
+  private consoleFrame = 0;
+  private transpiler: Promise<(path: string, code: string) => string> | null = null;
 
   constructor(private root: HTMLElement) {
     this.editor = createEditor((path, text) => this.onEdit(path, text), false);
@@ -65,6 +70,7 @@ export class App {
       if (migrated) toast(plural(migrated, 'Перенесено проектов из прошлой версии: {count}'), 'success');
     }
     this.s.settings = await this.repo.loadSettings();
+    this.applyRuntimeOptions();
     this.editor.setWrap(this.s.settings.wrapLines);
     const adopted = storage.volatile ? 0 : await this.repo.adoptOrphanFolders().catch(() => 0);
     if (adopted) toast(plural(adopted, 'Найдены папки из «Файлов»: добавлено проектов — {count}'), 'success');
@@ -92,6 +98,11 @@ export class App {
       $('.main-column', this.root)?.classList.toggle('kb-open', open);
     });
     this.render();
+  }
+
+  /** Language and package downloads for the runtimes (messages they print themselves). */
+  private applyRuntimeOptions(): void {
+    this.runner.options = { lang: getLang() === 'ru' ? 'ru' : 'en', allowNetwork: this.s.settings.pythonDownloads !== false };
   }
 
   private async guard(fn: () => unknown): Promise<void> {
@@ -177,6 +188,8 @@ export class App {
         body = V.licensesView();
         break;
     }
+    // The full render shows every line from state: drop lines still queued for the old DOM.
+    this.consoleQueue.clear();
     const chrome = s.route === 'welcome' ? '' : V.topbar(s);
     this.root.innerHTML = `<div class="main-column ${s.keyboardOpen ? 'kb-open' : ''} route-${s.route} view-${s.view}">${chrome}${body}${V.bottomnav(s)}</div>`;
     this.root.dataset.scrollKey = scrollKey;
@@ -480,7 +493,8 @@ export class App {
     const isZip = !!head && head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
     if (files.length === 1 && (isZip || /\.zip$/i.test(files[0]!.name))) {
       const zip = files[0]!;
-      if (zip.size > LIMITS.maxZipBytes) throw new Error(t('ZIP больше {size}', { size: formatBytes(LIMITS.maxZipBytes) }));
+      // Full backups may be up to BACKUP_LIMIT_BYTES (plus ZIP headers): never refuse our own backup (audit 3, R1).
+      if (zip.size > BACKUP_LIMIT_BYTES * 1.1) throw new Error(t('ZIP больше {size}', { size: formatBytes(LIMITS.maxZipBytes) }));
       // Archive-level limits allow full backups; per-project limits are enforced when projects are created.
       const result = await unzip(new Uint8Array(await zip.arrayBuffer()), { maxEntries: 20_000, maxTotalBytes: BACKUP_LIMIT_BYTES * 1.4 });
       const stripped = stripCommonRoot(result.files);
@@ -679,7 +693,8 @@ export class App {
   }
 
   private async renameProject(meta?: ProjectMeta): Promise<void> {
-    const target = meta && meta.id !== this.s.project?.id ? await this.repo.openProject(meta) : this.s.project;
+    // Renaming needs metadata only: do not read the project's files from Home (audit 3, R15).
+    const target = meta && meta.id !== this.s.project?.id ? { ...meta, files: {} } : this.s.project;
     if (!target) return;
     const name = await promptSheet({ title: t('Название проекта'), label: t('Название'), value: target.name, confirm: t('Сохранить') });
     if (!name || name === target.name) return;
@@ -938,7 +953,8 @@ export class App {
         }
       }, PHP_PREVIEW_TIMEOUT_MS);
       try {
-        await this.runner.run('php', p.files, page, { onStdout: (t) => (text += t), onStderr: (t) => (errors += t), onHtml: (h) => (html = h) }, { query });
+        const post = this.previewPost;
+        await this.runner.run('php', p.files, page, { onStdout: (t) => (text += t), onStderr: (t) => (errors += t), onHtml: (h) => (html = h) }, post !== null ? { query, post } : { query });
       } catch (e) {
         errors += (e as Error).message;
       } finally {
@@ -955,7 +971,9 @@ export class App {
       this.previewDirty = true;
       return;
     }
-    const result = buildPreview(p.files, page, source, { allowNetwork: this.s.settings.previewNetwork, token });
+    this.previewPost = null;
+    const transpile = Object.keys(p.files).some(needsTranspile) ? await this.loadTranspiler() : undefined;
+    const result = buildPreview(p.files, page, source, { allowNetwork: this.s.settings.previewNetwork, token, transpile });
     for (const m of result.missing.slice(0, 20)) notes.push({ level: 'warn', text: `${t('Не найден файл: {name}', { name: m })}\n` });
     this.previewToken = token;
     this.previewHtml = result.html;
@@ -965,6 +983,20 @@ export class App {
     // A frame that already received the old document must reload to show the new one.
     const frame = $<HTMLIFrameElement>('#live-preview', this.root);
     if (frame?.dataset.sent === '1') this.reloadPreviewFrame();
+  }
+
+  /** sucrase is loaded only for projects with TypeScript/JSX scripts. */
+  private loadTranspiler(): Promise<(path: string, code: string) => string> {
+    this.transpiler ??= import('sucrase').then(({ transform }) => (path: string, code: string) =>
+      transform(code, {
+        transforms: /\.[jt]sx$/i.test(path) ? ['typescript', 'jsx'] : ['typescript'],
+        filePath: path,
+        jsxRuntime: 'classic',
+        disableESTransforms: true,
+        keepUnusedImports: true,
+      }).code,
+    );
+    return this.transpiler;
   }
 
   private postPreview(): void {
@@ -1011,6 +1043,8 @@ export class App {
       }
       this.s.previewPage = target;
       this.s.previewQuery = typeof d.query === 'string' ? d.query : '';
+      // A form posted with method=post: its fields go to $_POST of the next PHP render (once).
+      this.previewPost = typeof d.post === 'string' ? d.post.slice(0, 1_000_000) : null;
       this.previewDirty = true;
       this.render();
     } else if (d.type === 'external') {
@@ -1032,20 +1066,53 @@ export class App {
     }
   }
 
+  /** Queues a console line; lines are added to the DOM once per animation frame (fast output must
+   *  not lay out the page per line, audit 3, R9). */
   private appendConsoleLine(id: string, line: ConsoleLine): void {
-    const panel = document.getElementById(id);
-    if (!panel) return;
-    panel.querySelector('.console-line.system.empty')?.remove();
-    const span = document.createElement('span');
-    span.className = `console-line ${line.level}`;
-    span.textContent = line.text;
-    panel.insertBefore(span, panel.querySelector('.console-clear'));
-    const lines = panel.querySelectorAll('.console-line');
-    for (let i = 0; i < lines.length - 500; i++) lines[i]!.remove();
-    panel.scrollTop = panel.scrollHeight;
+    const q = this.consoleQueue.get(id) ?? [];
+    q.push(line);
+    if (q.length > 600) q.splice(0, q.length - 600);
+    this.consoleQueue.set(id, q);
+    this.consoleFrame ||= requestAnimationFrame(() => this.flushConsole());
+  }
+
+  private flushConsole(): void {
+    this.consoleFrame = 0;
+    for (const [id, lines] of this.consoleQueue) {
+      const panel = document.getElementById(id);
+      if (!panel) continue;
+      panel.querySelector('.console-line.system.empty')?.remove();
+      const frag = document.createDocumentFragment();
+      let last: HTMLElement | null = null;
+      for (const line of lines) {
+        // Consecutive text of the same level joins one node (fewer nodes for streaming output).
+        if (!line.image && last && last.dataset.level === line.level && !last.querySelector('img') && (last.textContent?.length ?? 0) < 8000) {
+          last.textContent += line.text;
+          continue;
+        }
+        const span = document.createElement('span');
+        span.className = `console-line ${line.level}`;
+        span.dataset.level = line.level;
+        if (line.image) {
+          const img = document.createElement('img');
+          img.className = 'console-image';
+          img.alt = t('Изображение из программы');
+          img.src = `data:${line.image.mime};base64,${line.image.data}`;
+          span.append(img);
+        } else span.textContent = line.text;
+        frag.append(span);
+        last = span;
+      }
+      panel.insertBefore(frag, panel.querySelector('.console-clear'));
+      const all = panel.querySelectorAll('.console-line');
+      for (let i = 0; i < all.length - 500; i++) all[i]!.remove();
+      panel.scrollTop = panel.scrollHeight;
+    }
+    this.consoleQueue.clear();
   }
 
   private refreshConsole(id: string, lines: ConsoleLine[]): void {
+    this.consoleQueue.delete(id);
     const panel = document.getElementById(id);
     if (!panel) return;
     panel.querySelectorAll('.console-line').forEach((x) => x.remove());
@@ -1097,7 +1164,17 @@ export class App {
         kind,
         p.files,
         entry,
-        { onStatus: setStatus, onStdout: (t) => push('stdout', t), onStderr: (t) => push('stderr', t), onHtml: () => undefined },
+        {
+          onStatus: setStatus,
+          onStdout: (t) => push('stdout', t),
+          onStderr: (t) => push('stderr', t),
+          onHtml: () => undefined,
+          onImage: (mime, data) => {
+            const line: ConsoleLine = { level: 'stdout', text: '', image: { mime, data } };
+            this.s.run.output.push(line);
+            this.appendConsoleLine('run-console', line);
+          },
+        },
         { stdin, query: this.s.previewQuery },
       );
       this.s.run.exitCode = r.exitCode;
@@ -1402,11 +1479,20 @@ export class App {
       this.render();
       return;
     }
+    if (t.id === 'ui-language') {
+      const value = t.value === 'system' ? null : (t.value as Lang);
+      setPreferredLang(value);
+      // Every screen is translated at render time; a reload switches everything, including the editor.
+      await this.flushSaves();
+      location.reload();
+      return;
+    }
     const setting = (t as HTMLElement).dataset.setting;
-    if (setting === 'wrapLines' || setting === 'previewNetwork') {
+    if (setting === 'wrapLines' || setting === 'previewNetwork' || setting === 'pythonDownloads') {
       this.s.settings[setting] = (t as HTMLInputElement).checked;
       if (setting === 'wrapLines') this.editor.setWrap(this.s.settings.wrapLines);
       if (setting === 'previewNetwork') this.previewDirty = true;
+      if (setting === 'pythonDownloads') this.applyRuntimeOptions();
       await this.saveSettings();
     }
   }
