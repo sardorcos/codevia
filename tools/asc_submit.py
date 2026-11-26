@@ -24,6 +24,9 @@ import urllib.request
 API = "https://api.appstoreconnect.apple.com"
 SCREENSHOT_TYPE = "APP_IPHONE_67"  # the 6.7"/6.9" slot; accepts 1320 x 2868
 # Apple Watch screenshot slots by pixel size (one watch size is enough for the listing).
+# 13" iPad slot (required for iPad apps): 2048 x 2732 or 2064 x 2752, portrait or landscape.
+IPAD_TYPES = {(2048, 2732): "APP_IPAD_PRO_3GEN_129", (2732, 2048): "APP_IPAD_PRO_3GEN_129",
+              (2064, 2752): "APP_IPAD_PRO_3GEN_129", (2752, 2064): "APP_IPAD_PRO_3GEN_129"}
 WATCH_TYPES = {(416, 496): "APP_WATCH_SERIES_10", (422, 514): "APP_WATCH_ULTRA", (410, 502): "APP_WATCH_ULTRA",
                (396, 484): "APP_WATCH_SERIES_7", (368, 448): "APP_WATCH_SERIES_4", (312, 390): "APP_WATCH_SERIES_3"}
 
@@ -136,22 +139,43 @@ def set_content_rights(asc, app):
         log("Content rights: does not use third-party content")
 
 
+LIVE_INFO_STATES = ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE", "REPLACED_WITH_NEW_INFO", "ACCEPTED", "WAITING_FOR_REVIEW", "IN_REVIEW")
+
+
 def editable_app_info(asc, app):
+    """The appInfo of the version being prepared. For an update it exists only once the new
+    appStoreVersion has been created; the live app's appInfo is read-only."""
     infos = asc.all(f"/v1/apps/{app['id']}/appInfos")
-    for state_key in ("appStoreState", "state"):
+    for i in infos:
+        log(f"appInfo {i['id']}: state={i['attributes'].get('state')} appStoreState={i['attributes'].get('appStoreState')}")
+    for state_key in ("state", "appStoreState"):
         for i in infos:
-            if i["attributes"].get(state_key) not in ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE", "REPLACED_WITH_NEW_INFO"):
+            if i["attributes"].get(state_key) and i["attributes"].get(state_key) not in LIVE_INFO_STATES:
                 return i
     return infos[0]
 
 
+def current_category(asc, info, which):
+    out = asc.get(f"/v1/appInfos/{info['id']}/relationships/{which}", ok_missing=True)
+    d = (out or {}).get("data")
+    return d.get("id") if d else None
+
+
 def apply_app_info(asc, app, meta):
     info = editable_app_info(asc, app)
-    rels = {"primaryCategory": rel("appCategories", meta["primaryCategory"])}
-    if meta.get("secondaryCategory"):
-        rels["secondaryCategory"] = rel("appCategories", meta["secondaryCategory"])
-    asc.call("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": rels}})
-    log(f"Categories: {meta['primaryCategory']} / {meta.get('secondaryCategory')}")
+    rels = {}
+    for which in ("primaryCategory", "secondaryCategory"):
+        want = meta.get(which)
+        if want and current_category(asc, info, which) != want:
+            rels[which] = rel("appCategories", want)
+    if rels:
+        try:
+            asc.call("PATCH", f"/v1/appInfos/{info['id']}", {"data": {"type": "appInfos", "id": info["id"], "relationships": rels}})
+        except APIError as e:
+            if e.code != 409:
+                raise
+            log(f"!! Categories could not be changed in this state, keeping the current ones: {str(e)[:300]}")
+    log(f"Categories: {meta['primaryCategory']} / {meta.get('secondaryCategory')}{'' if rels else ' (unchanged)'}")
     existing = {l["attributes"]["locale"]: l for l in asc.all(f"/v1/appInfos/{info['id']}/appInfoLocalizations")}
     for locale, loc in meta["locales"].items():
         attrs = {k: loc[k] for k in ("name", "subtitle") if k in loc}
@@ -262,6 +286,9 @@ def apply_version_localizations(asc, version, meta, base_dir):
     result = {}
     for locale, loc in meta["locales"].items():
         attrs = {k: loc[k] for k in ("description", "keywords", "promotionalText") if k in loc}
+        # "What's New" exists only for updates; the first version of an app rejects it.
+        if loc.get("whatsNew") and meta.get("isUpdate"):
+            attrs["whatsNew"] = loc["whatsNew"]
         attrs["supportUrl"] = meta["supportUrl"]
         if meta.get("marketingUrl"):
             attrs["marketingUrl"] = meta["marketingUrl"]
@@ -279,7 +306,10 @@ def apply_version_localizations(asc, version, meta, base_dir):
             upload_screenshots(asc, lid, shots, SCREENSHOT_TYPE)
         ipad = sorted((base_dir / loc["ipadScreenshots"]).glob("*.png")) if loc.get("ipadScreenshots") else []
         if ipad:
-            upload_screenshots(asc, lid, ipad, "APP_IPAD_PRO_3GEN_129")  # 12.9"/13": 2048 x 2732 or 2064 x 2752
+            size = png_size(ipad[0])
+            if size not in IPAD_TYPES:
+                raise SystemExit(f"Unsupported iPad screenshot size {size}")
+            upload_screenshots(asc, lid, ipad, IPAD_TYPES[size])
         watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png")) if loc.get("watchScreenshots") else []
         if watch:
             size = png_size(watch[0])
@@ -369,6 +399,59 @@ def submit(asc, app, version):
             "reviewSubmission": rel("reviewSubmissions", sub["id"]), "appStoreVersion": rel("appStoreVersions", version["id"])}}})
     asc.call("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"submitted": True}}})
     log(f"SUBMITTED for App Review (submission {sub['id']})")
+    time.sleep(5)
+    state = asc.get(f"/v1/reviewSubmissions/{sub['id']}")["data"]["attributes"].get("state")
+    vstate = asc.get(f"/v1/appStoreVersions/{version['id']}")["data"]["attributes"].get("appStoreState")
+    log(f"Review submission state: {state}; version state: {vstate}")
+
+
+def check_urls(meta, attempts=12, delay=30):
+    """Apple opens the privacy policy and support pages during review: both must answer 200.
+    Retries for a few minutes so a GitHub Pages build that is still running can finish."""
+    urls = [meta[k] for k in ("privacyPolicyUrl", "supportUrl", "marketingUrl") if meta.get(k)]
+    pending = list(urls)
+    for attempt in range(attempts):
+        still = []
+        for url in pending:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (asc-submit link check)"})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    body = r.read(200000).decode("utf-8", "replace")
+                    if r.status == 200 and len(body) > 200:
+                        log(f"URL OK: {url} ({len(body)} bytes)")
+                        continue
+                    still.append(url)
+                    log(f"URL not ready: {url} (HTTP {r.status}, {len(body)} bytes)")
+            except Exception as e:
+                still.append(url)
+                log(f"URL not ready: {url} ({e})")
+        pending = still
+        if not pending:
+            return
+        if attempt + 1 < attempts:
+            time.sleep(delay)
+    raise SystemExit("Cannot submit: these pages do not open: " + ", ".join(pending))
+
+
+def probe(asc, app):
+    """Diagnostics: lists the relationships of the app and its app info, so new App Store Connect
+    requirements (compliance forms, declarations) can be located in the API."""
+    for path in (f"/v1/apps/{app['id']}", f"/v1/apps/{app['id']}/appInfos"):
+        data = asc.get(path)["data"]
+        for item in (data if isinstance(data, list) else [data]):
+            log(f"== {item['type']} {item['id']} attributes: {json.dumps(item.get('attributes'), ensure_ascii=False)[:1500]}")
+            for name, rel_ in (item.get("relationships") or {}).items():
+                link = (rel_.get("links") or {}).get("related")
+                if not link:
+                    continue
+                try:
+                    out = asc.get(link, ok_missing=True)
+                    d = (out or {}).get("data")
+                    n = len(d) if isinstance(d, list) else (1 if d else 0)
+                    sample = json.dumps(d[:2] if isinstance(d, list) else d, ensure_ascii=False)[:700] if n else ""
+                    log(f"  {name}: {n} {sample}")
+                except Exception as e:
+                    log(f"  {name}: ERROR {str(e)[:300]}")
 
 
 def main():
@@ -379,11 +462,16 @@ def main():
     do_submit = "--submit" in sys.argv
     asc = ASC()
     app = find_app(asc, meta["bundleId"])
+    if os.environ.get("ASC_PROBE"):
+        probe(asc, app)
+        return
     steps = [
         ("content rights", lambda: set_content_rights(asc, app)),
     ]
     for name, fn in steps:
         fn()
+    # Creating the version first also creates the editable appInfo of an update.
+    version = ensure_version(asc, app, meta)
     info = apply_app_info(asc, app, meta)
     failures = []
     for name, fn in (("age rating", lambda: apply_age_rating(asc, info)), ("price", lambda: apply_free_price(asc, app)),
@@ -393,13 +481,15 @@ def main():
         except Exception as e:  # keep going: report everything at the end
             failures.append(f"{name}: {e}")
             log(f"!! {name} failed: {e}")
-    version = ensure_version(asc, app, meta)
     apply_version_localizations(asc, version, meta, meta_path.parent)
     attach_build(asc, app, version, meta)
     has_contact = apply_review_detail(asc, version, meta)
     if failures:
         log("Steps needing attention:\n  " + "\n  ".join(failures))
     if do_submit:
+        if failures:
+            raise SystemExit("Cannot submit until the steps above succeed")
+        check_urls(meta)
         if not has_contact:
             raise SystemExit("Cannot submit: review contact (REVIEW_FIRST_NAME/LAST_NAME/PHONE/EMAIL) is missing")
         submit(asc, app, version)

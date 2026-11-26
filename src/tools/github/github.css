@@ -1,0 +1,467 @@
+/* GitHub panels. Uses the app's tokens (src/styles/app.css): dark theme, 44px targets, 16px inputs. */
+.gh {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.gh-body {
+  flex: 1;
+  min-width: 0;
+}
+.gh-subhead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 0 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+}
+.gh-subtitle {
+  font-size: var(--fs-body);
+  font-weight: 650;
+  flex: 1;
+}
+.gh-section {
+  padding: 16px 18px;
+}
+.gh-rest {
+  padding-top: 0;
+}
+.gh-rest > .section-heading:first-child {
+  margin-top: 4px;
+}
+.gh-pad {
+  padding: 8px 0;
+}
+.gh-h3 {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.gh-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 12px 0 6px;
+}
+.gh-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  margin-top: 12px;
+}
+.gh-note .ico {
+  margin-top: 2px;
+}
+.gh-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  padding: 16px 18px;
+  min-height: var(--tap);
+}
+.gh-card {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.gh-inline {
+  display: flex;
+  gap: 8px;
+}
+.gh-inline .text-input {
+  flex: 1;
+}
+
+/* callouts */
+.gh-callout {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  font-size: var(--fs-base);
+  margin: 10px 0;
+}
+.gh-callout > .ico {
+  margin-top: 2px;
+  color: var(--accent);
+}
+.gh-callout.success > .ico {
+  color: var(--success);
+}
+.gh-callout.warning {
+  border-color: var(--warning-stroke);
+}
+.gh-callout.warning > .ico {
+  color: var(--warning);
+}
+.gh-callout.danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-stroke);
+}
+.gh-callout.danger > .ico {
+  color: var(--danger);
+}
+.gh-callout-actions {
+  margin-top: 8px;
+}
+
+/* progress */
+.gh-task {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 18px;
+}
+.gh-task-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-lg);
+}
+.gh-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel2);
+  overflow: hidden;
+}
+.gh-bar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+/* account */
+.gh-account {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+}
+.gh-account.compact {
+  padding: 8px 0;
+}
+.gh-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gh-name {
+  font-size: var(--fs-xl);
+  font-weight: 650;
+}
+.gh-avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: var(--fs-xl);
+}
+.gh-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gh-code {
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-align: center;
+  padding: 18px 8px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  user-select: all;
+  -webkit-user-select: all;
+}
+.gh-steps {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: var(--fs-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* repositories */
+.gh-repos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gh-repo-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+/* source control */
+.gh-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gh-head-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gh-repo {
+  font-weight: 650;
+}
+.gh-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.gh-count {
+  font: 650 var(--fs-md) var(--mono);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--panel2);
+}
+.gh-site {
+  overflow-wrap: anywhere;
+}
+.gh-group {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--weak);
+  margin: 12px 0 2px;
+}
+.gh-change {
+  gap: 0;
+}
+.gh-check,
+.gh-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  cursor: pointer;
+}
+.gh-check {
+  justify-content: center;
+}
+.gh-check input,
+.gh-confirm input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+  margin: 0;
+  flex: none;
+}
+.gh-st {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  font: 700 var(--fs-sm) var(--mono);
+}
+.gh-st-modified {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.gh-st-added {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.gh-st-deleted {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.gh-commit {
+  margin-top: 14px;
+}
+.gh-paths {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.gh-details {
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: var(--fs-md);
+}
+.gh-details summary {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.gh-summary {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gh-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.gh-conflict-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gh-url-box {
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+/* diff */
+.gh-diff-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gh-diff-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.gh-diff-legend {
+  font: var(--fs-sm) var(--mono);
+}
+.gh-mode {
+  min-width: 180px;
+}
+.gh-diff {
+  font: var(--fs-sm)/1.5 var(--mono);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.gh-dl {
+  display: grid;
+  grid-template-columns: auto auto 16px 1fr;
+  min-width: max-content;
+}
+.gh-ln {
+  min-width: 3.2em;
+  padding: 0 6px;
+  text-align: right;
+  color: var(--weak);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.gh-sign {
+  text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.gh-text {
+  white-space: pre;
+  padding-right: 12px;
+}
+.gh-dl-add {
+  background: var(--success-bg);
+  color: var(--diff-add-text);
+}
+.gh-dl-del {
+  background: var(--danger-weak);
+  color: var(--diff-del-text);
+}
+.gh-diff-legend .gh-dl-add,
+.gh-diff-legend .gh-dl-del {
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+}
+.gh-srow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.gh-diff.split .gh-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gh-empty {
+  background: var(--hairline-2);
+}
+.gh-skip {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  text-align: left;
+  padding: 0 12px;
+  color: var(--accent);
+  background: var(--accent-weak);
+  font: var(--fs-sm) var(--mono);
+  position: sticky;
+  left: 0;
+}
+
+/* One GitHub tool with sections */
+.gh-hub {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.gh-hub-tabs {
+  margin: 10px 16px 0;
+  flex: none;
+}
+.gh-hub-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.gh-hub-body {
+  flex: 1;
+  min-height: 0;
+}
+@container (max-width: 420px) {
+  .gh-hub-tabs .ico {
+    display: none;
+  }
+  .gh-hub-tabs button {
+    padding: 0 6px;
+  }
+}

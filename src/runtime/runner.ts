@@ -1,14 +1,19 @@
 import { makeId } from '../core/bytes';
 import type { Files } from '../core/types';
 import type { RunFile, RunRequest, WorkerMessage } from './protocol';
+import { getLang, t } from '../i18n';
 
-export type RuntimeKind = 'python' | 'php';
+export type RuntimeKind = 'python' | 'php' | 'javascript';
 
 export interface RunCallbacks {
   onStatus?(text: string): void;
   onStdout(text: string): void;
   onStderr(text: string): void;
   onHtml?(html: string): void;
+  /** An image produced by the program (matplotlib figure, PIL image), base64 data. */
+  onImage?(mime: string, data: string): void;
+  /** Interactive runs: the program needs one more line of input. */
+  onNeedInput?(): void;
 }
 
 export interface RunOutcome {
@@ -17,10 +22,39 @@ export interface RunOutcome {
   stopped?: boolean;
 }
 
+/**
+ * Workers write their own messages (status, load errors, hints in stderr) in Russian; they are
+ * translated here so the workers stay language-agnostic. Anything else (program output, runtime
+ * errors) passes through unchanged.
+ */
+export function localizeWorkerText(text: string): string {
+  if (getLang() === 'ru') return text;
+  const m = /^Не удалось загрузить (Python|PHP): ([\s\S]*)$/.exec(text);
+  if (m) return t('Не удалось загрузить {runtime}: {error}', { runtime: m[1]!, error: m[2]! });
+  const known: Array<[string, string]> = [
+    ['Загрузка Python…', t('Загрузка Python…')],
+    ['Загрузка PHP…', t('Загрузка PHP…')],
+    ['input(): поле «Ввод» закончилось — добавьте строки перед запуском.', t('input(): поле «Ввод» закончилось — добавьте строки перед запуском.')],
+    [
+      'Подсказка: доступна стандартная библиотека Python и модули вашего проекта. Сторонние пакеты (numpy, requests и др.) пока не поддерживаются офлайн.',
+      t('Подсказка: доступна стандартная библиотека Python и модули вашего проекта. Сторонние пакеты (numpy, requests и др.) пока не поддерживаются офлайн.'),
+    ],
+  ];
+  for (const [ru, en] of known) if (text.includes(ru)) text = text.split(ru).join(en);
+  return text;
+}
+
 function createWorker(kind: RuntimeKind): Worker {
-  return kind === 'python'
-    ? new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module', name: 'python' })
-    : new Worker(new URL('./php.worker.ts', import.meta.url), { type: 'module', name: 'php' });
+  if (kind === 'python') return new Worker(new URL('./python.worker.ts', import.meta.url), { type: 'module', name: 'python' });
+  if (kind === 'javascript') return new Worker(new URL('./js.worker.ts', import.meta.url), { type: 'module', name: 'javascript' });
+  return new Worker(new URL('./php.worker.ts', import.meta.url), { type: 'module', name: 'php' });
+}
+
+/** Options every run and preload carries (interface language, package downloads). */
+export interface RuntimeOptions {
+  lang?: 'en' | 'ru';
+  allowNetwork?: boolean;
+  messages?: Record<string, string>;
 }
 
 const toRunFiles = (files: Files, kind: RuntimeKind): RunFile[] =>
@@ -70,7 +104,7 @@ export class Runner {
         this.dispose(kind);
         if (a) {
           this.active = null;
-          a.fail(new Error(e.message || 'Среда выполнения не загрузилась. Попробуйте ещё раз.'));
+          a.fail(new Error(e.message || t('Среда выполнения не загрузилась. Попробуйте ещё раз.')));
         }
       };
       w.onmessage = (ev: MessageEvent<WorkerMessage>) => this.handle(kind, ev.data);
@@ -86,7 +120,7 @@ export class Runner {
       return;
     }
     if (m.type === 'status') {
-      cb?.onStatus?.(m.text);
+      cb?.onStatus?.(localizeWorkerText(m.text));
       return;
     }
     if (!this.active || ('id' in m && m.id && m.id !== this.active.id)) return;
@@ -95,10 +129,16 @@ export class Runner {
         cb?.onStdout(m.text);
         break;
       case 'stderr':
-        cb?.onStderr(m.text);
+        cb?.onStderr(localizeWorkerText(m.text));
         break;
       case 'html':
         cb?.onHtml?.(m.html);
+        break;
+      case 'image':
+        cb?.onImage?.(m.mime, m.data);
+        break;
+      case 'need-input':
+        cb?.onNeedInput?.();
         break;
       case 'done': {
         const a = this.active;
@@ -111,25 +151,28 @@ export class Runner {
         const a = this.active;
         this.active = null;
         this.touchIdle();
-        a.fail(new Error(m.message));
+        a.fail(new Error(localizeWorkerText(m.message)));
         break;
       }
     }
   }
 
+  /** Language and network permission sent with every request; the app updates it from Settings. */
+  options: RuntimeOptions = {};
+
   preload(kind: RuntimeKind): void {
     // Only one heavy runtime at a time.
     for (const other of [...this.workers.keys()]) if (other !== kind && !this.active) this.dispose(other);
     this.touchIdle();
-    this.worker(kind).postMessage({ type: 'preload', base: this.assetBase });
+    this.worker(kind).postMessage({ type: 'preload', base: this.assetBase, ...this.options });
   }
 
   get running(): boolean {
     return this.active !== null;
   }
 
-  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string } = {}): Promise<RunOutcome> {
-    if (this.active) return Promise.reject(new Error('Программа уже выполняется'));
+  run(kind: RuntimeKind, files: Files, entry: string, cb: RunCallbacks, extra: { stdin?: string; query?: string; post?: string; interactive?: boolean } = {}): Promise<RunOutcome> {
+    if (this.active) return Promise.reject(new Error(t('Программа уже выполняется')));
     const id = makeId();
     for (const other of [...this.workers.keys()]) if (other !== kind) this.dispose(other);
     this.touchIdle();
@@ -137,7 +180,7 @@ export class Runner {
     this.callbacks = cb;
     return new Promise<RunOutcome>((resolve, reject) => {
       this.active = { kind, id, finish: resolve, fail: reject };
-      const req: RunRequest = { type: 'run', id, entry, files: toRunFiles(files, kind), base: this.assetBase, ...extra };
+      const req: RunRequest = { type: 'run', id, entry, files: toRunFiles(files, kind), base: this.assetBase, ...this.options, ...extra };
       w.postMessage(req);
     });
   }

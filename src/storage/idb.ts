@@ -1,5 +1,6 @@
 import type { Files, ProjectFile, ProjectMeta, Snapshot, SnapshotMeta } from '../core/types';
 import { isQuotaError, StorageError, type Backend } from './backend';
+import { t } from '../i18n';
 
 const DB_NAME = 'codevia-pocket';
 const DB_VERSION = 1;
@@ -12,8 +13,8 @@ const toFile = (r: { text: boolean; content?: string; data?: Uint8Array }): Proj
 
 function wrapError(e: unknown): StorageError {
   if (e instanceof StorageError) return e;
-  if (isQuotaError(e)) return new StorageError('Недостаточно места для сохранения. Освободите память или экспортируйте проекты.', true);
-  return new StorageError(`Ошибка хранилища: ${(e as Error)?.message ?? e}`);
+  if (isQuotaError(e)) return new StorageError(t('Недостаточно места для сохранения. Освободите память или экспортируйте проекты.'), true);
+  return new StorageError(t('Ошибка хранилища: {error}', { error: String((e as Error)?.message ?? e) }));
 }
 
 export class IdbBackend implements Backend {
@@ -23,7 +24,7 @@ export class IdbBackend implements Backend {
   constructor(private factory: IDBFactory = globalThis.indexedDB) {}
 
   async init(): Promise<void> {
-    if (!this.factory) throw new StorageError('Хранилище браузера недоступно');
+    if (!this.factory) throw new StorageError(t('Хранилище браузера недоступно'));
     this.db = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = this.factory.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
@@ -36,7 +37,7 @@ export class IdbBackend implements Backend {
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(wrapError(req.error));
-      req.onblocked = () => reject(new StorageError('Хранилище занято другой вкладкой'));
+      req.onblocked = () => reject(new StorageError(t('Хранилище занято другой вкладкой')));
     });
     this.db.onversionchange = () => this.db.close();
   }
@@ -53,7 +54,7 @@ export class IdbBackend implements Backend {
       }
       let result: T;
       tx.oncomplete = () => resolve(result);
-      tx.onabort = () => reject(wrapError(tx.error ?? new Error('Транзакция прервана')));
+      tx.onabort = () => reject(wrapError(tx.error ?? new Error(t('Транзакция прервана'))));
       tx.onerror = (ev) => {
         ev.preventDefault();
       };

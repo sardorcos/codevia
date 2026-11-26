@@ -3,31 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Codevia Pocket — политика конфиденциальности</title>
+<title>Codevia Pocket — политика конфиденциальности / Privacy Policy</title>
 <style>
   :root { color-scheme: light dark; }
   body { font: 16px/1.6 -apple-system, system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 20px; }
   h1 { font-size: 26px; } h2 { font-size: 19px; margin-top: 28px; }
+  hr { margin: 40px 0; border: 0; border-top: 1px solid #8884; }
+  nav a { margin-right: 12px; }
 </style>
 </head>
 <body>
+<nav><a href="#ru">Русский</a> <a href="#en">English</a></nav>
+
+<section id="ru" lang="ru">
 <h1>Политика конфиденциальности Codevia Pocket</h1>
-<p>Дата вступления в силу: 21 ноября 2026 г.</p>
+<p>Дата вступления в силу: 25 ноября 2026 г. (версия 1.1)</p>
 
 <h2>Мы не собираем данные</h2>
-<p>Codevia Pocket не собирает, не хранит на серверах, не передаёт и не продаёт персональные данные. В приложении нет аналитики, рекламы, трекинга и учётных записей.</p>
+<p>Codevia Pocket не собирает, не хранит на серверах, не передаёт и не продаёт персональные данные. В приложении нет аналитики, рекламы, трекинга и учётных записей Codevia. У разработчика нет серверов, на которые попадали бы ваши данные.</p>
 
 <h2>Ваши файлы</h2>
 <p>Проекты, история версий и настройки хранятся только на вашем устройстве — в папке приложения, которую видно в приложении «Файлы». Они могут попасть в резервную копию iCloud или компьютера, если вы включили её в настройках iOS. Разработчик не имеет к ним доступа.</p>
 
 <h2>Выполнение кода</h2>
-<p>Python и PHP выполняются локально, внутри приложения. Код не отправляется на внешние серверы.</p>
+<p>Python, JavaScript/TypeScript и PHP выполняются локально, внутри приложения. Код не отправляется на внешние серверы для выполнения.</p>
 
-<h2>Сеть</h2>
-<p>Приложение работает без подключения к интернету и само не делает сетевых запросов. Если вы включите настройку «Разрешить интернет в предпросмотре», страницы ваших проектов смогут загружать ресурсы с внешних сайтов (например, шрифты или библиотеки с CDN). Эти запросы инициирует ваш код, а обработку данных регулируют политики соответствующих сайтов.</p>
+<h2>Сеть — только по вашему действию</h2>
+<p>Приложение работает без подключения к интернету. Сетевые запросы происходят только когда вы сами используете одну из функций:</p>
+<ul>
+  <li><strong>Пакеты Python.</strong> Если ваш код импортирует пакет, которого нет в приложении, он загружается с CDN проекта Pyodide (cdn.jsdelivr.net) или из PyPI (pypi.org, files.pythonhosted.org) и сохраняется на устройстве. Это можно отключить: «Настройки → Загружать пакеты Python».</li>
+  <li><strong>HTTP-клиент.</strong> Запросы, которые вы составляете и отправляете, уходят напрямую на указанный вами адрес.</li>
+  <li><strong>GitHub.</strong> Если вы подключите свой аккаунт GitHub, токен доступа хранится в Связке ключей iOS только на этом устройстве и отправляется только на github.com. Код проекта отправляется в ваш репозиторий только когда вы сами нажимаете «Отправить», «Создать репозиторий» или «Опубликовать сайт». Обработку данных на GitHub регулирует <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">политика GitHub</a>. Отключить доступ можно в приложении и на github.com.</li>
+  <li><strong>Предпросмотр.</strong> Если вы включите «Разрешить интернет в предпросмотре», страницы ваших проектов смогут загружать ресурсы с внешних сайтов (шрифты, библиотеки с CDN). Эти запросы инициирует ваш код.</li>
+</ul>
+
+<h2>Камера и фотографии</h2>
+<p>Камера и медиатека открываются только когда вы сами выбираете фото, чтобы добавить его в проект или взять с него цвет пипеткой. Изображения остаются на устройстве.</p>
 
 <h2>Передача файлов</h2>
-<p>Файлы покидают устройство только тогда, когда вы сами экспортируете их или отправляете через системное меню «Поделиться».</p>
+<p>Файлы покидают устройство только тогда, когда вы сами экспортируете их, отправляете через системное меню «Поделиться» или в свой репозиторий GitHub.</p>
 
 <h2>Журнал ошибок</h2>
 <p>При сбоях приложение записывает технический журнал только на устройстве. Он передаётся разработчику, только если вы сами отправите его через «Настройки → Журнал ошибок → Поделиться».</p>
@@ -37,5 +51,46 @@
 
 <h2>Изменения и контакты</h2>
 <p>Если политика изменится, новая версия будет опубликована на этой странице. Вопросы можно задать на <a href="support.html">странице поддержки</a>.</p>
+</section>
+
+<hr>
+
+<section id="en" lang="en">
+<h1>Codevia Pocket Privacy Policy</h1>
+<p>Effective date: November 25, 2026 (version 1.1)</p>
+
+<h2>We do not collect data</h2>
+<p>Codevia Pocket does not collect, store on servers, share or sell personal data. There is no analytics, advertising, tracking or Codevia account. The developer runs no servers that your data could reach.</p>
+
+<h2>Your files</h2>
+<p>Projects, version history and settings are stored only on your device, in the app's folder visible in the Files app. They may be included in your iCloud or computer backup if you enabled it in iOS settings. The developer has no access to them.</p>
+
+<h2>Running code</h2>
+<p>Python, JavaScript/TypeScript and PHP run locally inside the app. Code is never sent to external servers to be executed.</p>
+
+<h2>Network — only when you act</h2>
+<p>The app works offline. Network requests happen only when you use one of these features yourself:</p>
+<ul>
+  <li><strong>Python packages.</strong> If your code imports a package that is not built into the app, it is downloaded from the Pyodide CDN (cdn.jsdelivr.net) or PyPI (pypi.org, files.pythonhosted.org) and kept on the device. You can turn this off in Settings → Download Python packages.</li>
+  <li><strong>HTTP client.</strong> Requests you compose and send go directly to the address you enter.</li>
+  <li><strong>GitHub.</strong> If you connect your GitHub account, the access token is stored in the iOS Keychain on this device only and is sent only to github.com. Project code goes to your repository only when you tap Push, Create repository or Publish site. GitHub's handling of data is governed by the <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub Privacy Statement</a>. You can disconnect in the app and on github.com.</li>
+  <li><strong>Preview.</strong> If you turn on “Allow internet in preview”, your project's pages may load resources from other websites (fonts, CDN libraries). These requests are made by your code.</li>
+</ul>
+
+<h2>Camera and photos</h2>
+<p>The camera and photo library open only when you choose a photo to add to a project or to pick a colour from it. Images stay on your device.</p>
+
+<h2>Sharing files</h2>
+<p>Files leave your device only when you export them, share them through the system Share sheet, or push them to your own GitHub repository.</p>
+
+<h2>Error log</h2>
+<p>When something fails, the app writes a technical log on the device only. It reaches the developer only if you send it yourself via Settings → Error log → Share.</p>
+
+<h2>Children</h2>
+<p>The app collects no data from anyone, including children.</p>
+
+<h2>Changes and contact</h2>
+<p>If this policy changes, the new version will be published on this page. Questions: see the <a href="support.html">support page</a>.</p>
+</section>
 </body>
 </html>

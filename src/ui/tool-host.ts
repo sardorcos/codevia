@@ -1,0 +1,118 @@
+import { t } from '../i18n';
+import type { Tool, ToolContext } from '../tools/types';
+import { esc, icon } from './dom';
+import { openSheet } from './sheet';
+
+/**
+ * Hosts feature tools (HTTP client, JSON, colours, Markdown, libraries, GitHub, inspector).
+ * A tool lives in its own layer outside the app's re-rendered root, so app renders never destroy
+ * its state. Phones get a full-screen panel; wide screens (iPad, Mac) dock it on the right.
+ */
+const registry: Tool[] = [];
+let open: { tool: Tool; cleanup?: () => void; layer: HTMLElement } | null = null;
+let openListener: ((id: string) => void) | null = null;
+
+/** Called with the tool id right before a tool mounts (the app prepares the screen it needs). */
+export function onToolOpen(fn: (id: string) => void): void {
+  openListener = fn;
+}
+
+/**
+ * Temporarily moves the tool panel aside so the app underneath can be tapped (e.g. picking an element
+ * in the preview on a phone). A floating chip lets the user come back.
+ */
+export function setToolPeek(on: boolean, onCancel?: () => void, label = t('Коснитесь элемента в предпросмотре')): void {
+  if (!open) return;
+  open.layer.classList.toggle('peek', on);
+  document.querySelector('.tool-peek-chip')?.remove();
+  if (!on) return;
+  const chip = document.createElement('button');
+  chip.className = 'tool-peek-chip';
+  chip.innerHTML = `${icon('search', 'sm')} ${esc(label)} · ${esc(t('Отмена'))}`;
+  chip.addEventListener('click', () => {
+    setToolPeek(false);
+    onCancel?.();
+  });
+  document.body.append(chip);
+}
+
+export function registerTools(tools: Tool[]): void {
+  for (const tool of tools) if (!registry.some((x) => x.id === tool.id)) registry.push(tool);
+}
+
+export const registeredTools = (): readonly Tool[] => registry;
+export const openToolId = (): string | null => open?.tool.id ?? null;
+
+export function closeTool(): void {
+  if (!open) return;
+  try {
+    open.cleanup?.();
+  } catch (e) {
+    console.error(e);
+  }
+  open.layer.remove();
+  document.querySelector('.tool-peek-chip')?.remove();
+  document.documentElement.classList.remove('tool-docked');
+  delete document.documentElement.dataset.toolDock;
+  open = null;
+}
+
+/** Shows the list of tools (those needing a project only when one is open). */
+export async function pickTool(hasProject: boolean, makeContext: () => ToolContext): Promise<void> {
+  const tools = registry.filter((x) => hasProject || !x.needsProject);
+  if (!tools.length) return;
+  const groups: string[] = [];
+  for (const x of tools) if (!groups.includes(x.group ?? '')) groups.push(x.group ?? '');
+  const row = (x: Tool) =>
+    `<button class="row-button tool-row" role="listitem" data-tool="${esc(x.id)}"><span class="tool-ico">${icon(x.icon)}</span><span class="row-main"><span class="row-title">${esc(t(x.title))}</span>${
+      x.description ? `<span class="row-description">${esc(t(x.description))}</span>` : ''
+    }</span>${icon('chevron', 'sm')}</button>`;
+  const id = await openSheet<string>({
+    title: t('Инструменты'),
+    body: groups
+      .map(
+        (g) =>
+          `${g ? `<h3 class="section-heading tool-group">${esc(t(g))}</h3>` : ''}<div class="list tool-list" role="list" ${g ? `aria-label="${esc(t(g))}"` : ''}>${tools
+            .filter((x) => (x.group ?? '') === g)
+            .map(row)
+            .join('')}</div>`,
+      )
+      .join(''),
+    onMount: (root, close) =>
+      root.addEventListener('click', (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
+        if (b) close(b.dataset.tool);
+      }),
+  });
+  const tool = tools.find((x) => x.id === id);
+  if (tool) openTool(tool, makeContext());
+}
+
+export function openTool(tool: Tool, ctx: ToolContext): void {
+  closeTool();
+  openListener?.(tool.id);
+  const layer = document.createElement('section');
+  layer.className = 'tool-layer';
+  layer.setAttribute('role', 'dialog');
+  layer.setAttribute('aria-label', t(tool.title));
+  layer.innerHTML = `<header class="tool-head">
+      <button class="icon-btn" data-tool-close aria-label="${esc(t('Закрыть'))}">${icon('close')}</button>
+      <h2 class="tool-title">${esc(t(tool.title))}</h2><span class="tool-head-spacer"></span></header>
+    <div class="tool-body"></div>`;
+  document.body.append(layer);
+  const body = layer.querySelector<HTMLElement>('.tool-body')!;
+  layer.querySelector('[data-tool-close]')!.addEventListener('click', () => ctx.close());
+  layer.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !document.querySelector('.sheet-layer')) ctx.close();
+  });
+  document.documentElement.classList.add('tool-docked');
+  document.documentElement.dataset.toolDock = tool.dock ?? 'code';
+  open = { tool, layer };
+  try {
+    const cleanup = tool.mount(body, ctx);
+    if (open?.tool === tool) open.cleanup = cleanup || undefined;
+  } catch (e) {
+    body.innerHTML = `<p class="empty-state">${esc((e as Error)?.message ?? String(e))}</p>`;
+  }
+  (layer.querySelector('[data-tool-close]') as HTMLElement).focus({ preventScroll: true });
+}

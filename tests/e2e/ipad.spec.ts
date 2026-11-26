@@ -1,0 +1,68 @@
+import { expect, test, type Page } from '@playwright/test';
+
+const mod = (page: Page) => (page.context().browser()?.browserType().name() === 'webkit' ? 'Meta' : 'Control');
+
+test.beforeEach(async ({ page }) => {
+  page.on('pageerror', (e) => {
+    throw e;
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Начать с примеров' }).click();
+  await expect(page.getByRole('heading', { name: 'Проекты', exact: true })).toBeVisible();
+});
+
+test('iPad: files, code and preview side by side; the preview follows typing', async ({ page }) => {
+  await page.locator('.row-button', { hasText: 'Сайт-портфолио' }).click();
+  await expect(page.locator('.split')).toBeVisible();
+  await expect(page.locator('.bottomnav')).toHaveCount(0);
+  await expect(page.locator('.split-files .row-button', { hasText: 'index.html' })).toBeVisible();
+  await expect(page.locator('.split-code .cm-content')).toBeVisible();
+  const frame = page.frameLocator('#live-preview');
+  await expect(frame.locator('h1')).toContainText('Идеи');
+
+  await page.locator('.split-files .row-button', { hasText: 'index.html' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press(`${mod(page)}+a`);
+  await page.keyboard.type('<h1>Live on iPad</h1>');
+  await expect(frame.locator('h1')).toContainText('Live on iPad', { timeout: 10_000 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('iPad: Python project runs in the side pane; ⌘1–⌘4 and the side switch work', async ({ page }) => {
+  await page.locator('.row-button', { hasText: 'Python' }).click();
+  await expect(page.locator('.split-side #run-entry')).toHaveValue('main.py');
+  await page.locator('.split-side').getByRole('button', { name: 'Запустить' }).click();
+  await expect(page.locator('#run-console')).toContainText('Сумма заказов', { timeout: 60_000 });
+  // When the run ends the side pane shows the result (Run button back, exit code).
+  // The sample asks for a name: answer in the console, then the side pane shows the finished run.
+  await page.locator('#console-input').fill('Анна');
+  await page.locator('#console-input').press('Enter');
+  await expect(page.locator('#run-console')).toContainText('Привет, Анна!', { timeout: 60_000 });
+  await expect(page.locator('.split-side [data-action="run"]')).toBeVisible();
+  await expect(page.locator('.split-side .run-status')).toContainText('кодом 0');
+  await page.locator('.side-switch button', { hasText: 'Просмотр' }).click();
+  // No HTML page: the README is rendered as Markdown in the preview.
+  await expect(page.frameLocator('#live-preview').locator('article.markdown-body h1')).toBeVisible();
+  await page.keyboard.press(`${mod(page)}+4`);
+  await expect(page.locator('.split-side #run-console')).toBeVisible();
+});
+
+test('iPad: a docked tool hides the file list and keeps the code (or the preview for the inspector)', async ({ page }) => {
+  await page.locator('.row-button', { hasText: 'Сайт-портфолио' }).click();
+  await page.locator('.split-files .row-button', { hasText: 'index.html' }).click();
+  await page.locator('[data-action="tools"]').click();
+  await page.locator('[data-tool="learn"]').click();
+  await expect(page.locator('.tool-layer')).toBeVisible();
+  await expect(page.locator('.split-files')).toBeHidden();
+  await expect(page.locator('.split-code .cm-content')).toBeVisible();
+  await page.locator('.tool-layer [data-tool-close]').click();
+  await expect(page.locator('.split-files')).toBeVisible();
+
+  await page.locator('[data-action="tools"]').click();
+  await page.locator('[data-tool="inspector"]').click();
+  await expect(page.locator('.split-files')).toBeHidden();
+  await expect(page.locator('#live-preview')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});

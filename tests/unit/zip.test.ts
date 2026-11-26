@@ -140,3 +140,15 @@ describe('bytes', () => {
     expect(sha256Js(enc('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
   });
 });
+
+describe('export with names from the Files app (audit 3, R4)', () => {
+  it('exports names with # and reserved words instead of failing', async () => {
+    const { zipFiles, unzip, zipEntryName } = await import('../../src/core/zip');
+    const { textFile } = await import('../../src/core/types');
+    expect(zipEntryName('Урок #3.html')).toBe('Урок #3.html');
+    expect(zipEntryName('../a/./b.txt')).toBe('a/b.txt');
+    const blob = await zipFiles({ 'Project #2/Урок #3.html': textFile('<p>hi</p>'), 'constructor': textFile('x') });
+    const back = await unzip(new Uint8Array(await blob.arrayBuffer()));
+    expect(Object.keys(back.files).length).toBe(2);
+  });
+});

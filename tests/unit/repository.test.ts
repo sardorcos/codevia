@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { templateFiles } from '../../src/core/templates';
-import { LIMITS, textFile, type Files } from '../../src/core/types';
+import { LIMITS, binaryFile, textFile, type Files } from '../../src/core/types';
 import { IdbBackend } from '../../src/storage/idb';
 import { MemoryBackend } from '../../src/storage/memory';
 import { Repository } from '../../src/storage/repository';
@@ -65,7 +65,38 @@ describe.each(backends)('Repository on %s', (_name, make) => {
     for (let i = 0; i < LIMITS.maxAutoSnapshots + 3; i++) await repo.createSnapshot(p, `auto ${i}`, 'auto');
     const snaps = await repo.listSnapshots(p.id);
     expect(snaps.filter((s) => s.kind === 'manual').length).toBe(1);
-    expect(snaps.filter((s) => s.kind === 'auto').length).toBe(LIMITS.maxAutoSnapshots);
+    // All automatic versions are younger than 24 hours, so none is pruned yet (audit 3, R5).
+    expect(snaps.filter((s) => s.kind === 'auto').length).toBe(LIMITS.maxAutoSnapshots + 3);
+  });
+
+  it('prunes automatic versions only after 24 hours, keeping the newest N', async () => {
+    const repo = await setup();
+    const p = await repo.createProject('Old', 'web', { 'a.txt': textFile('x') });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      for (let i = 0; i < LIMITS.maxAutoSnapshots + 5; i++) await repo.createSnapshot(p, `old ${i}`, 'auto');
+      vi.setSystemTime(new Date('2026-01-03T00:00:00Z'));
+      await repo.createSnapshot(p, 'new', 'auto');
+    } finally {
+      vi.useRealTimers();
+    }
+    const autos = (await repo.listSnapshots(p.id)).filter((s) => s.kind === 'auto');
+    expect(autos.length).toBe(LIMITS.maxAutoSnapshots);
+    expect(autos.at(-1)?.label).toBe('new');
+  });
+
+  it('restores identical bytes stored once as binary and once as text (audit 3, R2)', async () => {
+    const repo = await setup();
+    const a = await repo.createProject('A', 'web', { '.gitkeep': binaryFile(new Uint8Array()) });
+    await repo.createSnapshot(a, 'with gitkeep', 'manual');
+    const b = await repo.createProject('B', 'python', { '__init__.py': textFile(''), 'main.py': textFile('print(1)') });
+    const snap = await repo.createSnapshot(b, 'with init', 'manual');
+    b.files['main.py'] = textFile('print(2)');
+    await repo.saveFiles(b, ['main.py']);
+    await repo.restoreSnapshot(b, snap.id);
+    expect(b.files['__init__.py']).toEqual(textFile(''));
+    expect(b.files['main.py']).toEqual(textFile('print(1)'));
   });
 
   it('enforces size limits and rolls back a failed project creation', async () => {

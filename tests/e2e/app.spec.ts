@@ -27,7 +27,7 @@ test.describe('Codevia Pocket', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Код в кармане' })).toBeVisible();
     await page.getByRole('button', { name: 'Начать с примеров' }).click();
-    await expect(page.locator('.row-button')).toHaveCount(3);
+    await expect(page.locator('.row-button')).toHaveCount(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     // Every web project row shows its badge (regression: "</>" used to vanish).
     await expect(page.locator('.file-ext.html').first()).toHaveText('</>');
@@ -229,8 +229,8 @@ test.describe('Codevia Pocket', () => {
     await page.locator('.cm-content').click();
     await page.keyboard.press(`${mod(page)}+End`);
     await page.keyboard.type('\n<img src="missing.png">');
-    await page.locator('.nav-item', { hasText: 'Файлы' }).click();
-    await page.getByRole('button', { name: 'Проверка' }).click();
+    await page.locator('[data-action="project-menu"]').click();
+    await page.locator('.menu-item', { hasText: 'Проверка файлов' }).click();
     await expect(page.locator('.issue.error')).toContainText('missing.png');
     await page.locator('.issue.error').first().click();
     await expect(page.locator('.cm-activeLine')).toContainText('missing.png');

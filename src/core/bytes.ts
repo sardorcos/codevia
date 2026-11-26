@@ -1,3 +1,5 @@
+import { fmtNumber, t } from '../i18n';
+
 const CP866_HIGH =
   'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмноп░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀рстуфхцчшщъыьэюяЁёЄєЇїЎў°∙·√№¤■ ';
 
@@ -42,6 +44,21 @@ export function guessLegacyEncoding(bytes: Uint8Array): 'utf-16le' | 'utf-16be' 
 export const encodeUtf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
 export const decodeUtf8 = (b: Uint8Array): string => utf8Loose.decode(b);
 
+/** UTF-8 byte length of a string without allocating the encoded bytes. */
+export function utf8Length(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length && (s.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+      n += 4;
+      i++;
+    } else n += 3;
+  }
+  return n;
+}
+
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   const chunk = 0x8000;
@@ -61,9 +78,10 @@ export function base64ToBytes(b64: string): Uint8Array {
 export const textToBase64 = (s: string): string => bytesToBase64(encodeUtf8(s));
 
 export function formatBytes(n: number): string {
-  if (n >= 1024 * 1024) return `${(n / 1048576).toFixed(1).replace('.', ',')} МБ`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1).replace('.', ',')} КБ`;
-  return `${n} Б`;
+  const one = (v: number) => fmtNumber(v, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+  if (n >= 1024 * 1024) return t('{size} МБ', { size: one(n / 1048576) });
+  if (n >= 1024) return t('{size} КБ', { size: one(n / 1024) });
+  return t('{size} Б', { size: n });
 }
 
 const CRC_TABLE = (() => {

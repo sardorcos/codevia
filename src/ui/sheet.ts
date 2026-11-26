@@ -1,4 +1,5 @@
 import { $, $$, esc, icon } from './dom';
+import { t } from '../i18n';
 
 /**
  * Bottom sheets (dialogs). Accessible: focus moves into the sheet, Tab is trapped, Escape and the
@@ -34,7 +35,7 @@ export function openSheet<T = unknown>(opts: SheetOptions): Promise<T | undefine
     <div class="sheet ${opts.wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
       <div class="sheet-grabber" aria-hidden="true"></div>
       <div class="sheet-head"><h2 class="sheet-title" id="sheet-title">${esc(opts.title)}</h2>
-        <button class="icon-btn" data-sheet-close aria-label="Закрыть">${icon('close')}</button></div>
+        <button class="icon-btn" data-sheet-close aria-label="${esc(t('Закрыть'))}">${icon('close')}</button></div>
       <div class="sheet-content">${opts.body}</div>
     </div></div>`;
   document.body.classList.add('sheet-active');
@@ -103,7 +104,7 @@ export async function confirmSheet(opts: {
     body: `<p class="sheet-text">${opts.message}</p>
       <div class="sheet-actions">
         <button class="btn ${opts.danger ? 'danger' : 'primary'} full" data-ok>${esc(opts.confirm)}</button>
-        <button class="btn secondary full" data-sheet-close>${esc(opts.cancel ?? 'Отмена')}</button>
+        <button class="btn secondary full" data-sheet-close>${esc(opts.cancel ?? t('Отмена'))}</button>
       </div>`,
     onMount: (root, close) => $('[data-ok]', root)!.addEventListener('click', () => close(true)),
     initialFocus: opts.danger ? '[data-sheet-close]' : '[data-ok]',
@@ -143,7 +144,7 @@ export async function promptSheet(opts: {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const v = input.value.trim();
-        const problem = opts.validate?.(v) ?? (v ? null : 'Поле не может быть пустым');
+        const problem = opts.validate?.(v) ?? (v ? null : t('Поле не может быть пустым'));
         if (problem) {
           err.textContent = problem;
           input.setAttribute('aria-invalid', 'true');

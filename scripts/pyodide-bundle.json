@@ -1,0 +1,18 @@
+{
+  "comment": "Packages (with their dependencies) shipped inside the app for offline use. All other Pyodide packages load on demand from the Pyodide CDN and are cached on the device.",
+  "packages": [
+    "micropip",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scipy",
+    "scikit-learn",
+    "sympy",
+    "pillow",
+    "beautifulsoup4",
+    "regex",
+    "pyyaml",
+    "networkx",
+    "packaging"
+  ]
+}

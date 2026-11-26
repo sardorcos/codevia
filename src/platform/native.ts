@@ -4,14 +4,12 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Keyboard } from '@capacitor/keyboard';
 import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { bytesToBase64 } from '../core/bytes';
 
 export const isNative = (): boolean => Capacitor.isNativePlatform();
 
 export async function initNativeChrome(onKeyboard: (open: boolean) => void): Promise<void> {
   if (isNative()) {
-    await StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
     await Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => undefined);
     void Keyboard.addListener('keyboardWillShow', () => onKeyboard(true));
     void Keyboard.addListener('keyboardWillHide', () => onKeyboard(false));
@@ -39,9 +37,16 @@ export function haptic(kind: 'light' | 'success' | 'warning' | 'error' = 'light'
 export async function shareFile(data: Blob | Uint8Array | string, filename: string, mime: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: mime });
   if (isNative()) {
-    const bytes = new Uint8Array(await blob.arrayBuffer());
     const path = `exports/${Date.now()}-${filename}`;
-    const { uri } = await Filesystem.writeFile({ path, data: bytesToBase64(bytes), directory: Directory.Cache, recursive: true });
+    // Written in 3 MB slices (a multiple of 3 bytes, so each base64 chunk decodes on its own): a big
+    // backup never exists as one giant base64 string crossing the bridge (audit 3, R11).
+    const CHUNK = 3 * 1024 * 1024;
+    let uri = '';
+    for (let off = 0; off === 0 || off < blob.size; off += CHUNK) {
+      const data = bytesToBase64(new Uint8Array(await blob.slice(off, off + CHUNK).arrayBuffer()));
+      if (off === 0) uri = (await Filesystem.writeFile({ path, data, directory: Directory.Cache, recursive: true })).uri;
+      else await Filesystem.appendFile({ path, data, directory: Directory.Cache });
+    }
     try {
       await Share.share({ title: filename, files: [uri] });
       return 'shared';
@@ -61,6 +66,17 @@ export async function shareFile(data: Blob | Uint8Array | string, filename: stri
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
   return 'downloaded';
+}
+
+/** Opens a web page outside the app's content: an in-app Safari sheet on iOS, a new tab on the web. */
+export async function openUrl(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) return;
+  if (isNative()) {
+    const { Browser } = await import('@capacitor/browser');
+    await Browser.open({ url, presentationStyle: 'popover' });
+    return;
+  }
+  window.open(url, '_blank', 'noopener');
 }
 
 export async function copyText(text: string): Promise<boolean> {

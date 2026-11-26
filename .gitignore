@@ -16,3 +16,7 @@ fastlane/report.xml
 fastlane/README.md
 public/THIRD_PARTY_LICENSES.txt
 release/
+
+# Temporary agent worktrees
+.claude/worktrees/
+public/libs/

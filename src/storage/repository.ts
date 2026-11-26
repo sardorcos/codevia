@@ -1,4 +1,4 @@
-import { encodeUtf8, makeId, sha256 } from '../core/bytes';
+import { decodeUtf8, encodeUtf8, makeId, sha256, utf8Length } from '../core/bytes';
 import { safeFolderName } from '../core/paths';
 import { detectLanguage } from '../core/templates';
 import {
@@ -15,11 +15,33 @@ import {
   type SnapshotMeta,
 } from '../core/types';
 import { StorageError, withTimeout, type Backend } from './backend';
+import { t } from '../i18n';
 
 const WRITE_TIMEOUT = 20_000;
 const now = () => new Date().toISOString();
-const fileSize = (f: ProjectFile) => (f.text ? encodeUtf8(f.content).length : f.data.byteLength);
+/** Sizes of text files, remembered per file object and content (strings are immutable), so an
+ *  autosave only measures the files that changed instead of re-encoding the whole project. */
+const sizeCache = new WeakMap<ProjectFile, { content: string; size: number }>();
+export function fileSize(f: ProjectFile): number {
+  if (!f.text) return f.data.byteLength;
+  const hit = sizeCache.get(f);
+  if (hit && hit.content === f.content) return hit.size;
+  const size = utf8Length(f.content);
+  sizeCache.set(f, { content: f.content, size });
+  return size;
+}
 export const filesSize = (files: Files) => Object.values(files).reduce((s, f) => s + fileSize(f), 0);
+
+/** Converts a stored blob to the kind (text/binary) a snapshot entry expects. */
+const asKind = (f: ProjectFile, text: boolean): ProjectFile =>
+  f.text === text ? f : f.text ? { text: false, data: encodeUtf8(f.content) } : { text: true, content: decodeUtf8(f.data) };
+
+/** Automatic versions younger than this are never pruned (a burst of deletions must stay undoable). */
+const AUTO_KEEP_MS = 24 * 60 * 60 * 1000;
+/** Hard cap on automatic versions per project, even within the protection window. */
+const AUTO_HARD_CAP = 60;
+/** Garbage collection reads every snapshot; run it at most this often, outside the save path. */
+const GC_DELAY_MS = 30_000;
 const metaOf = (p: Project): ProjectMeta => {
   const { files: _files, ...meta } = p;
   return meta;
@@ -42,7 +64,7 @@ export class Repository {
   }
 
   private guard<T>(p: Promise<T>): Promise<T> {
-    return withTimeout(p, WRITE_TIMEOUT, 'Сохранение не завершилось вовремя. Проверьте свободное место.');
+    return withTimeout(p, WRITE_TIMEOUT, t('Сохранение не завершилось вовремя. Проверьте свободное место.'));
   }
 
   async init(): Promise<void> {
@@ -88,14 +110,14 @@ export class Repository {
   createProject(name: string, language: Language, files: Files): Promise<Project> {
     return this.exclusive(async () => {
       const existing = await this.backend.listMeta();
-      if (existing.length >= LIMITS.maxProjects) throw new StorageError(`Можно хранить не более ${LIMITS.maxProjects} проектов`);
+      if (existing.length >= LIMITS.maxProjects) throw new StorageError(t('Можно хранить не более {count} проектов', { count: LIMITS.maxProjects }));
       const size = filesSize(files);
-      if (size > LIMITS.maxProjectBytes) throw new StorageError('Проект слишком большой');
-      if (Object.keys(files).length > LIMITS.maxFilesPerProject) throw new StorageError('В проекте слишком много файлов');
+      if (size > LIMITS.maxProjectBytes) throw new StorageError(t('Проект слишком большой'));
+      if (Object.keys(files).length > LIMITS.maxFilesPerProject) throw new StorageError(t('В проекте слишком много файлов'));
       const stamp = now();
       const meta: ProjectMeta = {
         id: makeId(),
-        name: name.trim().slice(0, 80) || 'Новый проект',
+        name: name.trim().slice(0, 80) || t('Новый проект'),
         language,
         createdAt: stamp,
         updatedAt: stamp,
@@ -138,7 +160,7 @@ export class Repository {
       for (const path of paths) {
         const f = project.files[path];
         if (!f) continue;
-        if (fileSize(f) > LIMITS.maxFileBytes) throw new StorageError(`Файл ${path} слишком большой для сохранения`);
+        if (fileSize(f) > LIMITS.maxFileBytes) throw new StorageError(t('Файл {name} слишком большой для сохранения', { name: path }));
         await this.guard(this.backend.writeFile(project, path, f));
       }
       await this.touch(project);
@@ -150,8 +172,8 @@ export class Repository {
   }
 
   async addFile(project: Project, path: string, file: ProjectFile): Promise<void> {
-    if (Object.prototype.hasOwnProperty.call(project.files, path)) throw new StorageError('Такой файл уже существует');
-    if (Object.keys(project.files).length >= LIMITS.maxFilesPerProject) throw new StorageError('Достигнут лимит файлов');
+    if (Object.prototype.hasOwnProperty.call(project.files, path)) throw new StorageError(t('Такой файл уже существует'));
+    if (Object.keys(project.files).length >= LIMITS.maxFilesPerProject) throw new StorageError(t('Достигнут лимит файлов'));
     project.files[path] = file;
     try {
       await this.saveFiles(project, [path]);
@@ -173,7 +195,7 @@ export class Repository {
     return this.exclusive(async () => {
       const f = project.files[from];
       if (!f) return;
-      if (Object.prototype.hasOwnProperty.call(project.files, to)) throw new StorageError('Файл с таким именем уже существует');
+      if (Object.prototype.hasOwnProperty.call(project.files, to)) throw new StorageError(t('Файл с таким именем уже существует'));
       await this.guard(this.backend.writeFile(project, to, f));
       await this.guard(this.backend.deleteFile(project, from));
       project.files[to] = f;
@@ -185,7 +207,7 @@ export class Repository {
   renameProject(project: Project, name: string): Promise<void> {
     return this.exclusive(async () => {
       const clean = name.trim().slice(0, 80);
-      if (!clean) throw new StorageError('Укажите название');
+      if (!clean) throw new StorageError(t('Укажите название'));
       const oldFolder = project.folder;
       const folder = safeFolderName(clean, (await this.takenFolders(project.id)).filter((f) => f !== oldFolder));
       await this.guard(this.backend.renameFolder(project, folder));
@@ -202,13 +224,19 @@ export class Repository {
     });
   }
 
+  /** Saves changed metadata fields of the project (e.g. its GitHub link). */
+  updateMeta(project: Project, patch: Partial<Pick<ProjectMeta, 'github' | 'entry' | 'language'>>): Promise<void> {
+    Object.assign(project, patch);
+    return this.exclusive(() => this.guard(this.backend.putMeta(metaOf(project))));
+  }
+
   setEntry(project: Project, entry: string): Promise<void> {
     project.entry = entry;
     return this.exclusive(() => this.guard(this.backend.putMeta(metaOf(project))));
   }
 
   async duplicateProject(project: Project): Promise<Project> {
-    const copy = await this.createProject(`${project.name} (копия)`, project.language, structuredClone(project.files));
+    const copy = await this.createProject(t('{name} (копия)', { name: project.name }), project.language, structuredClone(project.files));
     if (project.entry && copy.files[project.entry]) await this.setEntry(copy, project.entry);
     return copy;
   }
@@ -265,16 +293,44 @@ export class Repository {
   restoreSnapshot(project: Project, snapshotId: string): Promise<void> {
     return this.exclusive(async () => {
       const snap = await this.backend.getSnapshot(project.id, snapshotId);
-      if (!snap) throw new StorageError('Версия не найдена');
+      if (!snap) throw new StorageError(t('Версия не найдена'));
       const files: Files = {};
       for (const [path, e] of Object.entries(snap.entries)) {
         const f = await this.backend.getBlob(e.hash, e.text);
-        if (!f) throw new StorageError(`Повреждена версия: нет данных для ${path}`);
-        files[path] = f;
+        if (!f) throw new StorageError(t('Повреждена версия: нет данных для {name}', { name: path }));
+        files[path] = asKind(f, e.text);
       }
-      await this.createSnapshotUnlocked(project, `Перед восстановлением «${snap.label}»`, 'auto');
+      await this.createSnapshotUnlocked(project, t('Перед восстановлением «{name}»', { name: snap.label }), 'auto');
       await this.replaceFilesUnlocked(project, files);
     });
+  }
+
+  /**
+   * Versions of one file across the project's history, newest first: one entry per distinct content
+   * (consecutive snapshots with the same content collapse into the newest of them).
+   */
+  async fileVersions(project: Project, path: string): Promise<{ snapshot: SnapshotMeta; hash: string; size: number; text: boolean }[]> {
+    const metas = await this.backend.listSnapshots(project.id); // oldest first
+    const out: { snapshot: SnapshotMeta; hash: string; size: number; text: boolean }[] = [];
+    let prev = '';
+    for (const meta of metas) {
+      const snap = await this.backend.getSnapshot(project.id, meta.id);
+      const e = snap?.entries[path];
+      if (!e) {
+        prev = '';
+        continue;
+      }
+      if (e.hash === prev) out[out.length - 1] = { snapshot: meta, hash: e.hash, size: e.size, text: e.text };
+      else out.push({ snapshot: meta, hash: e.hash, size: e.size, text: e.text });
+      prev = e.hash;
+    }
+    return out.reverse();
+  }
+
+  /** Content of one file as stored in a version (null when the version or file is gone). */
+  async readVersionFile(hash: string, text: boolean): Promise<ProjectFile | null> {
+    const f = await this.backend.getBlob(hash, text);
+    return f ? asKind(f, text) : null;
   }
 
   deleteSnapshot(projectId: string, id: string): Promise<void> {
@@ -284,15 +340,29 @@ export class Repository {
     });
   }
 
-  /** Keeps the newest N manual and N automatic versions independently, so autosaves never evict manual ones. */
-  private async prune(projectId: string): Promise<void> {
+  /**
+   * Keeps the newest N manual versions, and automatic versions that are among the newest N or younger
+   * than 24 hours (up to a hard cap). Manual and automatic versions never evict each other.
+   */
+  private async prune(projectId: string, nowMs = Date.now()): Promise<void> {
     const all = await this.backend.listSnapshots(projectId);
-    const drop = [
-      ...all.filter((s) => s.kind === 'manual').slice(0, -LIMITS.maxManualSnapshots),
-      ...all.filter((s) => s.kind === 'auto').slice(0, -LIMITS.maxAutoSnapshots),
-    ];
+    const autos = all.filter((s) => s.kind === 'auto');
+    const keepAuto = new Set(autos.slice(-LIMITS.maxAutoSnapshots).map((s) => s.id));
+    for (const s of autos.slice(-AUTO_HARD_CAP)) if (nowMs - Date.parse(s.at) < AUTO_KEEP_MS) keepAuto.add(s.id);
+    const drop = [...all.filter((s) => s.kind === 'manual').slice(0, -LIMITS.maxManualSnapshots), ...autos.filter((s) => !keepAuto.has(s.id))];
     for (const s of drop) await this.backend.deleteSnapshot(projectId, s.id);
-    if (drop.length) await this.collectGarbageUnlocked();
+    if (drop.length) this.scheduleGarbageCollection();
+  }
+
+  private gcTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Coalesces garbage collection into one idle run instead of one per version save. */
+  private scheduleGarbageCollection(): void {
+    if (this.gcTimer) return;
+    this.gcTimer = setTimeout(() => {
+      this.gcTimer = undefined;
+      void this.collectGarbage().catch(() => undefined);
+    }, GC_DELAY_MS);
   }
 
   collectGarbage(): Promise<void> {
@@ -316,8 +386,10 @@ export class Repository {
   // ---------- settings ----------
 
   async loadSettings(): Promise<Settings & Record<string, unknown>> {
-    const raw = await this.backend.getSettings().catch(() => ({}));
-    return { ...DEFAULT_SETTINGS, ...(raw as Partial<Settings>) };
+    const raw = (await this.backend.getSettings().catch(() => ({}))) as Partial<Settings>;
+    // Long lines are wrapped by default on phones, where a line rarely fits the screen.
+    const phone = typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
+    return { ...DEFAULT_SETTINGS, wrapLines: phone, ...raw };
   }
 
   saveSettings(s: Settings & Record<string, unknown>): Promise<void> {

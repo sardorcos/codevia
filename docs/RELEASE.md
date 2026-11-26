@@ -31,6 +31,9 @@ Workflow `.github/workflows/testflight.yml` делает то же самое н
 | Приложение «Codevia Pocket» в App Store Connect (SKU `codevia-pocket-ios`, основной язык English (US)) | ✅ создано |
 | Первая сборка в TestFlight | ✅ 1.0.0 (10), VALID, загружена через Codemagic 21.11.2026 |
 | iOS-проект собирается на macOS (Xcode 26.6, Release, без подписи) | ✅ собирается в CI (задача `ios-build`), приложение 28 МБ |
+| Карточка App Store (тексты ru/en, категории, 4+, бесплатно, 175 стран, 6+6 скриншотов, сборка 10, контакт и заметки для ревью) | ✅ применена `app-store-metadata` 21.11.2026 |
+| App Privacy «Data Not Collected», GitHub Pages, формы соответствия (Китай) | ✅ выполнено в браузере 22.11.2026 |
+| Отправка на App Review | ✅ 22.11.2026, версия 1.0.0 (сборка 10), статус WAITING_FOR_REVIEW |
 
 > Основной язык карточки — English (US), а интерфейс приложения русский. При заполнении метаданных добавьте локализацию **Russian**: App Store Connect → приложение → App Information → Localizable Information → «+». Тексты для обеих локализаций лежат в `docs/APP_STORE.md`.
 
