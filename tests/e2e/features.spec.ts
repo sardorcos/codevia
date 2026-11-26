@@ -356,3 +356,13 @@ test('appearance: light and dark themes switch in Settings and are remembered', 
   await page.locator('[data-action="theme"][data-value="dark"]').click();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
 });
+
+test('new project: the "Ready-made projects" tab shows only the gallery', async ({ page }) => {
+  await start(page);
+  await page.getByRole('button', { name: 'Новый', exact: true }).click();
+  await expect(page.locator('[data-np-panel="tpl"]')).toBeVisible();
+  await expect(page.locator('[data-np-panel="gallery"]')).toBeHidden();
+  await page.locator('[data-np-tab="gallery"]').click();
+  await expect(page.locator('[data-np-panel="tpl"]')).toBeHidden();
+  await expect(page.locator('[data-np-panel="gallery"]')).toBeVisible();
+});
