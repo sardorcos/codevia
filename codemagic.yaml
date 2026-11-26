@@ -461,6 +461,19 @@ workflows:
           python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
           python3 tools/asc_submit.py modellink/appstore/metadata.json
 
+  # Read-only: versions and review submissions of ModelLink.
+  modellink-app-store-status:
+    name: ModelLink — App Store status
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: App Store status
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py modellink/appstore/metadata.json --status
+
   # Same as above, then sends the version with the newest processed build to App Review.
   modellink-app-store-submit:
     name: ModelLink — submit for App Review
