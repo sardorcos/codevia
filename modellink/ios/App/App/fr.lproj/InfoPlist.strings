@@ -1,0 +1,2 @@
+"NSFaceIDUsageDescription" = "Face ID déverrouille le coffre contenant les projets confidentiels.";
+"NSCameraUsageDescription" = "L’appareil photo scanne le code QR contenant la clé d’accès d’un paquet protégé.";

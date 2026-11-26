@@ -1,0 +1,2 @@
+"NSFaceIDUsageDescription" = "面容 ID 用于解锁存放机密项目的保险箱。";
+"NSCameraUsageDescription" = "相机用于扫描加密包访问密钥的二维码。";

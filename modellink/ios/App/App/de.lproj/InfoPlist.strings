@@ -1,0 +1,2 @@
+"NSFaceIDUsageDescription" = "Face ID entsperrt den Tresor mit vertraulichen Projekten.";
+"NSCameraUsageDescription" = "Die Kamera scannt den QR-Code mit dem Zugangsschlüssel eines geschützten Pakets.";

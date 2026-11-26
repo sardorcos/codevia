@@ -222,3 +222,240 @@ workflows:
         script: |
           python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
           python3 tools/asc_submit.py appstore/metadata.json --submit
+
+  # ModelLink (modellink/): read-only look at App Store Connect apps and bundle IDs of the team.
+  modellink-asc-discovery:
+    name: ModelLink — App Store Connect discovery
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: Apps and bundle IDs
+        script: |
+          set -euo pipefail
+          app-store-connect apps list --json > /tmp/apps.json
+          python3 - <<'PY'
+          import json
+          for a in json.load(open('/tmp/apps.json')):
+              at = a['attributes']
+              print(f"app {a['id']} | {at.get('name')} | {at.get('bundleId')} | sku={at.get('sku')} | lang={at.get('primaryLocale')}")
+          PY
+          app-store-connect bundle-ids list --platform IOS --json > /tmp/bids.json
+          python3 - <<'PY'
+          import json
+          for b in json.load(open('/tmp/bids.json')):
+              at = b['attributes']
+              print(f"bundle {b['id']} | {at.get('identifier')} | {at.get('name')} | seed={at.get('seedId')}")
+          PY
+
+  # ModelLink (modellink/): web app in Capacitor 8 + native document plugin → TestFlight.
+  modellink-testflight:
+    name: ModelLink → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: modellink
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - codevia_signing
+      ios_signing:
+        # Team Apple Distribution identity (see ios-testflight above). The referenced profile
+        # belongs to another app; ModelLink's own App Store profile is fetched/created below.
+        certificates:
+          - monetniy-mir-distribution
+        provisioning_profiles:
+          - mayor-city-app-store
+      node: 22
+      xcode: latest
+      vars:
+        BUNDLE_ID: com.neverlandplayworks.modellink
+        APP_NAME: ModelLink
+        APP_SKU: modellink-ios
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+    scripts:
+      - name: Toolchain
+        script: |
+          xcodebuild -version
+          node --version
+          xcode_major=$(xcodebuild -version | head -1 | sed -E 's/Xcode ([0-9]+).*/\1/')
+          if [ "$xcode_major" -lt 26 ]; then echo "Capacitor 8 needs Xcode 26+"; exit 1; fi
+      - name: App Store Connect bundle ID and app record
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_setup.py "$BUNDLE_ID" "$APP_NAME" "$APP_SKU"
+      - name: Install dependencies and test
+        script: |
+          npm ci
+          npm run check
+      - name: Build web app and sync iOS project
+        script: |
+          npm run build
+          npx cap sync ios
+      - name: Set build number
+        script: |
+          sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9.]+;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "MARKETING_VERSION" "$XCODE_PROJECT/project.pbxproj"
+      - name: App Store profile
+        script: |
+          set -euo pipefail
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier "$BUNDLE_ID" --platform IOS --strict-match-identifier --json \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+          # Profiles that contained a revoked certificate become INVALID: delete them first.
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state INVALID --json 2>/dev/null \
+            | python3 -c "import json,sys; [print(p['id']) for p in json.load(sys.stdin)]" \
+            | while read -r pid; do echo "Deleting invalid profile $pid"; app-store-connect profiles delete "$pid"; done || true
+          ACTIVE=$(app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state ACTIVE --json 2>/dev/null \
+            | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" || echo 0)
+          if [ "$ACTIVE" = "0" ]; then
+            CERT_IDS=$(app-store-connect certificates list --type DISTRIBUTION IOS_DISTRIBUTION --json \
+              | python3 -c "import json,sys; print(' '.join(c['id'] for c in json.load(sys.stdin)))")
+            app-store-connect profiles create "$BID" --type IOS_APP_STORE --certificate-ids $CERT_IDS --name "ModelLink App Store"
+          fi
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state ACTIVE --save
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: Build IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME" --config Release
+          ls -la build/ios/ipa
+          unzip -q -o build/ios/ipa/*.ipa -d /tmp/ipa
+          codesign -dvv /tmp/ipa/Payload/App.app 2>&1 | grep -E "Authority=Apple Distribution|TeamIdentifier|Identifier=" || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :CFBundleShortVersionString" -c "Print :CFBundleVersion" /tmp/ipa/Payload/App.app/Info.plist
+    artifacts:
+      - modellink/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+
+  # ModelLink: same build, signed IPA as an artifact, no App Store Connect upload (compile/signing check).
+  modellink-ios-build:
+    name: ModelLink — signed IPA (no upload)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: modellink
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - codevia_signing
+      ios_signing:
+        # Team Apple Distribution identity (see ios-testflight above). The referenced profile
+        # belongs to another app; ModelLink's own App Store profile is fetched/created below.
+        certificates:
+          - monetniy-mir-distribution
+        provisioning_profiles:
+          - mayor-city-app-store
+      node: 22
+      xcode: latest
+      vars:
+        BUNDLE_ID: com.neverlandplayworks.modellink
+        APP_NAME: ModelLink
+        APP_SKU: modellink-ios
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+    scripts:
+      - name: Toolchain
+        script: |
+          xcodebuild -version
+          node --version
+          xcode_major=$(xcodebuild -version | head -1 | sed -E 's/Xcode ([0-9]+).*/\1/')
+          if [ "$xcode_major" -lt 26 ]; then echo "Capacitor 8 needs Xcode 26+"; exit 1; fi
+      - name: Install dependencies and test
+        script: |
+          npm ci
+          npm run check
+      - name: Build web app and sync iOS project
+        script: |
+          npm run build
+          npx cap sync ios
+      - name: Set build number
+        script: |
+          sed -i '' -E "s/CURRENT_PROJECT_VERSION = [0-9.]+;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "CURRENT_PROJECT_VERSION" "$XCODE_PROJECT/project.pbxproj"
+          grep -m1 "MARKETING_VERSION" "$XCODE_PROJECT/project.pbxproj"
+      - name: App Store profile
+        script: |
+          set -euo pipefail
+          BID=$(app-store-connect bundle-ids list --bundle-id-identifier "$BUNDLE_ID" --platform IOS --strict-match-identifier --json \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+          # Profiles that contained a revoked certificate become INVALID: delete them first.
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state INVALID --json 2>/dev/null \
+            | python3 -c "import json,sys; [print(p['id']) for p in json.load(sys.stdin)]" \
+            | while read -r pid; do echo "Deleting invalid profile $pid"; app-store-connect profiles delete "$pid"; done || true
+          ACTIVE=$(app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state ACTIVE --json 2>/dev/null \
+            | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" || echo 0)
+          if [ "$ACTIVE" = "0" ]; then
+            CERT_IDS=$(app-store-connect certificates list --type DISTRIBUTION IOS_DISTRIBUTION --json \
+              | python3 -c "import json,sys; print(' '.join(c['id'] for c in json.load(sys.stdin)))")
+            app-store-connect profiles create "$BID" --type IOS_APP_STORE --certificate-ids $CERT_IDS --name "ModelLink App Store"
+          fi
+          app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE --state ACTIVE --save
+          keychain add-certificates
+          xcode-project use-profiles --project "$XCODE_PROJECT"
+      - name: Build IPA
+        script: |
+          set -euo pipefail
+          xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME" --config Release
+          ls -la build/ios/ipa
+          unzip -q -o build/ios/ipa/*.ipa -d /tmp/ipa
+          codesign -dvv /tmp/ipa/Payload/App.app 2>&1 | grep -E "Authority=Apple Distribution|TeamIdentifier|Identifier=" || true
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :CFBundleShortVersionString" -c "Print :CFBundleVersion" /tmp/ipa/Payload/App.app/Info.plist
+    artifacts:
+      - modellink/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+  # ModelLink: wait for TestFlight processing, create the internal group, add the account holder.
+  modellink-testflight-testers:
+    name: ModelLink — TestFlight testers
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: modellink
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: Internal testing
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_testflight.py com.neverlandplayworks.modellink --timeout-min 50 --notes appstore/testflight.json
+
+  # ModelLink App Store page: texts (ru, en-US), categories, age rating, price, availability, iPhone + iPad
+  # screenshots, review notes and the newest processed build (modellink/appstore). Does not submit.
+  modellink-app-store-metadata:
+    name: ModelLink — App Store page
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - review_contact
+    scripts:
+      - name: Apply metadata
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py modellink/appstore/metadata.json
+
+  # Same as above, then sends the version with the newest processed build to App Review.
+  modellink-app-store-submit:
+    name: ModelLink — submit for App Review
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - review_contact
+    scripts:
+      - name: Apply metadata and submit
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py modellink/appstore/metadata.json --submit
