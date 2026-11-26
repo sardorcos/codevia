@@ -127,6 +127,34 @@ workflows:
           app-store-connect bundle-ids profiles --bundle-ids "$BID" --type IOS_APP_STORE
 
   # Read-only: shows the processing state of uploaded builds in App Store Connect / TestFlight.
+  # Checks the public GitHub App used for "Sign in with GitHub" (device flow): app page by slug and
+  # whether the device flow is enabled. Prints no codes or secrets.
+  github-app-check:
+    name: Codevia Pocket — GitHub App check
+    instance_type: linux_x2
+    max_build_duration: 5
+    environment:
+      vars:
+        GITHUB_CLIENT_ID: Iv23liJ0NdoHBNIReM0a
+    scripts:
+      - name: GitHub App
+        script: |
+          set -u
+          for slug in codevia-pocket codevia-pocket-app; do
+            curl -s -H 'Accept: application/vnd.github+json' "https://api.github.com/apps/$slug" > app.json
+            python3 - "$slug" <<'PY'
+          import json, os, sys
+          d = json.load(open('app.json'))
+          if d.get('client_id'):
+              print(f"slug={sys.argv[1]} client_id={d['client_id']} match={d['client_id'] == os.environ['GITHUB_CLIENT_ID']} owner={d['owner']['login']}")
+              print('permissions', d.get('permissions'), 'events', d.get('events'))
+          else:
+              print(f"slug={sys.argv[1]}: {d.get('message')}")
+          PY
+          done
+          curl -s -X POST -H 'Accept: application/json' -d "client_id=$GITHUB_CLIENT_ID&scope=" https://github.com/login/device/code > dev.json
+          python3 -c "import json; d=json.load(open('dev.json')); print('device flow:', 'ENABLED' if 'device_code' in d else d)"
+
   testflight-status:
     name: Codevia Pocket — TestFlight status
     instance_type: mac_mini_m2
