@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Codevia Pocket — GitHub App</title>
+<style>
+  :root { color-scheme: light dark; --accent: #0a74b0; --muted: #57606a; --line: #d0d7de; --ok: #17795a; --bg2: #f6f8fa; }
+  @media (prefers-color-scheme: dark) { :root { --accent: #40c8f6; --muted: #9aa4b2; --line: #30363d; --ok: #60d7af; --bg2: #161b22; } }
+  body { font: 16px/1.55 -apple-system, system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-size: 26px; margin: 0 0 8px; } h2 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { color: inherit; } .muted { color: var(--muted); font-size: 14px; }
+  button, .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px; border: 0; border-radius: 12px;
+    background: var(--accent); color: #fff; font: 600 17px -apple-system, system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+  @media (prefers-color-scheme: dark) { button, .btn { color: #062330; } }
+  .card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 16px 0; background: var(--bg2); }
+  code, .id { font: 600 18px ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  ol { padding-left: 22px; } li { margin: 6px 0; }
+  .ok { color: var(--ok); font-weight: 600; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <section id="start">
+    <h1>GitHub App для Codevia Pocket</h1>
+    <p>Эта страница создаёт GitHub App, через который приложение входит в GitHub по коду (Device Flow). Все поля и права уже заполнены — на GitHub останется нажать одну кнопку.</p>
+    <div class="card">
+      <strong>Что получит приложение</strong>
+      <ul class="muted">
+        <li>Содержимое репозиториев — чтение и запись (клонирование, коммит, пуш)</li>
+        <li>GitHub Pages — чтение и запись (публикация сайта)</li>
+        <li>Администрирование — чтение и запись (кнопка «Создать репозиторий»)</li>
+        <li>Метаданные — только чтение (обязательно для любого GitHub App)</li>
+      </ul>
+      <p class="muted">Доступ появляется только к тем репозиториям, на которые пользователь сам установит приложение. Вебхуков нет.</p>
+    </div>
+    <form id="manifest-form" method="post" action="https://github.com/settings/apps/new">
+      <input type="hidden" name="manifest" id="manifest">
+      <button type="submit">Создать GitHub App на GitHub</button>
+    </form>
+    <p class="muted">Откроется github.com под вашим аккаунтом. Проверьте имя и нажмите <b>Create GitHub App</b>. Если имя занято, поменяйте его на «Codevia Pocket App».</p>
+  </section>
+
+  <section id="done" hidden>
+    <h1 class="ok">GitHub App создан</h1>
+    <div class="card">
+      <div class="muted">Client ID</div>
+      <div class="id" id="client-id"></div>
+      <p><button type="button" id="copy">Скопировать Client ID</button></p>
+      <div class="muted">Публичная страница: <a id="public-link" href="#"></a></div>
+    </div>
+    <h2>Осталось два переключателя</h2>
+    <ol>
+      <li>Откройте <a id="settings-link" href="https://github.com/settings/apps">настройки приложения</a>.</li>
+      <li>Поставьте галочку <b>Enable Device Flow</b>.</li>
+      <li>Снимите галочку <b>Expire user authorization tokens</b>.</li>
+      <li>Нажмите <b>Save changes</b> внизу страницы.</li>
+    </ol>
+    <p>Затем пришлите Client ID в чат с Claude — это публичное значение, его можно писать открыто. Client secret и private key <b>не создавайте</b>: приложению они не нужны.</p>
+    <p class="muted">Секреты, которые GitHub выдаёт при создании, эта страница не показывает и никуда не отправляет.</p>
+  </section>
+
+  <section id="manual" hidden>
+    <h1>Почти готово</h1>
+    <p id="manual-reason" class="muted"></p>
+    <ol>
+      <li>Откройте <a href="https://github.com/settings/apps">github.com/settings/apps</a> и выберите созданное приложение.</li>
+      <li>Скопируйте <b>Client ID</b> (начинается с <code>Iv</code>).</li>
+      <li>Поставьте галочку <b>Enable Device Flow</b>, снимите <b>Expire user authorization tokens</b>, нажмите <b>Save changes</b>.</li>
+      <li>Пришлите Client ID в чат с Claude.</li>
+    </ol>
+  </section>
+</main>
+<script>
+(function () {
+  var here = location.origin + location.pathname;
+  var manifest = {
+    name: 'Codevia Pocket',
+    url: 'https://sardorcos.github.io/codevia/',
+    description: 'Sign in to GitHub from Codevia Pocket on iPhone and iPad: clone, commit, push and publish to GitHub Pages.',
+    hook_attributes: { url: 'https://sardorcos.github.io/codevia/', active: false },
+    redirect_url: here,
+    public: true,
+    default_permissions: { contents: 'write', metadata: 'read', pages: 'write', administration: 'write' },
+    default_events: []
+  };
+  document.getElementById('manifest').value = JSON.stringify(manifest);
+
+  var code = new URLSearchParams(location.search).get('code');
+  if (!code) return;
+  history.replaceState(null, '', here);
+  document.getElementById('start').hidden = true;
+
+  function manual(reason) {
+    document.getElementById('manual-reason').textContent = reason;
+    document.getElementById('manual').hidden = false;
+  }
+  if (!/^[\w-]{6,100}$/.test(code)) return manual('Ссылка от GitHub выглядит необычно.');
+
+  // Exchanges the one-time code for the app's public details. Only the client id and slug are kept.
+  fetch('https://api.github.com/app-manifests/' + encodeURIComponent(code) + '/conversions', {
+    method: 'POST',
+    headers: { Accept: 'application/vnd.github+json' }
+  })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+    .then(function (app) {
+      var id = String(app.client_id || ''), slug = String(app.slug || '');
+      app = null;
+      if (!id) throw new Error('no client id');
+      document.getElementById('client-id').textContent = id;
+      var pub = 'https://github.com/apps/' + encodeURIComponent(slug);
+      var pl = document.getElementById('public-link');
+      pl.href = pub; pl.textContent = pub;
+      document.getElementById('settings-link').href = 'https://github.com/settings/apps/' + encodeURIComponent(slug);
+      document.getElementById('copy').addEventListener('click', function () {
+        navigator.clipboard.writeText(id).then(function () {
+          document.getElementById('copy').textContent = 'Скопировано';
+        });
+      });
+      document.getElementById('done').hidden = false;
+    })
+    .catch(function (e) {
+      manual('Приложение создано, но получить Client ID автоматически не удалось (' + e.message + ').');
+    });
+})();
+</script>
+</body>
+</html>
