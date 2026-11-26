@@ -301,22 +301,28 @@ def apply_version_localizations(asc, version, meta, base_dir):
                 "relationships": {"appStoreVersion": rel("appStoreVersions", version["id"])}}})["data"]["id"]
         log(f"Version text [{locale}]: description {len(attrs.get('description', ''))} chars, keywords {len(attrs.get('keywords', ''))} chars")
         result[locale] = lid
-        shots = sorted((base_dir / loc["screenshots"]).glob("*.png")) if loc.get("screenshots") else []
+        shots = sorted((base_dir / loc["screenshots"]).glob("*.png"), key=shot_order) if loc.get("screenshots") else []
         if shots:
             upload_screenshots(asc, lid, shots, SCREENSHOT_TYPE)
-        ipad = sorted((base_dir / loc["ipadScreenshots"]).glob("*.png")) if loc.get("ipadScreenshots") else []
+        ipad = sorted((base_dir / loc["ipadScreenshots"]).glob("*.png"), key=shot_order) if loc.get("ipadScreenshots") else []
         if ipad:
             size = png_size(ipad[0])
             if size not in IPAD_TYPES:
                 raise SystemExit(f"Unsupported iPad screenshot size {size}")
             upload_screenshots(asc, lid, ipad, IPAD_TYPES[size])
-        watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png")) if loc.get("watchScreenshots") else []
+        watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png"), key=shot_order) if loc.get("watchScreenshots") else []
         if watch:
             size = png_size(watch[0])
             if size not in WATCH_TYPES:
                 raise SystemExit(f"Unsupported Apple Watch screenshot size {size}")
             upload_screenshots(asc, lid, watch, WATCH_TYPES[size])
     return result
+
+
+def shot_order(path):
+    """Store order from the number prefix: 1-…, 2-…, …, 10-… (not alphabetical)."""
+    m = re.match(r"(\d+)", path.name)
+    return (int(m.group(1)) if m else 10**6, path.name)
 
 
 def upload_screenshots(asc, loc_id, files, display_type):
