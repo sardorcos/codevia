@@ -1,0 +1,2 @@
+"NSFaceIDUsageDescription" = "Face ID, gizli projelerin bulunduğu kasayı açar.";
+"NSCameraUsageDescription" = "Kamera, korumalı paketin erişim anahtarını içeren QR kodunu tarar.";

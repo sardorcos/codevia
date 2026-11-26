@@ -137,8 +137,8 @@ export async function removeProject(id){
 export async function getNotes(projectId){return (await all(STORE.notes)).filter(n=>n.projectId===projectId).sort((a,b)=>b.createdAt-a.createdAt);}
 export async function getAllNotes(){return all(STORE.notes);}
 export async function addNote({projectId,assetId,text,point,locationType='normalized',page=1,audio=null,audioDuration=0}){
-  if(!String(text||'').trim()&&!audio) throw new Error('Напишите замечание или запишите голосовое');
-  if(!String(text||'').trim())text='Голосовое замечание';
+  if(!String(text||'').trim()&&!audio) throw new Error('Напишите замечание');
+  if(!String(text||'').trim())text='—';
   const asset=await one(STORE.assets,assetId);
   if(!asset||asset.projectId!==projectId) throw new Error('Файл не найден');
   const note={id:uid(),projectId,assetId,version:asset.version,text:String(text).trim().slice(0,1200),point,locationType,page,status:'open',createdAt:Date.now(),...(audio?{audio,audioDuration}:{})};
