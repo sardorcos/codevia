@@ -4,6 +4,7 @@
 // plus {layer, color:'#rrggbb'|null}. null colour means "ink" (ACI 7: black on light, white on dark).
 
 import { parseDXF } from './geometry.js';
+import { acisWireframe } from './acis.js';
 
 const MAX_PRIMITIVES = 400000;
 const MAX_DEPTH = 12;
@@ -253,7 +254,14 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           return;
         }
         case 'Wipeout': case 'Viewport': case 'AttributeDefinition': return;
-        case 'Solid3D': case 'Region': case 'Body': case 'Shape': case 'Ole2Frame': skipped[kind] = (skipped[kind] || 0) + 1; return;
+        case 'Solid3D': case 'Region': case 'Body': { // ACIS bodies: draw the edges (regions are flat, solids are seen from the top)
+          let paths = [];
+          try { const data = ent.isBinaryAcisData ? ent.acisData : ent.getAcisText?.(); if (data && data.length) paths = acisWireframe(data, { precision }).paths; } catch { paths = []; }
+          if (!paths.length) { skipped[kind] = (skipped[kind] || 0) + 1; return; }
+          for (const path of paths) if (path.length > 1) push({ type: 'polyline', points: path.map(q => [q[0], q[1]]), closed: false }, ent, inherited);
+          return;
+        }
+        case 'Shape': case 'Ole2Frame': skipped[kind] = (skipped[kind] || 0) + 1; return;
         default:
           if (kind.startsWith('Dimension')) {
             const block = ent.block;

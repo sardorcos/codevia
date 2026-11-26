@@ -74,3 +74,27 @@ test('MTEXT inline colour',async()=>{
   assert.equal(mtextColor('{\\fArial|b1;\\C7;x}'),null);
   assert.equal(mtextColor('plain'),undefined);
 });
+
+test('ACIS bodies (REGION / 3DSOLID): edges with lines, arcs and a body transform',async()=>{
+  const {acisWireframe,parseSab}=await import('../core/acis.js');
+  // A "D" shape: straight edge (0,-5)→(0,5) and a half circle of radius 5 back, drawn once forward and once reversed.
+  const sat=(arc)=>['400 0 1 0','16 Autodesk AutoCAD 19 ASM 221.0.0.1871 NT 24 Tue Aug 16 09:33:25 2022','25.4 9.9999999999999995e-07 1e-10',
+   'body $-1 $-1 $-1 $1 #','transform $-1 1 0 0 0 1 0 0 0 1 100 200 0 1 no_rotate no_reflect no_shear #',
+   'edge $-1 $4 $5 $-1 $8 forward #',arc,
+   'vertex $-1 $2 $6 #','vertex $-1 $2 $7 #','point $-1 0 -5 0 #','point $-1 0 5 0 #',
+   'straight-curve $-1 0 0 0 0 1 0 I I #','ellipse-curve $-1 0 0 0 0 0 1 5 0 0 1 I I #'].join('\n');
+  const mid=p=>p[Math.floor(p.length/2)];
+  // forward: counter-clockwise about +Z from (0,5) to (0,-5) passes through (-5,0)
+  let w=acisWireframe(sat('edge $-1 $5 $4 $-1 $9 forward #'));
+  assert.equal(w.paths.length,2);
+  assert.deepEqual(w.paths[0].map(q=>q.slice(0,2)),[[100,195],[100,205]],'transform applied to the straight edge');
+  assert.ok(Math.abs(mid(w.paths[1])[0]-95)<1e-6&&Math.abs(mid(w.paths[1])[1]-200)<1e-6,'forward arc goes counter-clockwise');
+  for(const q of w.paths[1])assert.ok(Math.abs(Math.hypot(q[0]-100,q[1]-200)-5)<1e-9,'arc points lie on the circle');
+  // reversed: clockwise from (0,5) to (0,-5) passes through (5,0)
+  w=acisWireframe(sat('edge $-1 $5 $4 $-1 $9 reversed #'));
+  assert.ok(Math.abs(mid(w.paths[1])[0]-105)<1e-6,'reversed arc goes clockwise');
+  // closed edge (one vertex): a full circle
+  w=acisWireframe(sat('edge $-1 $4 $4 $-1 $9 forward #'));
+  const c=w.paths[1];assert.ok(c.length>48&&Math.hypot(c[0][0]-c.at(-1)[0],c[0][1]-c.at(-1)[1])<1e-9,'full circle');
+  assert.deepEqual(parseSab(new Uint8Array(40)),[],'not SAB');
+});
