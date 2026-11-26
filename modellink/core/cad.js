@@ -186,7 +186,7 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           try {
             const bb = ent.getBoundingBox?.(), diag = bb ? Math.hypot(bb.max.x - bb.min.x, bb.max.y - bb.min.y) : 0;
             const est = (ent.pattern?.lines || []).reduce((a, l) => a + (Math.abs(l.lineOffset) > 1e-9 ? diag / Math.abs(l.lineOffset) : Infinity), 0);
-            if (est > 0 && est < 1500 && hatchLines < 120000 && !(ent.normal && ent.normal.z < -0.5)) lines = ent.explodePattern();
+            if (est > 0 && est < 1500 && hatchLines < 80000 && !(ent.normal && ent.normal.z < -0.5)) lines = ent.explodePattern();
           } catch { lines = null; }
           if (lines && lines.length) { hatchLines += lines.length; for (const l of lines) push({ type: 'line', a: [l.startPoint.x, l.startPoint.y], b: [l.endPoint.x, l.endPoint.y], hatch: true }, ent, inherited); }
           else for (const l of loops) push({ type: 'polyline', points: l, closed: true, fill: true, hatch: true }, ent, inherited);

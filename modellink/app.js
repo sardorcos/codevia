@@ -868,30 +868,41 @@ async function activateCadViewer(f,host,wrap){
   const b=drawing.bounds,unit=drawing.units||'ед.';
   const hidden=hiddenLayers.get(f.id)||new Set(drawing.layers.filter(l=>!l.visible).map(l=>l.name));hiddenLayers.set(f.id,hidden);
   const vs=viewStates.get(f.id)||{zoom:1,cx:(b.minX+b.maxX)/2,cy:(b.minY+b.maxY)/2};viewStates.set(f.id,vs);
-  let w=0,h=0,dpr=1,groups=[],texts=[],dots=[],snap=new Float64Array(0),measure=[],frame=0;
+  let w=0,h=0,dpr=1,groups=[],texts=[],dots=[],snap=new Float64Array(0),measure=[],frame=0,prims=0,drawMs=0,drawnAt=0,last=null,settle=0;
   const base=()=>Math.min((w-32)/Math.max(1e-9,b.maxX-b.minX),(h-32)/Math.max(1e-9,b.maxY-b.minY));
   const scale=()=>base()*vs.zoom;
   const toScreen=(x,y)=>{const k=scale();return [(x-vs.cx)*k+w/2,h/2-(y-vs.cy)*k];};
   const toWorld=(sx,sy)=>{const k=scale();return [(sx-w/2)/k+vs.cx,(h/2-sy)/k+vs.cy];};
+  // Geometry is batched by style and by grid cell, so a frame strokes only the cells inside the viewport
+  // (a catalogue with many sheets is not redrawn in full when one sheet is on screen).
   function build(){
-    const map=new Map();texts=[];dots=[];const sp=[];
-    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):e.hatch?'l':''}|${e.dash?e.dash.join(','):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,dash:e.dash||null,path:new Path2D()};map.set(key,g);}return g.path;};
+    const map=new Map();texts=[];dots=[];const sp=[];prims=0;
+    const n=Math.max(1,Math.min(24,Math.ceil(Math.sqrt(drawing.entities.length/800)))),cw=Math.max(1e-9,(b.maxX-b.minX)/n),ch=Math.max(1e-9,(b.maxY-b.minY)/n);
+    const cell=v=>Math.max(0,Math.min(n-1,Math.floor(v)));
+    const group=(e,x0,y0,x1,y1)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):e.hatch?'l':''}|${e.dash?e.dash.join(','):''}|${cell(((x0+x1)/2-b.minX)/cw)},${cell(((y0+y1)/2-b.minY)/ch)}`;let g=map.get(key);
+      if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,dash:e.dash||null,path:new Path2D(),x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity};map.set(key,g);}
+      if(x0<g.x0)g.x0=x0;if(y0<g.y0)g.y0=y0;if(x1>g.x1)g.x1=x1;if(y1>g.y1)g.y1=y1;prims++;return g.path;};
     for(const e of drawing.entities){
       if(hidden.has(e.layer))continue;
-      if(e.type==='line'){const p=group(e);p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(!e.hatch&&sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
-      else if(e.type==='polyline'){const p=group(e);e.points.forEach((q,i)=>i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]));if(e.closed)p.closePath();if(sp.length<6e5)for(const q of e.points.length>200?[e.points[0],e.points.at(-1)]:e.points)sp.push(q[0],q[1]);}
-      else if(e.type==='circle'){if(e.r>0){const p=group(e);p.moveTo(e.c[0]+e.r,e.c[1]);p.arc(e.c[0],e.c[1],e.r,0,Math.PI*2);}else dots.push(e);if(sp.length<6e5)sp.push(e.c[0],e.c[1]);}
-      else if(e.type==='arc'){const p=group(e);const s=e.start*Math.PI/180,t=e.end*Math.PI/180;p.moveTo(e.c[0]+e.r*Math.cos(s),e.c[1]+e.r*Math.sin(s));p.arc(e.c[0],e.c[1],e.r,s,t,false);}
+      if(e.type==='line'){const p=group(e,Math.min(e.a[0],e.b[0]),Math.min(e.a[1],e.b[1]),Math.max(e.a[0],e.b[0]),Math.max(e.a[1],e.b[1]));p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(!e.hatch&&sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
+      else if(e.type==='polyline'){let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(const q of e.points){if(q[0]<x0)x0=q[0];if(q[0]>x1)x1=q[0];if(q[1]<y0)y0=q[1];if(q[1]>y1)y1=q[1];}
+        const p=group(e,x0,y0,x1,y1);e.points.forEach((q,i)=>i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]));if(e.closed)p.closePath();if(sp.length<6e5)for(const q of e.points.length>200?[e.points[0],e.points.at(-1)]:e.points)sp.push(q[0],q[1]);}
+      else if(e.type==='circle'){if(e.r>0){const p=group(e,e.c[0]-e.r,e.c[1]-e.r,e.c[0]+e.r,e.c[1]+e.r);p.moveTo(e.c[0]+e.r,e.c[1]);p.arc(e.c[0],e.c[1],e.r,0,Math.PI*2);}else dots.push(e);if(sp.length<6e5)sp.push(e.c[0],e.c[1]);}
+      else if(e.type==='arc'){const p=group(e,e.c[0]-e.r,e.c[1]-e.r,e.c[0]+e.r,e.c[1]+e.r);const s=e.start*Math.PI/180,t=e.end*Math.PI/180;p.moveTo(e.c[0]+e.r*Math.cos(s),e.c[1]+e.r*Math.sin(s));p.arc(e.c[0],e.c[1],e.r,s,t,false);}
       else if(e.type==='point')dots.push({c:e.p,color:e.color});
       else if(e.type==='text')texts.push(e);
     }
     groups=[...map.values()].sort((a,c)=>(c.fill-a.fill));snap=Float64Array.from(sp);
   }
   function draw(){
-    frame=0;const ctx=canvas.getContext('2d');const dark=cadDark();const ink=dark?'#e7ecf4':'#1d2a40';const k=scale();
+    frame=0;clearTimeout(settle);const started=performance.now();const ctx=canvas.getContext('2d');const dark=cadDark();const ink=dark?'#e7ecf4':'#1d2a40';const k=scale();
+    if(canvas.style.transform)canvas.style.transform='';last={cx:vs.cx,cy:vs.cy,k};
+    const vx0=vs.cx-w/2/k,vx1=vs.cx+w/2/k,vy0=vs.cy-h/2/k,vy1=vs.cy+h/2/k;
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=dark?'#141a24':'#ffffff';ctx.fillRect(0,0,w,h);
-    ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='round';ctx.lineJoin='round';
-    for(const g of groups){const c=(dark?toneDark(g.color):toneLight(g.color))||ink;ctx.lineWidth=(g.hatch&&!g.fill?.6:dark?1:1.1)/k;
+    ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='butt';ctx.lineJoin='bevel';
+    for(const g of groups){if(g.x1<vx0||g.x0>vx1||g.y1<vy0||g.y0>vy1)continue; // outside the viewport
+      if(g.hatch&&!g.fill&&(g.x1-g.x0+g.y1-g.y0)*k<24)continue; // hatch lines of a cell that is a few pixels wide are noise
+      const c=(dark?toneDark(g.color):toneLight(g.color))||ink;ctx.lineWidth=(g.hatch&&!g.fill?.6:dark?1:1.1)/k;
       if(g.fill){ctx.globalAlpha=g.hatch?.22:.8;ctx.fillStyle=c;ctx.fill(g.path);ctx.globalAlpha=1;}
       ctx.strokeStyle=c;if(g.dash&&g.dash[0]*k>1.5)ctx.setLineDash(g.dash);ctx.stroke(g.path);if(g.dash)ctx.setLineDash([]);}
     ctx.restore();ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -906,10 +917,20 @@ async function activateCadViewer(f,host,wrap){
         ctx.font='600 13px -apple-system,system-ui,sans-serif';const tw=ctx.measureText(label).width;ctx.fillStyle='#2e61f2';ctx.beginPath();ctx.roundRect?ctx.roundRect(mx-tw/2-8,my-24,tw+16,22,8):ctx.rect(mx-tw/2-8,my-24,tw+16,22);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(label,mx,my-8);ctx.fillStyle='#4f8cff';}
       for(const [x,y] of pts){ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}}
     state.notes.filter(n=>n.assetId===f.id).forEach((n,i)=>{const p=n.locationType==='world'?toScreen(n.point.x,n.point.y):[n.point.x*w,n.point.y*h];drawPin(ctx,p[0],p[1],i+1);});
+    drawMs=performance.now()-started;drawnAt=performance.now();
   }
   const redraw=()=>{if(!frame)frame=requestAnimationFrame(draw);};
-  const resize=()=>{dpr=Math.min(3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
-  const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;redraw();};
+  // Pan / pinch on a heavy drawing: move the already drawn bitmap with a CSS transform (no CPU work) and redraw
+  // for real only a few times per second and once the gesture settles. Light drawings are simply redrawn every frame.
+  const move=()=>{
+    if(!last||(prims<12000&&drawMs<10)){redraw();return;}
+    const k=scale(),sc=k/last.k,tx=w/2-sc*w/2+(last.cx-vs.cx)*k,ty=h/2-sc*h/2-(last.cy-vs.cy)*k;
+    canvas.style.transformOrigin='0 0';canvas.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`;
+    clearTimeout(settle);
+    if(performance.now()-drawnAt>Math.max(220,drawMs*5))redraw();else settle=setTimeout(redraw,110);
+  };
+  const resize=()=>{dpr=Math.min(drawing.entities.length>30000?2:3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
+  const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;move();};
   const snapTo=(sx,sy)=>{let best=-1,bd=16*16;const k=scale();for(let i=0;i<snap.length;i+=2){const x=(snap[i]-vs.cx)*k+w/2,y=h/2-(snap[i+1]-vs.cy)*k;const d=(x-sx)**2+(y-sy)**2;if(d<bd){bd=d;best=i;}}return best<0?toWorld(sx,sy):[snap[best],snap[best+1]];};
   const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${plural(drawing.entities.length,'object')}${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}${Object.keys(drawing.skipped||{}).length?` · не показано: ${Object.entries(drawing.skipped).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}${Object.keys(drawing.errors||{}).length?` · ошибки чтения: ${Object.entries(drawing.errors).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}`;};
   build();updateInfo();setTimeout(()=>info.classList.add('faded'),3500);
@@ -920,10 +941,10 @@ async function activateCadViewer(f,host,wrap){
     if(touches.size===2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),zoom:vs.zoom,world:toWorld(...m)};drag=null;return;}
     drag={start:pos(e),last:pos(e),moved:false};});
   canvas.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,pos(e));
-    if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.05,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;redraw();return;}
+    if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.05,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;move();return;}
     if(redactDraft){const [x,y]=toWorld(...pos(e));redactDraft.x1=x;redactDraft.y1=y;redraw();return;}
     if(!drag)return;const p=pos(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
-    if(drag.moved){const k=scale();vs.cx-=(p[0]-drag.last[0])/k;vs.cy+=(p[1]-drag.last[1])/k;drag.last=p;redraw();}});
+    if(drag.moved){const k=scale();vs.cx-=(p[0]-drag.last[0])/k;vs.cy+=(p[1]-drag.last[1])/k;drag.last=p;move();}});
   const end=e=>{touches.delete(e.pointerId);
     if(redactDraft){const r=redactDraft;redactDraft=null;const k=scale();if(Math.abs(r.x1-r.x0)*k>10&&Math.abs(r.y1-r.y0)*k>10&&e.type!=='pointercancel'){f.redactions=[...(f.redactions||[]),r];updateAssetMeta(f.id,{redactions:f.redactions}).then(()=>notify('Область скрыта: при экспорте и защищённой отправке её содержимое будет удалено')).catch(err=>notify(err.message));}redraw();return;}
     if(pinch){if(touches.size<2)pinch=null;drag=null;return;}
@@ -944,7 +965,7 @@ async function activateCadViewer(f,host,wrap){
     layers:drawing.layers,hidden,
     setLayer(name,on){on?hidden.delete(name):hidden.add(name);build();updateInfo();redraw();},
     setAllLayers(on){if(on)hidden.clear();else drawing.layers.forEach(l=>hidden.add(l.name));build();updateInfo();redraw();},
-    redraw,cleanup(){ro?.disconnect();if(frame)cancelAnimationFrame(frame);}};
+    redraw,cleanup(){ro?.disconnect();clearTimeout(settle);if(frame)cancelAnimationFrame(frame);}};
   resize();
 }
 function skippedName(k){return ({Solid3D:'3D-тела',Region:'области',Body:'тела',RasterImage:'растровые картинки',PdfUnderlay:'PDF-подложки',DwfUnderlay:'DWF-подложки',DgnUnderlay:'DGN-подложки',Shape:'формы SHX',Ole2Frame:'OLE-объекты'})[k]||k;}
