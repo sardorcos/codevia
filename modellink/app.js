@@ -4,7 +4,7 @@ import {exportProject,importProjectPackage,PACKAGE_VERSION} from './core/pack.js
 import {sealPackage,readEnvelope,openPackage,checkPolicy,keyLink,parseKeyLink,appendAudit,makeReceipt,verifyReceipt,sealBytes,openBytes,randomBytes,b64u,uuid,sha256} from './core/secure.js';
 import {conversionTargets,dxfToSVG,meshToSTL,meshToOBJ,meshToPLY,meshToGLB,meshToUSDZ,jpegToPDF,baseName,extOf,zipStore,redactDrawing,drawingToDXF} from './core/convert.js';
 import {Capacitor,registerPlugin} from './vendor/capacitor-core.js';
-import {LANGS,detectLang,setLang,getLang,locale,t,plural,startTranslator} from './core/i18n.js';
+import {LANGS,detectLang,setLang,getLang,locale,t,t as tl,plural,startTranslator} from './core/i18n.js';
 setLang(detectLang());
 
 const APP_VERSION='0.8.0';
@@ -900,7 +900,7 @@ async function activateCadViewer(f,host,wrap){
     for(const r of [...(f.redactions||[]),...(redactDraft?[redactDraft]:[])]){const a=toScreen(Math.min(r.x0,r.x1),Math.max(r.y0,r.y1)),c=toScreen(Math.max(r.x0,r.x1),Math.min(r.y0,r.y1));ctx.fillStyle=r===redactDraft?'rgba(0,0,0,.55)':'#000';ctx.fillRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);ctx.strokeStyle='#e5484d';ctx.lineWidth=1;ctx.strokeRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);}
     if(measure.length){ctx.strokeStyle='#4f8cff';ctx.fillStyle='#4f8cff';ctx.lineWidth=2;const pts=measure.map(p=>toScreen(p[0],p[1]));
       if(pts.length===2){ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(...pts[0]);ctx.lineTo(...pts[1]);ctx.stroke();ctx.setLineDash([]);
-        const len=Math.hypot(measure[1][0]-measure[0][0],measure[1][1]-measure[0][1]);const label=`${fmtNum(len)} ${unit}`;const mx=(pts[0][0]+pts[1][0])/2,my=(pts[0][1]+pts[1][1])/2;
+        const len=Math.hypot(measure[1][0]-measure[0][0],measure[1][1]-measure[0][1]);const label=`${fmtNum(len)} ${tl(unit)}`;const mx=(pts[0][0]+pts[1][0])/2,my=(pts[0][1]+pts[1][1])/2;
         ctx.font='600 13px -apple-system,system-ui,sans-serif';const tw=ctx.measureText(label).width;ctx.fillStyle='#2e61f2';ctx.beginPath();ctx.roundRect?ctx.roundRect(mx-tw/2-8,my-24,tw+16,22,8):ctx.rect(mx-tw/2-8,my-24,tw+16,22);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(label,mx,my-8);ctx.fillStyle='#4f8cff';}
       for(const [x,y] of pts){ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}}
     state.notes.filter(n=>n.assetId===f.id).forEach((n,i)=>{const p=n.locationType==='world'?toScreen(n.point.x,n.point.y):[n.point.x*w,n.point.y*h];drawPin(ctx,p[0],p[1],i+1);});
