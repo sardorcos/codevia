@@ -868,7 +868,7 @@ async function activateCadViewer(f,host,wrap){
   const b=drawing.bounds,unit=drawing.units||'ед.';
   const hidden=hiddenLayers.get(f.id)||new Set(drawing.layers.filter(l=>!l.visible).map(l=>l.name));hiddenLayers.set(f.id,hidden);
   const vs=viewStates.get(f.id)||{zoom:1,cx:(b.minX+b.maxX)/2,cy:(b.minY+b.maxY)/2};viewStates.set(f.id,vs);
-  let w=0,h=0,dpr=1,groups=[],texts=[],dots=[],snap=new Float64Array(0),measure=[],frame=0,prims=0,drawMs=0,drawnAt=0,last=null,settle=0;
+  let w=0,h=0,dpr=1,groups=[],texts=[],dots=[],snap=new Float64Array(0),measure=[],frame=0,pframe=0,prims=0,drawMs=0,drawnAt=0,last=null,settle=0,snap2=null,snapView=null;
   const base=()=>Math.min((w-32)/Math.max(1e-9,b.maxX-b.minX),(h-32)/Math.max(1e-9,b.maxY-b.minY));
   const scale=()=>base()*vs.zoom;
   const toScreen=(x,y)=>{const k=scale();return [(x-vs.cx)*k+w/2,h/2-(y-vs.cy)*k];};
@@ -896,7 +896,7 @@ async function activateCadViewer(f,host,wrap){
   }
   function draw(){
     frame=0;clearTimeout(settle);const started=performance.now();const ctx=canvas.getContext('2d');const dark=cadDark();const ink=dark?'#e7ecf4':'#1d2a40';const k=scale();
-    if(canvas.style.transform)canvas.style.transform='';last={cx:vs.cx,cy:vs.cy,k};
+    if(pframe){cancelAnimationFrame(pframe);pframe=0;}last={cx:vs.cx,cy:vs.cy,k};snapView=null;
     const vx0=vs.cx-w/2/k,vx1=vs.cx+w/2/k,vy0=vs.cy-h/2/k,vy1=vs.cy+h/2/k;
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=dark?'#141a24':'#ffffff';ctx.fillRect(0,0,w,h);
     ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='butt';ctx.lineJoin='bevel';
@@ -920,17 +920,29 @@ async function activateCadViewer(f,host,wrap){
     drawMs=performance.now()-started;drawnAt=performance.now();
   }
   const redraw=()=>{if(!frame)frame=requestAnimationFrame(draw);};
-  // Pan / pinch on a heavy drawing: move the already drawn bitmap with a CSS transform (no CPU work) and redraw
-  // for real only a few times per second and once the gesture settles. Light drawings are simply redrawn every frame.
-  const move=()=>{
-    if(!last||(prims<12000&&drawMs<10)){redraw();return;}
-    const k=scale(),sc=k/last.k,tx=w/2-sc*w/2+(last.cx-vs.cx)*k,ty=h/2-sc*h/2-(last.cy-vs.cy)*k;
-    canvas.style.transformOrigin='0 0';canvas.style.transform=`translate(${tx}px,${ty}px) scale(${sc})`;
-    clearTimeout(settle);
-    if(performance.now()-drawnAt>Math.max(220,drawMs*5))redraw();else settle=setTimeout(redraw,110);
+  // Pan / pinch on a heavy drawing: between real redraws the last finished frame is blitted, shifted and scaled, inside
+  // the canvas itself (one drawImage per frame). No CSS transforms: a magnified layer makes WebKit drop the canvas.
+  const preview=()=>{
+    pframe=0;if(frame||!last)return;const ctx=canvas.getContext('2d');
+    if(!snapView){ // first preview after a real frame: keep a copy of that frame
+      if(!snap2)snap2=document.createElement('canvas');
+      if(snap2.width!==canvas.width||snap2.height!==canvas.height){snap2.width=canvas.width;snap2.height=canvas.height;}
+      const sc=snap2.getContext('2d');sc.setTransform(1,0,0,1,0,0);sc.globalCompositeOperation='copy';sc.drawImage(canvas,0,0);snapView={...last};
+    }
+    const k=scale(),z=k/snapView.k,tx=w/2-z*w/2+(snapView.cx-vs.cx)*k,ty=h/2-z*h/2-(snapView.cy-vs.cy)*k;
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.fillStyle=cadDark()?'#141a24':'#ffffff';ctx.fillRect(0,0,w,h);
+    ctx.imageSmoothingEnabled=true;ctx.drawImage(snap2,tx,ty,w*z,h*z);
   };
-  const resize=()=>{dpr=Math.min(drawing.entities.length>30000?2:3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
-  const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;move();};
+  const move=()=>{
+    if(!last||(prims<12000&&drawMs<10)){redraw();return;} // light drawing: a real frame every time
+    const z=scale()/last.k,stale=performance.now()-drawnAt;
+    clearTimeout(settle);
+    if(stale>Math.max(250,drawMs*4)||((z>2.5||z<.4)&&stale>120)){redraw();return;} // refresh for real a few times per second
+    if(!pframe&&!frame)pframe=requestAnimationFrame(preview);
+    settle=setTimeout(redraw,120);
+  };
+  const resize=()=>{snapView=null;dpr=Math.min(drawing.entities.length>30000?2:3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
+  const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.3,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;move();};
   const snapTo=(sx,sy)=>{let best=-1,bd=16*16;const k=scale();for(let i=0;i<snap.length;i+=2){const x=(snap[i]-vs.cx)*k+w/2,y=h/2-(snap[i+1]-vs.cy)*k;const d=(x-sx)**2+(y-sy)**2;if(d<bd){bd=d;best=i;}}return best<0?toWorld(sx,sy):[snap[best],snap[best+1]];};
   const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${plural(drawing.entities.length,'object')}${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}${Object.keys(drawing.skipped||{}).length?` · не показано: ${Object.entries(drawing.skipped).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}${Object.keys(drawing.errors||{}).length?` · ошибки чтения: ${Object.entries(drawing.errors).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}`;};
   build();updateInfo();setTimeout(()=>info.classList.add('faded'),3500);
@@ -941,11 +953,11 @@ async function activateCadViewer(f,host,wrap){
     if(touches.size===2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];pinch={d:Math.max(1,Math.hypot(a[0]-c[0],a[1]-c[1])),zoom:vs.zoom,world:toWorld(...m)};drag=null;return;}
     drag={start:pos(e),last:pos(e),moved:false};});
   canvas.addEventListener('pointermove',e=>{if(!touches.has(e.pointerId))return;touches.set(e.pointerId,pos(e));
-    if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.05,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;move();return;}
+    if(pinch&&touches.size>=2){const [a,c]=[...touches.values()];const m=[(a[0]+c[0])/2,(a[1]+c[1])/2];vs.zoom=Math.max(.3,Math.min(5000,pinch.zoom*Math.hypot(a[0]-c[0],a[1]-c[1])/pinch.d));const k=scale();vs.cx=pinch.world[0]-(m[0]-w/2)/k;vs.cy=pinch.world[1]-(h/2-m[1])/k;move();return;}
     if(redactDraft){const [x,y]=toWorld(...pos(e));redactDraft.x1=x;redactDraft.y1=y;redraw();return;}
     if(!drag)return;const p=pos(e);if(!drag.moved&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>8)drag.moved=true;
     if(drag.moved){const k=scale();vs.cx-=(p[0]-drag.last[0])/k;vs.cy+=(p[1]-drag.last[1])/k;drag.last=p;move();}});
-  const end=e=>{touches.delete(e.pointerId);
+  const end=e=>{touches.delete(e.pointerId);if(snapView&&!touches.size){clearTimeout(settle);redraw();}
     if(redactDraft){const r=redactDraft;redactDraft=null;const k=scale();if(Math.abs(r.x1-r.x0)*k>10&&Math.abs(r.y1-r.y0)*k>10&&e.type!=='pointercancel'){f.redactions=[...(f.redactions||[]),r];updateAssetMeta(f.id,{redactions:f.redactions}).then(()=>notify('Область скрыта: при экспорте и защищённой отправке её содержимое будет удалено')).catch(err=>notify(err.message));}redraw();return;}
     if(pinch){if(touches.size<2)pinch=null;drag=null;return;}
     const d=drag;drag=null;if(!d||d.moved||e.type==='pointercancel')return;const [sx,sy]=pos(e);
@@ -965,7 +977,7 @@ async function activateCadViewer(f,host,wrap){
     layers:drawing.layers,hidden,
     setLayer(name,on){on?hidden.delete(name):hidden.add(name);build();updateInfo();redraw();},
     setAllLayers(on){if(on)hidden.clear();else drawing.layers.forEach(l=>hidden.add(l.name));build();updateInfo();redraw();},
-    redraw,cleanup(){ro?.disconnect();clearTimeout(settle);if(frame)cancelAnimationFrame(frame);}};
+    redraw,cleanup(){ro?.disconnect();clearTimeout(settle);if(frame)cancelAnimationFrame(frame);if(pframe)cancelAnimationFrame(pframe);snap2=null;}};
   resize();
 }
 function skippedName(k){return ({Solid3D:'3D-тела',Region:'области',Body:'тела',RasterImage:'растровые картинки',PdfUnderlay:'PDF-подложки',DwfUnderlay:'DWF-подложки',DgnUnderlay:'DGN-подложки',Shape:'формы SHX',Ole2Frame:'OLE-объекты'})[k]||k;}
