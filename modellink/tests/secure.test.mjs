@@ -40,3 +40,14 @@ test('audit chain and signed receipts',async()=>{
   assert.equal((await verifyReceipt(randomBytes(32),r)).ok,false);
 });
 test('sealed bytes at rest',async()=>{const k=randomBytes(32);const s=await sealBytes(k,inner);assert.deepEqual(await openBytes(k,s),inner);await assert.rejects(openBytes(randomBytes(32),s));});
+
+test('untrusted header: absurd or malformed PBKDF2 parameters are rejected before any key derivation',async()=>{
+  const {bytes}=await sealPackage(inner,policy,{password:'секрет-123'},{zipStore});
+  const env=await readEnvelope(bytes,JSZip);
+  for(const kdf of [{...env.header.kdf,iter:4e9},{...env.header.kdf,iter:1},{...env.header.kdf,iter:310000.5},{...env.header.kdf,iter:'310000'},{...env.header.kdf,salt:''}]){
+    const started=Date.now();
+    await assert.rejects(openPackage({...env,header:{...env.header,kdf}},'секрет-123'),/Неизвестный способ защиты/);
+    assert.ok(Date.now()-started<500,'rejected at once');
+  }
+  assert.ok((await openPackage(env,'секрет-123')).inner.length>0,'valid parameters still open');
+});

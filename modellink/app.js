@@ -378,7 +378,10 @@ async function panic(){
 }
 document.addEventListener('touchstart',e=>{if(e.touches.length>=3&&isSensitive()){e.preventDefault();panic();}},{passive:false});
 let escTaps=0;document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;escTaps++;setTimeout(()=>escTaps=0,600);if(escTaps>=2&&isSensitive())panic();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.vaultOpen&&!state.secure)lockVault();});
+// Leaving the app locks the vault AND takes its content off the screen: otherwise the file that was open stays rendered
+// and is visible on return without Face ID.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden||!state.vaultOpen||state.secure)return;const shown=isSensitive();lockVault();
+  if(shown){closeModal();state.tab='home';state.projectId=null;state.assetId=null;state.viewer?.cleanup?.();state.viewer=null;document.body.classList.remove('viewer-full','capture-hidden');render();}});
 async function onScreenshot(){if(!isSensitive())return;if(state.secure){await secureAudit({type:'screenshot'});notify('Снимок экрана записан в журнал пакета');}else notify('Снимок экрана конфиденциального проекта');}
 function onCapture(captured){document.body.classList.toggle('capture-hidden',!!captured&&isSensitive());if(captured&&isSensitive()){notify('Идёт запись экрана — чертёж скрыт');if(state.secure)secureAudit({type:'screen-recording'});}}
 

@@ -12,6 +12,7 @@
 const subtle = globalThis.crypto?.subtle;
 const enc = new TextEncoder(), dec = new TextDecoder();
 export const PBKDF2_ITERATIONS = 310000;
+const MIN_PBKDF2_ITERATIONS = 100000, MAX_PBKDF2_ITERATIONS = 2000000;
 
 export function cryptoAvailable() { return !!subtle; }
 function need() { if (!subtle) throw new Error('Шифрование недоступно на этом устройстве'); }
@@ -31,6 +32,8 @@ export async function deriveKey(secret, kdf) {
   need();
   if (kdf.alg === 'raw') { let k; try { k = typeof secret === 'string' ? b64u.dec(secret.trim()) : secret; } catch { throw new Error('Неверный ключ доступа'); } if (!k || k.length !== 32) throw new Error('Неверный ключ доступа'); return k; }
   if (kdf.alg !== 'PBKDF2-SHA256') throw new Error('Неизвестный способ защиты пакета');
+  // The header is untrusted input: a crafted package must not make the device grind through an absurd iteration count.
+  if (!Number.isSafeInteger(kdf.iter) || kdf.iter < MIN_PBKDF2_ITERATIONS || kdf.iter > MAX_PBKDF2_ITERATIONS || typeof kdf.salt !== 'string' || kdf.salt.length < 16 || kdf.salt.length > 128) throw new Error('Неизвестный способ защиты пакета');
   const base = await subtle.importKey('raw', enc.encode(String(secret).normalize('NFC')), 'PBKDF2', false, ['deriveBits']);
   return new Uint8Array(await subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64u.dec(kdf.salt), iterations: kdf.iter }, base, 256));
 }
