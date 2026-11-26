@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getAccessToken,
+  githubAppInstallUrl,
   getSession,
   isDeviceFlowAvailable,
   pollForToken,
@@ -203,5 +204,16 @@ describe('token refresh', () => {
     await store.set('github.session', '{broken');
     expect(await getSession()).toBeNull();
     expect(await store.get('github.session')).toBeNull();
+  });
+});
+
+describe('GitHub App install link', () => {
+  it('is built from the app slug and empty without a valid one', () => {
+    vi.stubEnv('VITE_GITHUB_APP_SLUG', 'codevia-pocket');
+    expect(githubAppInstallUrl()).toBe('https://github.com/apps/codevia-pocket/installations/new');
+    vi.stubEnv('VITE_GITHUB_APP_SLUG', '');
+    expect(githubAppInstallUrl()).toBe('');
+    vi.stubEnv('VITE_GITHUB_APP_SLUG', 'evil.com/x');
+    expect(githubAppInstallUrl()).toBe('');
   });
 });

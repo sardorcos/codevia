@@ -6,6 +6,7 @@ import { t } from '../../i18n';
 import {
   completeDeviceSignIn,
   GITHUB_AUTHORIZATIONS_URL,
+  githubAppInstallUrl,
   isDeviceFlowAvailable,
   pollForToken,
   signInWithToken,
@@ -238,7 +239,7 @@ export function mountAccount(host: HTMLElement, ctx: ToolContext, life: Life, op
       ${
         opts.compact
           ? ''
-          : `<div class="stack">
+          : `${a.kind === 'device' && githubAppInstallUrl() ? repoAccessNote() : ''}<div class="stack">
         <button class="btn secondary full" data-profile>${esc(t('Открыть профиль на GitHub'))}</button>
         <button class="btn danger full" data-signout>${esc(t('Отключить GitHub'))}</button>
       </div>
@@ -246,6 +247,7 @@ export function mountAccount(host: HTMLElement, ctx: ToolContext, life: Life, op
       }
     </div>`;
     wireAvatars(host);
+    host.querySelector('[data-repo-access]')?.addEventListener('click', () => ctx.openExternal(githubAppInstallUrl()));
     host.querySelector('[data-profile]')?.addEventListener('click', () => ctx.openExternal(a.htmlUrl || `https://github.com/${encodeURIComponent(a.login)}`));
     host.querySelector('[data-signout]')?.addEventListener('click', async () => {
       const ok = await ctx.confirm({
@@ -280,4 +282,11 @@ export function mountAccountTool(root: HTMLElement, ctx: ToolContext): () => voi
   root.innerHTML = '<div class="gh-body"></div>';
   mountAccount(root.querySelector<HTMLElement>('.gh-body')!, ctx, life);
   return () => life.dispose();
+}
+
+/** Signed in through the GitHub App: it sees only the repositories it is installed on. */
+export function repoAccessNote(): string {
+  return `<div class="gh-callout" role="note">${icon('lock', 'sm')}<div class="grow">${esc(
+    t('Codevia видит только те репозитории, к которым вы дали доступ. Выберите нужные репозитории или все сразу — это можно изменить в любой момент.'),
+  )}<div class="btn-row gh-callout-actions"><button class="btn primary tiny" data-repo-access>${esc(t('Выбрать репозитории'))}</button></div></div></div>`;
 }

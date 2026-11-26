@@ -12,6 +12,8 @@ import { esc, fmtShortDate, icon, Life, renderError, spinnerLine } from './ui';
 export interface RepoPickerOptions {
   onPick: (repo: GitHubRepo) => void;
   signIn?: () => void;
+  /** Opens the page where the GitHub App gets access to more repositories (GitHub App sign-in only). */
+  manageAccess?: () => void;
 }
 
 /** Filters by name / owner / description, case-insensitively. */
@@ -46,8 +48,13 @@ export function mountRepoPicker(host: HTMLElement, api: Pick<GhApi, 'listRepos'>
 
   const draw = () => {
     const shown = filterRepos(repos, input.value);
+    const access = opts.manageAccess
+      ? `<div class="gh-pad"><button class="btn ghost tiny" data-access>${icon('lock', 'sm')} ${esc(t('Не видите репозиторий? Дайте доступ'))}</button></div>`
+      : '';
     if (!repos.length) {
-      list.innerHTML = `<div class="empty-state">${esc(t('Нет репозиториев. Создайте его на GitHub или клонируйте по ссылке.'))}</div>`;
+      list.innerHTML = opts.manageAccess
+        ? `<div class="empty-state">${esc(t('Codevia пока не видит ни одного репозитория. Дайте доступ к нужным репозиториям на GitHub.'))}<div class="btn-row center"><button class="btn primary" data-access>${esc(t('Выбрать репозитории'))}</button></div></div>`
+        : `<div class="empty-state">${esc(t('Нет репозиториев. Создайте его на GitHub или клонируйте по ссылке.'))}</div>`;
       return;
     }
     if (!shown.length) {
@@ -65,10 +72,14 @@ export function mountRepoPicker(host: HTMLElement, api: Pick<GhApi, 'listRepos'>
           <span class="row-meta">${esc(fmtShortDate(r.pushed_at))}</span>${icon('chevron', 'sm row-action')}
         </button></div>`,
       )
-      .join('')}</div>${shown.length > MAX_ROWS ? `<p class="subtxt gh-pad">${esc(t('Показаны первые {count}. Уточните поиск.', { count: MAX_ROWS }))}</p>` : ''}`;
+      .join('')}</div>${shown.length > MAX_ROWS ? `<p class="subtxt gh-pad">${esc(t('Показаны первые {count}. Уточните поиск.', { count: MAX_ROWS }))}</p>` : ''}${access}`;
   };
 
   list.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-access]')) {
+      opts.manageAccess?.();
+      return;
+    }
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-id]');
     const repo = b && repos.find((r) => String(r.id) === b.dataset.id);
     if (repo) opts.onPick(repo);

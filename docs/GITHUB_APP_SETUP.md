@@ -1,5 +1,7 @@
 # Создание GitHub App для входа в Codevia (один раз)
 
+> **Готово (26.11.2026).** GitHub App `codevia-pocket` (владелец sardorcos), Client ID `Iv23liJ0NdoHBNIReM0a`, Device Flow включён, срок действия токенов выключен. Значения прописаны в `.env`; проверка — workflow `github-app-check` в Codemagic.
+
 Вход в GitHub из приложения работает по коду (Device Flow): GitHub показывает код, пользователь подтверждает его на github.com. Для этого нужен GitHub App, принадлежащий разработчику. Секретов в приложении нет: в сборку попадает только публичный Client ID.
 
 **Быстрый способ:** откройте https://sardorcos.github.io/codevia/github-app.html и нажмите «Создать GitHub App на GitHub». Форма GitHub заполнится сама (имя, сайт, права, без вебхука), после создания страница покажет Client ID. Останется включить **Enable Device Flow** и выключить **Expire user authorization tokens** в настройках приложения.

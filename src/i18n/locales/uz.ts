@@ -1366,4 +1366,8 @@ export default {
   'Копировать как fetch()': 'fetch() sifatida nusxalash',
   'Новый запрос': 'Yangi soʻrov',
   'Ещё действия': 'Boshqa amallar',
+  'Codevia видит только те репозитории, к которым вы дали доступ. Выберите нужные репозитории или все сразу — это можно изменить в любой момент.': 'Codevia faqat siz ruxsat bergan repozitoriylarni koʻradi. Keraklilarini yoki hammasini tanlang — buni istalgan vaqtda oʻzgartirish mumkin.',
+  'Выбрать репозитории': 'Repozitoriylarni tanlash',
+  'Не видите репозиторий? Дайте доступ': 'Repozitoriy koʻrinmayaptimi? Ruxsat bering',
+  'Codevia пока не видит ни одного репозитория. Дайте доступ к нужным репозиториям на GitHub.': 'Codevia hozircha birorta ham repozitoriyni koʻrmayapti. GitHub’da kerakli repozitoriylarga ruxsat bering.',
 } as Record<string, string>;

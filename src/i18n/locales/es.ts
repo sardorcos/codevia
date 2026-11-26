@@ -1277,4 +1277,8 @@ export default {
   'Копировать как fetch()': 'Copiar como fetch()',
   'Новый запрос': 'Nueva solicitud',
   'Ещё действия': 'Más acciones',
+  'Codevia видит только те репозитории, к которым вы дали доступ. Выберите нужные репозитории или все сразу — это можно изменить в любой момент.': 'Codevia solo ve los repositorios a los que le das acceso. Elige los que necesites o todos: puedes cambiarlo cuando quieras.',
+  'Выбрать репозитории': 'Elegir repositorios',
+  'Не видите репозиторий? Дайте доступ': '¿No ves un repositorio? Da acceso',
+  'Codevia пока не видит ни одного репозитория. Дайте доступ к нужным репозиториям на GitHub.': 'Codevia aún no ve ningún repositorio. Dale acceso en GitHub a los que necesites.',
 } as Record<string, string>;

@@ -37,12 +37,12 @@ function fakeCtx(project: Project | null) {
 
 const tool = (id: string) => githubPanels.find((t) => t.id === id)!;
 
-async function signIn() {
+async function signIn(kind: 'pat' | 'device' = 'pat') {
   const store = createMemoryStore();
   setSecureStore(store);
   await store.set(
     'github.session',
-    JSON.stringify({ kind: 'pat', accessToken: TOKEN, user: { id: 1, login: 'octo', name: 'Octo Cat', avatarUrl: '', htmlUrl: 'https://github.com/octo' } }),
+    JSON.stringify({ kind, accessToken: TOKEN, user: { id: 1, login: 'octo', name: 'Octo Cat', avatarUrl: '', htmlUrl: 'https://github.com/octo' } }),
   );
 }
 
@@ -96,6 +96,22 @@ describe('GitHub tools in the DOM', () => {
     expect(root.textContent).toContain('Octo Cat');
     expect(root.textContent).toContain('Связке ключей');
     expect(root.innerHTML).not.toContain(TOKEN);
+  });
+
+  it('Account signed in through the GitHub App offers to choose repositories; a token does not', async () => {
+    vi.stubEnv('VITE_GITHUB_APP_SLUG', 'codevia-pocket');
+    await signIn('device');
+    const ctx = fakeCtx(null);
+    cleanup = tool('github-account').mount(root, ctx);
+    await vi.waitFor(() => expect(root.querySelector('[data-repo-access]')).not.toBeNull());
+    (root.querySelector('[data-repo-access]') as HTMLElement).click();
+    expect(ctx.openExternal).toHaveBeenCalledWith('https://github.com/apps/codevia-pocket/installations/new');
+    cleanup();
+    root.replaceChildren();
+    await signIn('pat');
+    cleanup = tool('github-account').mount(root, fakeCtx(null));
+    await vi.waitFor(() => expect(root.textContent).toContain('@octo'));
+    expect(root.querySelector('[data-repo-access]')).toBeNull();
   });
 
   it('Account runs the device flow: big code, copy + open GitHub, countdown, cancel', async () => {

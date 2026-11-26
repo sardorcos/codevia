@@ -2,6 +2,7 @@
  * Clone panel: pick a repository (or paste a link), a branch and an optional subfolder, download it
  * and open it as a new project.
  */
+import { githubAppInstallUrl } from '../../github/auth';
 import { plural, t } from '../../i18n';
 import { GitHubError } from '../../github/errors';
 import type { ToolContext } from '../types';
@@ -85,6 +86,7 @@ export function mountCloneTool(root: HTMLElement, ctx: ToolContext): () => void 
         mountRepoPicker(rest.querySelector('[data-picker]')!, authedClient(), sub, {
           onPick: (r) => nav.push(optionsScreen({ owner: r.owner.login, repo: r.name }, r.default_branch, r.private)),
           signIn: reconnect,
+          manageAccess: account?.kind === 'device' && githubAppInstallUrl() ? () => ctx.openExternal(githubAppInstallUrl()) : undefined,
         });
       } else {
         rest.innerHTML = `<p class="gh-note">${esc(t('Публичные репозитории можно клонировать по ссылке без входа. Чтобы видеть свои и приватные репозитории, подключите GitHub.'))}</p><div data-account></div>`;

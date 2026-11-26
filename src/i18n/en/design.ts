@@ -46,4 +46,10 @@ export default {
   'Копировать как fetch()': 'Copy as fetch()',
   'Новый запрос': 'New request',
   'Ещё действия': 'More actions',
+
+  // GitHub App repository access
+  'Codevia видит только те репозитории, к которым вы дали доступ. Выберите нужные репозитории или все сразу — это можно изменить в любой момент.': 'Codevia only sees the repositories you give it access to. Choose the ones you need, or all of them — you can change this at any time.',
+  'Выбрать репозитории': 'Choose repositories',
+  'Не видите репозиторий? Дайте доступ': 'Don’t see a repository? Give access',
+  'Codevia пока не видит ни одного репозитория. Дайте доступ к нужным репозиториям на GitHub.': 'Codevia can’t see any repositories yet. Give it access to the ones you need on GitHub.',
 };

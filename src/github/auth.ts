@@ -73,6 +73,15 @@ export function githubClientId(): string {
   return typeof id === 'string' ? id.trim() : '';
 }
 
+/**
+ * Page where the user chooses which repositories the GitHub App may access (a GitHub App token only
+ * sees repositories the app is installed on). Empty when the build has no app slug.
+ */
+export function githubAppInstallUrl(): string {
+  const slug: unknown = import.meta.env.VITE_GITHUB_APP_SLUG;
+  return typeof slug === 'string' && /^[a-z0-9-]+$/.test(slug.trim()) ? `https://github.com/apps/${slug.trim()}/installations/new` : '';
+}
+
 /** False when the build has no client id: only a personal access token can be used. */
 export const isDeviceFlowAvailable = (): boolean => githubClientId() !== '';
 

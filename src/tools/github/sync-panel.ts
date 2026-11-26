@@ -4,6 +4,7 @@
  */
 import { basename, dirname } from '../../core/paths';
 import type { Files, GitHubLink, Project, ProjectFile } from '../../core/types';
+import { githubAppInstallUrl } from '../../github/auth';
 import { plural, t } from '../../i18n';
 import { GitHubError, isGitHubError } from '../../github/errors';
 import { defaultCommitMessage, fetchRemoteFile, planPush, ShaCache, type PullConflict, type PullPlan } from '../../github/sync';
@@ -993,6 +994,7 @@ export function mountSyncTool(root: HTMLElement, ctx: ToolContext): () => void {
         mountRepoPicker(body.querySelector('[data-picker]')!, api(), sub, {
           onPick: (r) => nav.push(linkOptionsScreen(r.owner.login, r.name, r.default_branch)),
           signIn: reconnect,
+          manageAccess: account?.kind === 'device' && githubAppInstallUrl() ? () => ctx.openExternal(githubAppInstallUrl()) : undefined,
         });
         return () => sub.dispose();
       },
