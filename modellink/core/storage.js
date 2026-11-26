@@ -136,11 +136,12 @@ export async function removeProject(id){
 }
 export async function getNotes(projectId){return (await all(STORE.notes)).filter(n=>n.projectId===projectId).sort((a,b)=>b.createdAt-a.createdAt);}
 export async function getAllNotes(){return all(STORE.notes);}
-export async function addNote({projectId,assetId,text,point,locationType='normalized',page=1}){
-  if(!String(text||'').trim()) throw new Error('Напишите замечание');
+export async function addNote({projectId,assetId,text,point,locationType='normalized',page=1,audio=null,audioDuration=0}){
+  if(!String(text||'').trim()&&!audio) throw new Error('Напишите замечание или запишите голосовое');
+  if(!String(text||'').trim())text='Голосовое замечание';
   const asset=await one(STORE.assets,assetId);
   if(!asset||asset.projectId!==projectId) throw new Error('Файл не найден');
-  const note={id:uid(),projectId,assetId,version:asset.version,text:String(text).trim().slice(0,1200),point,locationType,page,status:'open',createdAt:Date.now()};
+  const note={id:uid(),projectId,assetId,version:asset.version,text:String(text).trim().slice(0,1200),point,locationType,page,status:'open',createdAt:Date.now(),...(audio?{audio,audioDuration}:{})};
   await put(STORE.notes,note);return note;
 }
 export async function setNoteStatus(id,status){
@@ -162,6 +163,7 @@ export function kindFor(name){
   if(['obj','stl','glb','gltf','fbx','3ds','dae','ply','3mf','max'].includes(ext))return 'model';
   if(['mlink'].includes(ext))return 'bundle';
   if(['usdz','reality'].includes(ext))return 'ar';
+  if(['mp3','m4a','aac','wav','caf','aiff','aif','ogg','oga','opus','flac','webm'].includes(ext))return 'audio';
   return 'source';
 }
 export const capabilities={
@@ -175,7 +177,7 @@ export const capabilities={
   heic:{label:'HEIC',preview:'yes',note:'Фото iPhone; конвертация в JPEG, PNG и PDF'},tif:{label:'TIFF',preview:'yes',note:'Изображение'},tiff:{label:'TIFF',preview:'yes',note:'Изображение'},
   txt:{label:'TXT',preview:'yes',note:'Текст; экспорт в PDF'},csv:{label:'CSV',preview:'yes',note:'Таблица как текст; экспорт в PDF'},json:{label:'JSON',preview:'yes',note:'Текст'},xml:{label:'XML',preview:'yes',note:'Текст'},gcode:{label:'G-code',preview:'yes',note:'Программа ЧПУ как текст'},
   docx:{label:'DOCX',preview:'source',note:'Просмотр через Quick Look на iPhone'},xlsx:{label:'XLSX',preview:'source',note:'Просмотр через Quick Look на iPhone'},pptx:{label:'PPTX',preview:'source',note:'Просмотр через Quick Look на iPhone'},
-  zip:{label:'ZIP',preview:'source',note:'Архив хранится и передаётся'},
+  zip:{label:'ZIP',preview:'source',note:'Архив хранится и передаётся'},mp3:{label:'MP3',preview:'yes',note:'Аудио: прослушивание'},m4a:{label:'M4A',preview:'yes',note:'Аудио: прослушивание'},wav:{label:'WAV',preview:'yes',note:'Аудио: прослушивание'},
   fbx:{label:'FBX',preview:'yes',note:'Autodesk FBX: сетки, материалы, текстуры, иерархия'},'3ds':{label:'3DS',preview:'yes',note:'3D Studio: сетки и материалы'},
   dae:{label:'DAE',preview:'yes',note:'Collada'},ply:{label:'PLY',preview:'yes',note:'Сетки и облака точек'},'3mf':{label:'3MF',preview:'yes',note:'Формат 3D-печати'},gltf:{label:'glTF',preview:'partial',note:'glTF со встроенными данными; для внешних файлов используйте GLB'},
   max:{label:'MAX',preview:'partial',note:'3ds Max: Editable Poly/Mesh и примитивы, миниатюра и свойства сцены; модификаторы, сплайны и прокси не вычисляются'},
@@ -195,13 +197,13 @@ export function fileInfo(name){
   return {ext:ext.toUpperCase(),...(capabilities[ext]||{label:ext.toUpperCase()||'Файл',preview:'source',note:'Оригинал: просмотр через Quick Look (iPhone), экспорт в ZIP, передача'})};
 }
 export function formatBytes(value){if(value<1024)return `${value} Б`;if(value<1048576)return `${(value/1024).toFixed(1).replace('.0','')} КБ`;return `${(value/1048576).toFixed(1).replace('.0','')} МБ`;}
-export async function initDemo(){
+export async function initDemo(t=x=>x){
   const projects=await getProjects();if(projects.length||localStorage.getItem('modellink-demo-seeded'))return;
-  const p=await createProject('Демо · План склада','Пример для знакомства с просмотром и замечаниями',true);
+  const p=await createProject(t('Демо · План склада'),t('Пример для знакомства с просмотром и замечаниями'),true);
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 590"><rect width="900" height="590" fill="#fff"/><g stroke="#23324e" stroke-width="4" fill="none"><rect x="70" y="80" width="750" height="425"/><path d="M395 80v425M610 80v425M70 300h325M610 300h210M160 300v205M395 195h215"/><rect x="96" y="105" width="262" height="150" stroke="#98a7be" stroke-width="2"/><path d="M160 300v60M395 370v80" stroke="#fff" stroke-width="9"/><path d="M395 370q-80 0-80 80M160 360q60 0 60-60" stroke="#5472d8" stroke-width="2"/></g><g font-family="Arial" fill="#536078" font-size="25"><text x="168" y="188">СКЛАД</text><text x="448" y="155">ОФИС</text><text x="657" y="175">ЦЕХ</text><text x="190" y="445">ПОГРУЗКА</text><text x="667" y="421">ВЫХОД</text></g><g fill="none" stroke="#3e70fa" stroke-width="2"><path d="M70 65h750M70 57v16M820 57v16"/></g><text x="420" y="54" text-anchor="middle" font-family="Arial" font-size="16" fill="#3e70fa">30 м</text></svg>`;
-  const drawing=await addAsset(p.id,new File([svg],'План склада.svg',{type:'image/svg+xml'}));
-  await addNote({projectId:p.id,assetId:drawing.id,text:'Проверить ширину прохода для погрузчика',point:{x:.43,y:.57}});
+  const drawing=await addAsset(p.id,new File([svg],t('План склада.svg'),{type:'image/svg+xml'}));
+  await addNote({projectId:p.id,assetId:drawing.id,text:t('Проверить ширину прохода для погрузчика'),point:{x:.43,y:.57}});
   const obj=`# ModelLink demo, simple beam frame\no Frame\nv -1 -0.5 -0.2\nv 1 -0.5 -0.2\nv 1 0.5 -0.2\nv -1 0.5 -0.2\nv -1 -0.5 0.2\nv 1 -0.5 0.2\nv 1 0.5 0.2\nv -1 0.5 0.2\nf 1 2 3 4\nf 5 8 7 6\nf 1 5 6 2\nf 2 6 7 3\nf 3 7 8 4\nf 5 1 4 8\n`;
-  await addAsset(p.id,new File([obj],'3D-элемент.obj',{type:'text/plain'}));
+  await addAsset(p.id,new File([obj],t('3D-элемент.obj'),{type:'text/plain'}));
   localStorage.setItem('modellink-demo-seeded','1');
 }

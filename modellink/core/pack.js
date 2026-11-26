@@ -15,7 +15,8 @@ export async function exportProject(projectId,JSZip){
   const p=await getProject(projectId);if(!p)throw new Error('Проект не найден');
   const files=await getAssets(projectId),notes=await getNotes(projectId);
   const zip=new JSZip();
-  const manifest={format:'modellink-package',version:PACKAGE_VERSION,created:new Date().toISOString(),project:{name:p.name,description:p.description},files:[],notes:notes.map(n=>({assetId:n.assetId,text:n.text,point:n.point,locationType:n.locationType,page:n.page,status:n.status,createdAt:n.createdAt}))};
+  const manifest={format:'modellink-package',version:PACKAGE_VERSION,created:new Date().toISOString(),project:{name:p.name,description:p.description},files:[],notes:[]};
+  notes.forEach((n,i)=>{const item={assetId:n.assetId,text:n.text,point:n.point,locationType:n.locationType,page:n.page,status:n.status,createdAt:n.createdAt};if(n.audio){item.audioEntry=`audio/${String(i).padStart(4,'0')}`;item.audioMime=n.audio.type||'audio/mp4';item.audioDuration=n.audioDuration||0;zip.file(item.audioEntry,n.audio);}manifest.notes.push(item);});
   for(let i=0;i<files.length;i++){
     const f=files[i],entry=`files/${i.toString().padStart(4,'0')}`;
     zip.file(entry,f.blob);
@@ -47,8 +48,9 @@ export async function importProjectPackage(blob,JSZip){
       map.set(item.id,asset.id);
     }
     for(const note of manifest.notes){
-      if(!map.has(note.assetId)||!String(note.text||'').trim())continue;
-      const stored=await addNote({projectId:p.id,assetId:map.get(note.assetId),text:note.text,point:note.point,locationType:note.locationType||'normalized',page:note.page||1});
+      if(!map.has(note.assetId)||(!String(note.text||'').trim()&&!note.audioEntry))continue;
+      const audio=note.audioEntry&&validPath(note.audioEntry)&&zip.file(note.audioEntry)?new Blob([await zip.file(note.audioEntry).async('blob')],{type:note.audioMime||'audio/mp4'}):null;
+      const stored=await addNote({projectId:p.id,assetId:map.get(note.assetId),text:note.text,point:note.point,locationType:note.locationType||'normalized',page:note.page||1,audio,audioDuration:note.audioDuration||0});
       if(note.status==='resolved')await setNoteStatus(stored.id,'resolved');
     }
     return p;

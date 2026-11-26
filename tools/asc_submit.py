@@ -277,6 +277,9 @@ def apply_version_localizations(asc, version, meta, base_dir):
         shots = sorted((base_dir / loc["screenshots"]).glob("*.png")) if loc.get("screenshots") else []
         if shots:
             upload_screenshots(asc, lid, shots, SCREENSHOT_TYPE)
+        ipad = sorted((base_dir / loc["ipadScreenshots"]).glob("*.png")) if loc.get("ipadScreenshots") else []
+        if ipad:
+            upload_screenshots(asc, lid, ipad, "APP_IPAD_PRO_3GEN_129")  # 12.9"/13": 2048 x 2732 or 2064 x 2752
         watch = sorted((base_dir / loc["watchScreenshots"]).glob("*.png")) if loc.get("watchScreenshots") else []
         if watch:
             size = png_size(watch[0])

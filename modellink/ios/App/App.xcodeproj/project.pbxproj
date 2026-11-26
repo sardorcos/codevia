@@ -23,6 +23,7 @@
 		A10001050000000000000000 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000050000000000000000 /* PrivacyInfo.xcprivacy */; };
 		A10001060000000000000000 /* ModelLinkConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000060000000000000000 /* ModelLinkConverter.swift */; };
 		A10001070000000000000000 /* ModelLinkSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000070000000000000000 /* ModelLinkSecurity.swift */; };
+		A10002010000000000000000 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000000 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,9 @@
 		A10000050000000000000000 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A10000060000000000000000 /* ModelLinkConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkConverter.swift; sourceTree = "<group>"; };
 		A10000070000000000000000 /* ModelLinkSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLinkSecurity.swift; sourceTree = "<group>"; };
+		A10002020000000000000000 /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A10002030000000000000000 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A10002040000000000000000 /* uz */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = uz; path = uz.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -79,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
+				A10002000000000000000000 /* InfoPlist.strings */,
 				A10000070000000000000000 /* ModelLinkSecurity.swift */,
 				A10000060000000000000000 /* ModelLinkConverter.swift */,
 				A10000010000000000000000 /* ModelLinkNativePlugin.swift */,
@@ -144,6 +149,7 @@
 			knownRegions = (
 				en,
 				ru,
+				uz,
 				Base,
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
@@ -170,6 +176,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				A10002010000000000000000 /* InfoPlist.strings in Resources */,
 				A10001050000000000000000 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -195,6 +202,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
+		A10002000000000000000000 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				A10002020000000000000000 /* ru */,
+				A10002030000000000000000 /* en */,
+				A10002040000000000000000 /* uz */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -336,7 +353,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.8.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.neverlandplayworks.modellink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -358,7 +375,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.7.0;
+				MARKETING_VERSION = 0.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neverlandplayworks.modellink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

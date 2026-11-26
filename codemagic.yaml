@@ -382,4 +382,21 @@ workflows:
       - name: Internal testing
         script: |
           python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
-          python3 tools/asc_testflight.py com.neverlandplayworks.modellink --timeout-min 50
+          python3 tools/asc_testflight.py com.neverlandplayworks.modellink --timeout-min 50 --notes appstore/testflight.json
+
+  # ModelLink App Store page: texts (ru, en-US), categories, age rating, price, availability, iPhone + iPad
+  # screenshots, review notes and the newest processed build (modellink/appstore). Does not submit.
+  modellink-app-store-metadata:
+    name: ModelLink — App Store page
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - review_contact
+    scripts:
+      - name: Apply metadata
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py modellink/appstore/metadata.json

@@ -24,6 +24,7 @@ def main() -> None:
     p.add_argument("bundle_id")
     p.add_argument("--all-users", action="store_true")
     p.add_argument("--timeout-min", type=int, default=45)
+    p.add_argument("--notes", help="JSON with betaDescription / whatsNew per locale")
     args = p.parse_args()
     asc = ASC()
 
@@ -59,6 +60,33 @@ def main() -> None:
             log("Export compliance: no non-exempt encryption")
         except APIError as e:
             log(f"Export compliance not set: {e}")
+
+    # 1b. TestFlight texts: beta app description and "What to Test" for this build
+    if args.notes:
+        import json
+        notes = json.loads(pathlib.Path(args.notes).read_text())
+        have = {l["attributes"]["locale"]: l for l in asc.get(f"/v1/apps/{app['id']}/betaAppLocalizations?limit=50")["data"]}
+        for locale, text in notes.get("betaDescription", {}).items():
+            try:
+                if locale in have:
+                    asc.call("PATCH", f"/v1/betaAppLocalizations/{have[locale]['id']}", {"data": {"type": "betaAppLocalizations", "id": have[locale]["id"], "attributes": {"description": text}}})
+                else:
+                    asc.call("POST", "/v1/betaAppLocalizations", {"data": {"type": "betaAppLocalizations", "attributes": {"locale": locale, "description": text},
+                             "relationships": {"app": {"data": {"type": "apps", "id": app["id"]}}}}})
+                log(f"Beta description [{locale}] set")
+            except APIError as e:
+                log(f"Beta description [{locale}] not set: {e}")
+        have = {l["attributes"]["locale"]: l for l in asc.get(f"/v1/builds/{build['id']}/betaBuildLocalizations?limit=50")["data"]}
+        for locale, text in notes.get("whatsNew", {}).items():
+            try:
+                if locale in have:
+                    asc.call("PATCH", f"/v1/betaBuildLocalizations/{have[locale]['id']}", {"data": {"type": "betaBuildLocalizations", "id": have[locale]["id"], "attributes": {"whatsNew": text}}})
+                else:
+                    asc.call("POST", "/v1/betaBuildLocalizations", {"data": {"type": "betaBuildLocalizations", "attributes": {"locale": locale, "whatsNew": text},
+                             "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
+                log(f"What to Test [{locale}] set")
+            except APIError as e:
+                log(f"What to Test [{locale}] not set: {e}")
 
     # 2. Internal group
     groups = asc.get(f"/v1/apps/{app['id']}/betaGroups?limit=200")["data"]

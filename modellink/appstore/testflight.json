@@ -1,0 +1,10 @@
+{
+ "betaDescription": {
+  "ru": "ModelLink — офлайн-просмотрщик чертежей DWG/DXF, PDF и 3D-моделей (FBX, 3ds Max, STL, OBJ) с замерами, замечаниями, версиями и защищённой отправкой файлов.",
+  "en-US": "ModelLink is an offline viewer for DWG/DXF drawings, PDFs and 3D models (FBX, 3ds Max, STL, OBJ) with measurements, remarks, versions and protected file sharing."
+ },
+ "whatsNew": {
+  "ru": "Что проверить в 0.8.0:\n• DWG: теперь видны мультивыноски, таблицы, мультилинии, выноски, сетки и вспомогательные линии; исправлено положение многострочного текста. Если чего-то не видно — строка внизу чертежа покажет, какие объекты не поддерживаются.\n• Кнопка «На весь экран» и понятный переключатель «Тёмный фон / Светлый фон».\n• Голосовые замечания: «Отметить» → «Голосовое замечание».\n• Языки интерфейса: русский, английский, узбекский (Настройки → Язык интерфейса).\n• Аудиофайлы открываются во встроенном проигрывателе.\n• iPad: боковое меню, все ориентации.",
+  "en-US": "What to test in 0.8.0:\n• DWG: multileaders, tables, multilines, leaders, meshes and construction lines are now drawn; multiline text placement fixed. If something is missing, the line under the drawing lists unsupported objects.\n• “Full screen” button and a clear “Dark / Light background” switch.\n• Voice remarks: “Mark” → “Voice remark”.\n• Interface languages: English, Russian, Uzbek (Settings → Interface language).\n• Audio files open in a built-in player.\n• iPad: sidebar navigation, all orientations."
+ }
+}

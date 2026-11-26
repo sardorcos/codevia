@@ -1,7 +1,7 @@
 {
   "name": "modellink-mobile",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "ModelLink, mobile-first files, CAD previews and project review",
   "type": "module",
   "scripts": {

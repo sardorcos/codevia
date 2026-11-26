@@ -45,6 +45,8 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
   const out = [];
   const layers = new Map();
   let truncated = false;
+  const skipped = {}, errors = {}, xlines = [];
+  const arrow = (from, tip, size, ent, inherited) => { const dx = tip[0] - from[0], dy = tip[1] - from[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, w = size / 3; push({ type: 'polyline', points: [tip, [tip[0] - ux * size + uy * w, tip[1] - uy * size - ux * w], [tip[0] - ux * size - uy * w, tip[1] - uy * size + ux * w]], closed: true, fill: true }, ent, inherited); };
   const ocs = (p, n) => (n && n.z < -0.5 ? [-p.x, p.y] : [p.x, p.y]); // extrusion (0,0,-1) mirrors X
   const pts = (list, n) => list.map(p => ocs(p, n));
   const ltGlobal = Number(doc.header?.lineTypeScale) > 0 ? Number(doc.header.lineTypeScale) : 1;
@@ -83,7 +85,41 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
     try {
       switch (kind) {
         case 'Line': push({ type: 'line', a: [ent.startPoint.x, ent.startPoint.y], b: [ent.endPoint.x, ent.endPoint.y] }, ent, inherited); return;
-        case 'XLine': case 'Ray': return; // infinite construction lines
+        case 'XLine': case 'Ray': if (ent.firstPoint && ent.direction) xlines.push({ p: [ent.firstPoint.x, ent.firstPoint.y], d: [ent.direction.x, ent.direction.y], ray: kind === 'Ray', ent, inherited }); return;
+        case 'MLine': {
+          const verts = ent.vertices || []; const n = Math.max(0, ...verts.map(v => v.segments?.length || 0)); const closed = ((ent.flags ?? 0) & 2) !== 0;
+          for (let k = 0; k < n; k++) { const pts2 = verts.map(v => { const off = v.segments?.[k]?.parameters?.[0] ?? 0; return [v.position.x + v.miter.x * off, v.position.y + v.miter.y * off]; }); if (pts2.length > 1) push({ type: 'polyline', points: pts2, closed }, ent, inherited); }
+          return;
+        }
+        case 'Leader': {
+          const v = (ent.vertices || []).map(q => [q.x, q.y]); if (v.length < 2) return;
+          push({ type: 'polyline', points: v, closed: false }, ent, inherited);
+          if (ent.arrowHeadEnabled !== false) arrow(v[1], v[0], (ent.style?.arrowSize || 2.5) * (ent.style?.scaleFactor || 1), ent, inherited);
+          return;
+        }
+        case 'MultiLeader': {
+          const cd = ent.contextData; if (!cd) return; const size = (ent.arrowheadSize || cd.arrowheadSize || 2.5) * (cd.scaleFactor || 1);
+          for (const root of cd.leaderRoots || []) for (const line of root.lines || []) {
+            const v = (line.points || []).map(q => [q.x, q.y]); if (root.connectionPoint) v.push([root.connectionPoint.x, root.connectionPoint.y]);
+            if (v.length > 1) { push({ type: 'polyline', points: v, closed: false }, ent, inherited); arrow(v[1], v[0], size, ent, inherited); }
+          }
+          const label = cleanText(cd.textLabel || ''); if (label && cd.textLocation) {
+            const th = cd.textHeight || 2.5; const ls = label.split('\n');
+            ls.forEach((t, i) => push({ type: 'text', p: [cd.textLocation.x, cd.textLocation.y - th - i * th * 1.667], text: t, height: th, rotation: cd.textRotation || 0, align: 'left' }, ent, inherited));
+          }
+          return;
+        }
+        case 'Tolerance': { const t = cleanText(String(ent.text || '').replace(/%%v/gi, ' | ')); if (t && ent.insertionPoint) push({ type: 'text', p: [ent.insertionPoint.x, ent.insertionPoint.y], text: t, height: (ent.style?.textHeight || 2.5) * (ent.style?.scaleFactor || 1), rotation: ent.direction ? Math.atan2(ent.direction.y, ent.direction.x) : 0, align: 'left', valign: 'middle' }, ent, inherited); return; }
+        case 'Mesh': { const v = ent.vertices || []; for (const f of ent.faces || []) { const q = f.map(i => v[i]).filter(Boolean).map(p => [p.x, p.y]); if (q.length > 1) push({ type: 'polyline', points: q, closed: true }, ent, inherited); } return; }
+        case 'PolyfaceMesh': {
+          const verts = [...(ent.vertices || [])].map(x => x.location).filter(Boolean);
+          for (const f of ent.faces || []) { const idx = [f.index1, f.index2, f.index3, f.index4].filter(i => i); const q = idx.map(i => verts[Math.abs(i) - 1]).filter(Boolean).map(p => [p.x, p.y]); if (q.length > 1) push({ type: 'polyline', points: q, closed: true }, ent, inherited); }
+          return;
+        }
+        case 'RasterImage': case 'PdfUnderlay': case 'DwfUnderlay': case 'DgnUnderlay': {
+          if (ent.insertPoint && ent.uVector && ent.vVector && ent.size) { const o = ent.insertPoint, u = ent.uVector, w = ent.vVector, sx = ent.size.x, sy = ent.size.y; push({ type: 'polyline', points: [[o.x, o.y], [o.x + u.x * sx, o.y + u.y * sx], [o.x + u.x * sx + w.x * sy, o.y + u.y * sx + w.y * sy], [o.x + w.x * sy, o.y + w.y * sy]], closed: true }, ent, inherited); }
+          skipped[kind] = (skipped[kind] || 0) + 1; return;
+        }
         case 'Point': { const p = ent.location ?? ent.position; if (p) push({ type: 'circle', c: [p.x, p.y], r: 0, point: true }, ent, inherited); return; }
         case 'Circle': { const [x, y] = ocs(ent.center, ent.normal); push({ type: 'circle', c: [x, y], r: ent.radius }, ent, inherited); return; }
         case 'Arc': push({ type: 'polyline', points: pts(ent.polygonalVertexes(Math.max(8, Math.ceil(precision * Math.abs(ent.sweep ?? Math.PI) / Math.PI))), ent.normal), closed: false }, ent, inherited); return;
@@ -140,29 +176,32 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           }
           const rot = ent.rotation ?? (ent.alignmentPoint ? Math.atan2(ent.alignmentPoint.y, ent.alignmentPoint.x) : 0);
           const ap = ent.attachmentPoint || 1; const col = (ap - 1) % 3; const row = Math.floor((ap - 1) / 3);
-          const dy = row === 0 ? h : row === 1 ? h - (lines.length - 1) * h * 0.83 : h - (lines.length - 1) * h * 1.66;
+          const gap = h * 1.667 * (ent.lineSpacing > 0 ? ent.lineSpacing : 1), H = h + (lines.length - 1) * gap;
+          const first = row === 0 ? -h : row === 1 ? H / 2 - h : H - h; // baseline of line 1 relative to the attachment point (Y up)
           lines.forEach((line, i) => {
-            const off = dy - i * h * 1.66;
-            const x = ent.insertPoint.x - Math.sin(rot) * off, y = ent.insertPoint.y + Math.cos(rot) * off - h;
+            const off = first - i * gap;
+            const x = ent.insertPoint.x - Math.sin(rot) * off, y = ent.insertPoint.y + Math.cos(rot) * off;
             push({ type: 'text', p: [x, y], text: line, height: h, rotation: rot, align: col === 0 ? 'left' : col === 1 ? 'center' : 'right' }, ent, inherited);
           });
           return;
         }
-        case 'Insert': {
+        case 'Insert': case 'TableEntity': {
           if (depth >= MAX_DEPTH || !ent.block) return;
           const color = ent.color?.isByLayer ? aciHex(ent.layer?.color) : ent.color?.isByBlock ? inherited : aciHex(ent.color);
           for (const child of ent.explode()) visit(child, depth + 1, color);
           for (const att of ent.attributes || []) visit(att, depth + 1, color);
           return;
         }
-        case 'Wipeout': case 'Viewport': case 'AttributeDefinition': case 'Solid3D': case 'Region': case 'Body': return;
+        case 'Wipeout': case 'Viewport': case 'AttributeDefinition': return;
+        case 'Solid3D': case 'Region': case 'Body': case 'Shape': case 'Ole2Frame': skipped[kind] = (skipped[kind] || 0) + 1; return;
         default:
-          if (kind.startsWith('Dimension') || kind === 'Leader' || kind === 'MultiLeader' || kind === 'Tolerance') {
+          if (kind.startsWith('Dimension')) {
             const block = ent.block;
             if (block && depth < MAX_DEPTH) for (const child of block.entities || []) visit(child, depth + 1, aciHex(ent.color));
-          }
+            else skipped[kind] = (skipped[kind] || 0) + 1;
+          } else if (kind) skipped[kind] = (skipped[kind] || 0) + 1;
       }
-    } catch { /* one malformed entity must not hide the drawing */ }
+    } catch { errors[kind] = (errors[kind] || 0) + 1; /* one malformed entity must not hide the drawing */ }
   };
 
   for (const ent of doc.modelSpace?.entities || []) visit(ent, 0, null);
@@ -172,6 +211,11 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
     space = 'paper';
   }
   const d = finish(out, [...layers.values()], truncated); d.space = space;
+  if (xlines.length) { // construction lines: long segments through the drawing extents (not counted in the bounds)
+    const b = d.bounds, L = Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * 3 || 1000;
+    for (const x of xlines) { const l = Math.hypot(...x.d) || 1, u = [x.d[0] / l, x.d[1] / l]; const a = x.ray ? x.p : [x.p[0] - u[0] * L, x.p[1] - u[1] * L]; push({ type: 'line', a, b: [x.p[0] + u[0] * L, x.p[1] + u[1] * L], construction: true }, x.ent, x.inherited); }
+  }
+  d.skipped = skipped; d.errors = errors;
   return d;
 }
 

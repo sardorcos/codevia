@@ -1,0 +1,31 @@
+{
+ "bundleId": "com.neverlandplayworks.modellink",
+ "version": "0.8.0",
+ "copyright": "2026 Qosimbekov Sardorbek",
+ "primaryCategory": "PRODUCTIVITY",
+ "secondaryCategory": "GRAPHICS_AND_DESIGN",
+ "privacyPolicyUrl": "https://sardorcos.github.io/codevia/modellink/privacy.html",
+ "supportUrl": "https://sardorcos.github.io/codevia/modellink/support.html",
+ "marketingUrl": "https://sardorcos.github.io/codevia/modellink/",
+ "reviewNotes": "ModelLink is an offline viewer for engineering drawings (DWG/DXF), PDFs and 3D models. No account is needed and the app makes no network requests (the only optional one is a package revocation-list check that the user configures in Settings).\n\nTo try it: the app opens with a sample project \"Demo · Warehouse plan\" — open the SVG plan, tap \"Measure\" and tap two points, or \"Mark\" to add a remark. Open the OBJ file for the 3D viewer. Settings → Interface language switches between English, Russian and Uzbek.\n\nProtected packages: open a project → \"Protected sending\" creates an AES-256 encrypted .mlink file and shows a QR key. Face ID is used only to unlock the in-app vault. The camera is used only to scan a QR key; the microphone only to record voice remarks. All files stay on the device.",
+ "locales": {
+  "ru": {
+   "name": "ModelLink: DWG и 3D",
+   "subtitle": "Чертежи, модели и замечания",
+   "keywords": "dwg,dxf,cad,autocad,чертеж,3d,fbx,stl,obj,просмотр,замечания,измерения,инженер,проект,pdf",
+   "promotionalText": "Открывайте DWG, DXF и 3D (FBX, 3ds Max, STL) на iPhone и iPad, измеряйте, оставляйте голосовые замечания и отправляйте чертежи в зашифрованном пакете.",
+   "description": "ModelLink — карманный просмотрщик чертежей и 3D-моделей для инженеров, проектировщиков, технологов и прорабов. Открывайте DWG, DXF, PDF и 3D прямо на iPhone и iPad, измеряйте, оставляйте замечания и безопасно отправляйте файлы подрядчикам. Всё работает офлайн — ваши файлы не покидают устройство.\n\nЧЕРТЕЖИ DWG И DXF\n• AutoCAD DWG от R13 до 2018+ и DXF: пространство модели, вложенные блоки, слои и цвета, полилинии, сплайны, штриховки, размеры, тексты, мультивыноски, таблицы.\n• Панель слоёв, тёмный и светлый фон, полноэкранный режим, плавный масштаб двумя пальцами.\n• Измерения с привязкой к точкам — расстояние, ΔX и ΔY в единицах чертежа (мм, м).\n\n3D-МОДЕЛИ\n• FBX, 3ds Max (.max), OBJ, STL, GLB/glTF, 3DS, DAE, PLY, 3MF.\n• Освещение и материалы, каркасный режим, замеры и замечания прямо на поверхности модели.\n• Экспорт в USDZ — модель открывается в дополненной реальности.\n\nЗАМЕЧАНИЯ И ВЕРСИИ\n• Метки на чертеже, изображении и 3D, статусы «открыто / выполнено».\n• Голосовые замечания — запишите комментарий вместо набора текста.\n• Все редакции файла сохраняются; отпечаток SHA-256 доказывает, какая версия была передана.\n• PDF-отчёт по замечаниям проекта.\n\nЭКСПОРТ И ОТПРАВКА\n• DWG → DXF, PDF, SVG, PNG; 3D → USDZ, GLB, OBJ, STL; PDF → изображения; любой файл → ZIP.\n• Отправка через AirDrop, «Файлы», почту и мессенджеры.\n\nБЕЗОПАСНАЯ ПЕРЕДАЧА\n• Защищённый пакет .mlink: шифрование AES-256, пароль или ключ по QR-коду при встрече.\n• Только просмотр, срок действия, одноразовое открытие, отзыв доступа.\n• Именной водяной знак получателя, журнал событий и подписанные квитанции «Ознакомлен».\n• Сейф по Face ID, режим паники (телефон экраном вниз), обезличивание штампа перед отправкой на расчёт.\n\nПРИВАТНОСТЬ\nБез регистрации, рекламы и аналитики. Данные хранятся только на вашем устройстве.\n\nИнтерфейс: русский, английский, узбекский. Приложение работает на iPhone, iPad и Mac с Apple Silicon.",
+   "screenshots": "screenshots/ru/iphone",
+   "ipadScreenshots": "screenshots/ru/ipad"
+  },
+  "en-US": {
+   "name": "ModelLink: DWG & 3D Viewer",
+   "subtitle": "Drawings, models & markups",
+   "keywords": "dwg,dxf,cad,autocad,viewer,3d,fbx,stl,obj,blueprint,measure,markup,engineer,drawing,pdf",
+   "promotionalText": "Open DWG, DXF and 3D (FBX, 3ds Max, STL) on iPhone and iPad, measure, add voice remarks and send drawings in an encrypted package.",
+   "description": "ModelLink is a pocket viewer for drawings and 3D models built for engineers, designers, technologists and site managers. Open DWG, DXF, PDF and 3D right on your iPhone and iPad, measure, mark up and share files with contractors securely. Everything works offline — your files never leave the device.\n\nDWG AND DXF DRAWINGS\n• AutoCAD DWG from R13 to 2018+ and DXF: model space, nested blocks, layers and colours, polylines, splines, hatches, dimensions, text, multileaders and tables.\n• Layer panel, dark and light background, full-screen mode, smooth two-finger zoom.\n• Measurements that snap to points — distance, ΔX and ΔY in drawing units (mm, m).\n\n3D MODELS\n• FBX, 3ds Max (.max), OBJ, STL, GLB/glTF, 3DS, DAE, PLY, 3MF.\n• Lighting and materials, wireframe mode, measurements and remarks right on the model surface.\n• Export to USDZ to see the model in augmented reality.\n\nREMARKS AND VERSIONS\n• Marks on drawings, images and 3D, with open / done status.\n• Voice remarks — record a comment instead of typing.\n• Every file revision is kept; a SHA-256 fingerprint proves which version was delivered.\n• PDF report of project remarks.\n\nEXPORT AND SHARING\n• DWG → DXF, PDF, SVG, PNG; 3D → USDZ, GLB, OBJ, STL; PDF → images; any file → ZIP.\n• Share via AirDrop, Files, Mail and messengers.\n\nPROTECTED SHARING\n• Protected .mlink package: AES-256 encryption, password or a QR key handed over in person.\n• View only, expiry date, one-time opening, access revocation.\n• Recipient name watermark, event log and signed “Acknowledged” receipts.\n• Face ID vault, panic mode (turn the phone face down), redact the title block before sending for a quote.\n\nPRIVACY\nNo sign-up, ads or analytics. Your data stays on your device.\n\nLanguages: English, Russian, Uzbek. Runs on iPhone, iPad and Apple silicon Macs.",
+   "screenshots": "screenshots/en-US/iphone",
+   "ipadScreenshots": "screenshots/en-US/ipad"
+  }
+ }
+}
