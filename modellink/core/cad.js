@@ -61,17 +61,45 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
       return dash;
     } catch { return null; }
   };
-  const push = (prim, ent, inherited) => {
+  // Block references are drawn with our own affine transform (x' = a·x + c·y + e, y' = b·x + d·y + f) instead of
+  // Insert.explode(): one child that cannot be cloned/transformed by the library must not hide the whole block.
+  let M = null, hatchLines = 0;
+  const mul = (A, B) => [A[0] * B[0] + A[2] * B[1], A[1] * B[0] + A[3] * B[1], A[0] * B[2] + A[2] * B[3], A[1] * B[2] + A[3] * B[3], A[0] * B[4] + A[2] * B[5] + A[4], A[1] * B[4] + A[3] * B[5] + A[5]];
+  const tp = q => [M[0] * q[0] + M[2] * q[1] + M[4], M[1] * q[0] + M[3] * q[1] + M[5]];
+  const transform = prim => {
+    const sx = Math.hypot(M[0], M[1]), sy = Math.hypot(M[2], M[3]), det = M[0] * M[3] - M[1] * M[2], k = Math.sqrt(Math.abs(det)) || 1;
+    if (prim.type === 'line') { prim.a = tp(prim.a); prim.b = tp(prim.b); }
+    else if (prim.type === 'polyline') prim.points = prim.points.map(tp);
+    else if (prim.type === 'circle') {
+      if (prim.r > 0 && Math.abs(sx - sy) > 1e-6 * Math.max(sx, sy)) { // non-uniform scale: circle → ellipse outline
+        const n = 72, c = prim.c, r = prim.r; prim.type = 'polyline'; prim.closed = true; delete prim.c; delete prim.r;
+        prim.points = Array.from({ length: n }, (_, i) => tp([c[0] + r * Math.cos(i / n * 2 * Math.PI), c[1] + r * Math.sin(i / n * 2 * Math.PI)]));
+      } else { prim.c = tp(prim.c); prim.r *= sx; }
+    } else if (prim.type === 'text') {
+      const r = prim.rotation || 0; let dx = M[0] * Math.cos(r) + M[2] * Math.sin(r), dy = M[1] * Math.cos(r) + M[3] * Math.sin(r);
+      const ux = -M[0] * Math.sin(r) + M[2] * Math.cos(r), uy = -M[1] * Math.sin(r) + M[3] * Math.cos(r);
+      const dl = Math.hypot(dx, dy) || 1, ul = Math.hypot(ux, uy) || 1;
+      prim.p = tp(prim.p);
+      if (det < 0) { dx = -dx; dy = -dy; prim.align = prim.align === 'left' ? 'right' : prim.align === 'right' ? 'left' : prim.align; } // mirrored block: keep text readable
+      prim.rotation = Math.atan2(dy, dx); prim.width = (prim.width || 1) * dl / ul; prim.height *= ul;
+    }
+    if (prim.dash) prim.dash = prim.dash.map(v => v * k);
+    if (prim.width && prim.type === 'polyline') prim.width *= k;
+  };
+  const push = (prim, ent, inh) => {
     if (out.length >= MAX_PRIMITIVES) { truncated = true; return; }
     if (prim.type !== 'text' && !prim.fill) { const d = dashOf(ent); if (d) prim.dash = d; }
-    const layer = ent.layer;
+    if (M) transform(prim);
+    let layer = ent.layer;
+    if (inh?.layer && (!layer || layer.name === '0')) layer = inh.layer; // layer 0 inside a block takes the layer of the reference
     const layerName = layer?.name ?? '0';
     if (!layers.has(layerName)) layers.set(layerName, { name: layerName, color: aciHex(layer?.color), visible: layer ? layer.isOn !== false && !((layer.layerFlags ?? 0) & 1) : true, count: 0 });
     layers.get(layerName).count++;
     let color = null;
     try {
       const own = ent.color;
-      if (own && own.isByBlock) color = inherited ?? null;
+      if (prim.color !== undefined) color = prim.color; // inline colour (MTEXT \C)
+      else if (own && own.isByBlock) color = inh?.color ?? null;
       else if (own && own.isByLayer) color = aciHex(layer?.color);
       else color = aciHex(own);
     } catch { color = null; }
@@ -79,13 +107,18 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
     out.push(prim);
   };
 
+  const refStyle = (ent, inh) => { // colour and layer that a block / dimension reference hands down to its content
+    let layer = ent.layer; if (inh?.layer && (!layer || layer.name === '0')) layer = inh.layer;
+    let color = null; try { const own = ent.color; color = own?.isByBlock ? (inh?.color ?? null) : !own || own.isByLayer ? aciHex(layer?.color) : aciHex(own); } catch { /* ink */ }
+    return { color, layer };
+  };
   const visit = (ent, depth, inherited) => {
     if (!ent || ent.isInvisible || truncated) return;
     const kind = ent.constructor?.name || '';
     try {
       switch (kind) {
         case 'Line': push({ type: 'line', a: [ent.startPoint.x, ent.startPoint.y], b: [ent.endPoint.x, ent.endPoint.y] }, ent, inherited); return;
-        case 'XLine': case 'Ray': if (ent.firstPoint && ent.direction) xlines.push({ p: [ent.firstPoint.x, ent.firstPoint.y], d: [ent.direction.x, ent.direction.y], ray: kind === 'Ray', ent, inherited }); return;
+        case 'XLine': case 'Ray': if (ent.firstPoint && ent.direction) { const p0 = [ent.firstPoint.x, ent.firstPoint.y], p1 = [p0[0] + ent.direction.x, p0[1] + ent.direction.y], a = M ? tp(p0) : p0, b = M ? tp(p1) : p1; xlines.push({ p: a, d: [b[0] - a[0], b[1] - a[1]], ray: kind === 'Ray', ent, inherited }); } return;
         case 'MLine': {
           const verts = ent.vertices || []; const n = Math.max(0, ...verts.map(v => v.segments?.length || 0)); const closed = ((ent.flags ?? 0) & 2) !== 0;
           for (let k = 0; k < n; k++) { const pts2 = verts.map(v => { const off = v.segments?.[k]?.parameters?.[0] ?? 0; return [v.position.x + v.miter.x * off, v.position.y + v.miter.y * off]; }); if (pts2.length > 1) push({ type: 'polyline', points: pts2, closed }, ent, inherited); }
@@ -120,7 +153,7 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           if (ent.insertPoint && ent.uVector && ent.vVector && ent.size) { const o = ent.insertPoint, u = ent.uVector, w = ent.vVector, sx = ent.size.x, sy = ent.size.y; push({ type: 'polyline', points: [[o.x, o.y], [o.x + u.x * sx, o.y + u.y * sx], [o.x + u.x * sx + w.x * sy, o.y + u.y * sx + w.y * sy], [o.x + w.x * sy, o.y + w.y * sy]], closed: true }, ent, inherited); }
           skipped[kind] = (skipped[kind] || 0) + 1; return;
         }
-        case 'Point': { const p = ent.location ?? ent.position; if (p) push({ type: 'circle', c: [p.x, p.y], r: 0, point: true }, ent, inherited); return; }
+        case 'Point': { if (inherited?.dim || /^defpoints$/i.test(ent.layer?.name || '')) return; const p = ent.location ?? ent.position; if (p) push({ type: 'circle', c: [p.x, p.y], r: 0, point: true }, ent, inherited); return; }
         case 'Circle': { const [x, y] = ocs(ent.center, ent.normal); push({ type: 'circle', c: [x, y], r: ent.radius }, ent, inherited); return; }
         case 'Arc': push({ type: 'polyline', points: pts(ent.polygonalVertexes(Math.max(8, Math.ceil(precision * Math.abs(ent.sweep ?? Math.PI) / Math.PI))), ent.normal), closed: false }, ent, inherited); return;
         case 'Ellipse': push({ type: 'polyline', points: pts(ent.polygonalVertexes(precision * 2)), closed: !!ent.isFullEllipse }, ent, inherited); return;
@@ -143,10 +176,19 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           return;
         }
         case 'Hatch': {
-          for (const path of ent.paths || []) {
-            const p = path.getPoints ? path.getPoints(precision) : [];
-            if (p.length > 2) push({ type: 'polyline', points: pts(p, ent.normal), closed: true, fill: !!ent.isSolid, hatch: !ent.isSolid }, ent, inherited);
-          }
+          const loops = [];
+          for (const path of ent.paths || []) { const p = path.getPoints ? path.getPoints(precision) : []; if (p.length > 2) loops.push(pts(p, ent.normal)); }
+          if (!loops.length) return;
+          if (ent.isSolid) { for (const l of loops) push({ type: 'polyline', points: l, closed: true, fill: true }, ent, inherited); return; }
+          // Pattern hatch: real pattern lines when their number is sane, otherwise a light tint of the area.
+          let lines = null;
+          try {
+            const bb = ent.getBoundingBox?.(), diag = bb ? Math.hypot(bb.max.x - bb.min.x, bb.max.y - bb.min.y) : 0;
+            const est = (ent.pattern?.lines || []).reduce((a, l) => a + (Math.abs(l.lineOffset) > 1e-9 ? diag / Math.abs(l.lineOffset) : Infinity), 0);
+            if (est > 0 && est < 1500 && hatchLines < 120000 && !(ent.normal && ent.normal.z < -0.5)) lines = ent.explodePattern();
+          } catch { lines = null; }
+          if (lines && lines.length) { hatchLines += lines.length; for (const l of lines) push({ type: 'line', a: [l.startPoint.x, l.startPoint.y], b: [l.endPoint.x, l.endPoint.y], hatch: true }, ent, inherited); }
+          else for (const l of loops) push({ type: 'polyline', points: l, closed: true, fill: true, hatch: true }, ent, inherited);
           return;
         }
         case 'TextEntity': case 'AttributeEntity': {
@@ -178,18 +220,36 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
           const ap = ent.attachmentPoint || 1; const col = (ap - 1) % 3; const row = Math.floor((ap - 1) / 3);
           const gap = h * 1.667 * (ent.lineSpacing > 0 ? ent.lineSpacing : 1), H = h + (lines.length - 1) * gap;
           const first = row === 0 ? -h : row === 1 ? H / 2 - h : H - h; // baseline of line 1 relative to the attachment point (Y up)
+          const inline = mtextColor(ent.value);
           lines.forEach((line, i) => {
             const off = first - i * gap;
             const x = ent.insertPoint.x - Math.sin(rot) * off, y = ent.insertPoint.y + Math.cos(rot) * off;
-            push({ type: 'text', p: [x, y], text: line, height: h, rotation: rot, align: col === 0 ? 'left' : col === 1 ? 'center' : 'right' }, ent, inherited);
+            const prim = { type: 'text', p: [x, y], text: line, height: h, rotation: rot, align: col === 0 ? 'left' : col === 1 ? 'center' : 'right' };
+            if (inline !== undefined) prim.color = inline;
+            push(prim, ent, inherited);
           });
           return;
         }
         case 'Insert': case 'TableEntity': {
           if (depth >= MAX_DEPTH || !ent.block) return;
-          const color = ent.color?.isByLayer ? aciHex(ent.layer?.color) : ent.color?.isByBlock ? inherited : aciHex(ent.color);
-          for (const child of ent.explode()) visit(child, depth + 1, color);
-          for (const att of ent.attributes || []) visit(att, depth + 1, color);
+          const style = refStyle(ent, inherited);
+          const sx = Number.isFinite(ent.xScale) && ent.xScale ? ent.xScale : 1, sy = Number.isFinite(ent.yScale) && ent.yScale ? ent.yScale : 1, r = ent.rotation || 0;
+          const co = Math.cos(r), si = Math.sin(r), bp = ent.block.blockEntity?.basePoint ?? { x: 0, y: 0 }, ip = ent.insertPoint ?? { x: 0, y: 0 };
+          const mirror = ent.normal && ent.normal.z < -0.5 ? -1 : 1; // extrusion (0,0,-1): the reference lives in a mirrored OCS
+          const A = co * sx, B = si * sx, C = -si * sy, D = co * sy;
+          const cols = Math.max(1, Math.min(200, ent.columnCount | 0 || 1)), rows = Math.max(1, Math.min(200, ent.rowCount | 0 || 1));
+          const saved = M;
+          let list; try { list = ent.block.getSortedEntities ? ent.block.getSortedEntities() : [...(ent.block.entities || [])]; } catch { list = [...(ent.block.entities || [])]; }
+          try {
+            for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+              const ox = i * (ent.columnSpacing || 0), oy = j * (ent.rowSpacing || 0); // MINSERT grid, in the rotated frame of the reference
+              const ex = ip.x + co * ox - si * oy - (A * bp.x + C * bp.y), ey = ip.y + si * ox + co * oy - (B * bp.x + D * bp.y);
+              const L = [mirror * A, B, mirror * C, D, mirror * ex, ey];
+              M = saved ? mul(saved, L) : L;
+              for (const child of list) visit(child, depth + 1, style);
+            }
+          } finally { M = saved; }
+          for (const att of ent.attributes || []) visit(att, depth + 1, style);
           return;
         }
         case 'Wipeout': case 'Viewport': case 'AttributeDefinition': return;
@@ -197,7 +257,7 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
         default:
           if (kind.startsWith('Dimension')) {
             const block = ent.block;
-            if (block && depth < MAX_DEPTH) for (const child of block.entities || []) visit(child, depth + 1, aciHex(ent.color));
+            if (block && depth < MAX_DEPTH) { const style = { ...refStyle(ent, inherited), dim: true }; for (const child of block.entities || []) visit(child, depth + 1, style); }
             else skipped[kind] = (skipped[kind] || 0) + 1;
           } else if (kind) skipped[kind] = (skipped[kind] || 0) + 1;
       }
@@ -219,6 +279,17 @@ export function cadToDrawing(doc, { precision = 48 } = {}) {
   return d;
 }
 
+/** First inline colour of an MTEXT value: \C<aci>; or \c<b<<16|g<<8|r>; → '#rrggbb', null (ink) or undefined (none). */
+export function mtextColor(value) {
+  const m = /\\([Cc])(\d+);/.exec(String(value || '')); if (!m) return undefined;
+  const n = Number(m[2]);
+  if (m[1] === 'c') return n === 0 ? undefined : '#' + [n & 255, n >> 8 & 255, n >> 16 & 255].map(v => v.toString(16).padStart(2, '0')).join('');
+  if (n === 0 || n === 256) return undefined;
+  if (n === 7 || n === 255) return null;
+  return ACI[n] || undefined;
+}
+const ACI = { 1: '#ff0000', 2: '#ffff00', 3: '#00ff00', 4: '#00ffff', 5: '#0000ff', 6: '#ff00ff', 8: '#808080', 9: '#c0c0c0', 250: '#333333', 251: '#505050', 252: '#696969', 253: '#828282', 254: '#bebebe' };
+
 function alignOf(h) { return h === 1 || h === 4 ? 'center' : h === 2 ? 'right' : 'left'; }
 /** UTF-8 text decoded as ANSI_1252 (DXF without $DWGCODEPAGE) looks like "ÐŸÑ€Ð¸": re-decode it. */
 export function fixMojibake(s) {
@@ -237,7 +308,7 @@ function cleanText(s) {
 
 /** Bounds from the dense part of the drawing (outliers far away would shrink the plan to a dot). */
 export function finish(entities, layers, truncated = false) {
-  const boxes = [];
+  const boxes = [], hatchBoxes = [];
   for (const e of entities) {
     if (e.type === 'polyline' && e.points.length > 4000) { const k = Math.ceil(e.points.length / 4000); e.points = e.points.filter((_, i) => i % k === 0 || i === e.points.length - 1); }
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -247,8 +318,9 @@ export function finish(entities, layers, truncated = false) {
     else if (e.type === 'circle' || e.type === 'arc') { add(e.c[0] - e.r, e.c[1] - e.r); add(e.c[0] + e.r, e.c[1] + e.r); }
     else if (e.type === 'text') { add(...e.p); add(e.p[0] + e.height * e.text.length * 0.6 * Math.cos(e.rotation || 0), e.p[1] + e.height); }
     else if (e.type === 'point') add(...e.p);
-    if (x0 <= x1) boxes.push([x0, y0, x1, y1]);
+    if (x0 <= x1) (e.hatch && e.type === 'line' ? hatchBoxes : boxes).push([x0, y0, x1, y1]); // thousands of hatch lines must not skew the stray filter
   }
+  if (!boxes.length) boxes.push(...hatchBoxes);
   if (!boxes.length) throw new Error('В чертеже нет видимой 2D-геометрии в пространстве модели');
   // Drop only real strays: objects whose centre lies far outside the interquartile range of all centres.
   const q = (arr, f) => arr[Math.min(arr.length - 1, Math.max(0, Math.round((arr.length - 1) * f)))];

@@ -848,6 +848,8 @@ async function loadDrawing(f){
   drawingCache.set(f.id,drawing);return drawing;
 }
 const viewStates=new Map(),hiddenLayers=new Map();
+// On the dark background, colours that are too dark to see (true black, ACI 250…) are lifted towards light grey, keeping the hue.
+const toneDark=c=>{if(!c)return c;const n=parseInt(c.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255,l=(.299*r+.587*g+.114*b)/255,hi=Math.max(r,g,b),chroma=hi-Math.min(r,g,b)>90;if(hi<40)return null;const min=chroma?.16:.42;if(l>=min)return c;const k=(min-l)/(1-l)+.1;return '#'+[r,g,b].map(v=>Math.round(v+(255-v)*k).toString(16).padStart(2,'0')).join('');};
 const toneLight=c=>{if(!c)return c;const n=parseInt(c.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255,l=(.299*r+.587*g+.114*b)/255;if(l<.55)return c;const k=.55/l*.8;return '#'+[r,g,b].map(v=>Math.round(v*k).toString(16).padStart(2,'0')).join('');};
 function cadDark(){try{return localStorage.getItem('modellink-cad-bg')!=='light';}catch{return true;}}
 async function activateCadViewer(f,host,wrap){
@@ -873,10 +875,10 @@ async function activateCadViewer(f,host,wrap){
   const toWorld=(sx,sy)=>{const k=scale();return [(sx-w/2)/k+vs.cx,(h/2-sy)/k+vs.cy];};
   function build(){
     const map=new Map();texts=[];dots=[];const sp=[];
-    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):''}|${e.dash?e.dash.join(','):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,dash:e.dash||null,path:new Path2D()};map.set(key,g);}return g.path;};
+    const group=(e)=>{const key=`${e.color||''}|${e.fill?(e.hatch?'h':'f'):e.hatch?'l':''}|${e.dash?e.dash.join(','):''}`;let g=map.get(key);if(!g){g={color:e.color,fill:!!e.fill,hatch:!!e.hatch,dash:e.dash||null,path:new Path2D()};map.set(key,g);}return g.path;};
     for(const e of drawing.entities){
       if(hidden.has(e.layer))continue;
-      if(e.type==='line'){const p=group(e);p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
+      if(e.type==='line'){const p=group(e);p.moveTo(e.a[0],e.a[1]);p.lineTo(e.b[0],e.b[1]);if(!e.hatch&&sp.length<6e5)sp.push(e.a[0],e.a[1],e.b[0],e.b[1]);}
       else if(e.type==='polyline'){const p=group(e);e.points.forEach((q,i)=>i?p.lineTo(q[0],q[1]):p.moveTo(q[0],q[1]));if(e.closed)p.closePath();if(sp.length<6e5)for(const q of e.points.length>200?[e.points[0],e.points.at(-1)]:e.points)sp.push(q[0],q[1]);}
       else if(e.type==='circle'){if(e.r>0){const p=group(e);p.moveTo(e.c[0]+e.r,e.c[1]);p.arc(e.c[0],e.c[1],e.r,0,Math.PI*2);}else dots.push(e);if(sp.length<6e5)sp.push(e.c[0],e.c[1]);}
       else if(e.type==='arc'){const p=group(e);const s=e.start*Math.PI/180,t=e.end*Math.PI/180;p.moveTo(e.c[0]+e.r*Math.cos(s),e.c[1]+e.r*Math.sin(s));p.arc(e.c[0],e.c[1],e.r,s,t,false);}
@@ -889,14 +891,14 @@ async function activateCadViewer(f,host,wrap){
     frame=0;const ctx=canvas.getContext('2d');const dark=cadDark();const ink=dark?'#e7ecf4':'#1d2a40';const k=scale();
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle=dark?'#141a24':'#ffffff';ctx.fillRect(0,0,w,h);
     ctx.save();ctx.setTransform(dpr*k,0,0,-dpr*k,dpr*(w/2-vs.cx*k),dpr*(h/2+vs.cy*k));ctx.lineWidth=(dark?1:1.1)/k;ctx.lineCap='round';ctx.lineJoin='round';
-    for(const g of groups){const c=(dark?g.color:toneLight(g.color))||ink;
+    for(const g of groups){const c=(dark?toneDark(g.color):toneLight(g.color))||ink;ctx.lineWidth=(g.hatch&&!g.fill?.6:dark?1:1.1)/k;
       if(g.fill){ctx.globalAlpha=g.hatch?.22:.8;ctx.fillStyle=c;ctx.fill(g.path);ctx.globalAlpha=1;}
       ctx.strokeStyle=c;if(g.dash&&g.dash[0]*k>1.5)ctx.setLineDash(g.dash);ctx.stroke(g.path);if(g.dash)ctx.setLineDash([]);}
     ctx.restore();ctx.setTransform(dpr,0,0,dpr,0,0);
-    for(const d of dots){const [x,y]=toScreen(d.c[0],d.c[1]);if(x<-4||y<-4||x>w+4||y>h+4)continue;ctx.fillStyle=(dark?d.color:toneLight(d.color))||ink;ctx.fillRect(x-1.5,y-1.5,3,3);}
+    for(const d of dots){const [x,y]=toScreen(d.c[0],d.c[1]);if(x<-4||y<-4||x>w+4||y>h+4)continue;ctx.fillStyle=(dark?toneDark(d.color):toneLight(d.color))||ink;ctx.fillRect(x-1,y-1,2,2);}
     let shown=0;const minPx=texts.length>4000?6:3;
     for(const t of texts){const px=t.height*k;if(px<minPx)continue;const [x,y]=toScreen(t.p[0],t.p[1]);if(x<-w||x>2*w||y<-60||y>h+60)continue;if(++shown>6000)break;
-      ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);if(t.width&&t.width!==1)ctx.scale(t.width,1);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline=t.valign||'alphabetic';ctx.fillStyle=(dark?t.color:toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
+      ctx.save();ctx.translate(x,y);if(t.rotation)ctx.rotate(-t.rotation);if(t.width&&t.width!==1)ctx.scale(t.width,1);ctx.font=`${Math.min(px,400)}px -apple-system,system-ui,Arial,sans-serif`;ctx.textAlign=t.align||'left';ctx.textBaseline=t.valign||'alphabetic';ctx.fillStyle=(dark?toneDark(t.color):toneLight(t.color))||ink;ctx.fillText(t.text,0,0);ctx.restore();}
     for(const r of [...(f.redactions||[]),...(redactDraft?[redactDraft]:[])]){const a=toScreen(Math.min(r.x0,r.x1),Math.max(r.y0,r.y1)),c=toScreen(Math.max(r.x0,r.x1),Math.min(r.y0,r.y1));ctx.fillStyle=r===redactDraft?'rgba(0,0,0,.55)':'#000';ctx.fillRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);ctx.strokeStyle='#e5484d';ctx.lineWidth=1;ctx.strokeRect(a[0],a[1],c[0]-a[0],c[1]-a[1]);}
     if(measure.length){ctx.strokeStyle='#4f8cff';ctx.fillStyle='#4f8cff';ctx.lineWidth=2;const pts=measure.map(p=>toScreen(p[0],p[1]));
       if(pts.length===2){ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(...pts[0]);ctx.lineTo(...pts[1]);ctx.stroke();ctx.setLineDash([]);
@@ -909,7 +911,7 @@ async function activateCadViewer(f,host,wrap){
   const resize=()=>{dpr=Math.min(3,devicePixelRatio||1);w=wrap.clientWidth;h=wrap.clientHeight;canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();};
   const zoomAt=(factor,sx,sy)=>{const [wx,wy]=toWorld(sx,sy);vs.zoom=Math.max(.05,Math.min(5000,vs.zoom*factor));const k=scale();vs.cx=wx-(sx-w/2)/k;vs.cy=wy-(h/2-sy)/k;redraw();};
   const snapTo=(sx,sy)=>{let best=-1,bd=16*16;const k=scale();for(let i=0;i<snap.length;i+=2){const x=(snap[i]-vs.cx)*k+w/2,y=h/2-(snap[i+1]-vs.cy)*k;const d=(x-sx)**2+(y-sy)**2;if(d<bd){bd=d;best=i;}}return best<0?toWorld(sx,sy):[snap[best],snap[best+1]];};
-  const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${plural(drawing.entities.length,'object')}${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}${Object.keys(drawing.skipped||{}).length?` · не показано: ${Object.entries(drawing.skipped).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}`;};
+  const updateInfo=()=>{const hiddenCount=hidden.size;info.textContent=`${drawing.version==='DXF'?'DXF · ':drawing.version?`DWG ${versionLabelUI(drawing.version)} · `:''}${plural(drawing.entities.length,'object')}${drawing.units?` · ${drawing.units}`:''}${hiddenCount?` · скрыто слоёв: ${hiddenCount}`:''}${drawing.truncated?' · показана часть':''}${drawing.space==='paper'?' · лист':''}${drawing.strays?` · далёкие объекты: ${drawing.strays}`:''}${Object.keys(drawing.skipped||{}).length?` · не показано: ${Object.entries(drawing.skipped).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}${Object.keys(drawing.errors||{}).length?` · ошибки чтения: ${Object.entries(drawing.errors).map(([k,v])=>`${skippedName(k)} ×${v}`).join(', ')}`:''}`;};
   build();updateInfo();setTimeout(()=>info.classList.add('faded'),3500);
   const pos=e=>{const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];};
   const touches=new Map();let pinch=null,drag=null,lastTap=0,redactDraft=null;
