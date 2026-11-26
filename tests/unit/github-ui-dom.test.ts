@@ -106,7 +106,7 @@ describe('GitHub tools in the DOM', () => {
     await vi.waitFor(() => expect(root.querySelector('[data-repo-access]')).not.toBeNull());
     (root.querySelector('[data-repo-access]') as HTMLElement).click();
     expect(ctx.openExternal).toHaveBeenCalledWith('https://github.com/apps/codevia-pocket/installations/new');
-    cleanup();
+    if (typeof cleanup === 'function') cleanup();
     root.replaceChildren();
     await signIn('pat');
     cleanup = tool('github-account').mount(root, fakeCtx(null));
