@@ -454,6 +454,19 @@ def probe(asc, app):
                     log(f"  {name}: ERROR {str(e)[:300]}")
 
 
+def status(asc, app):
+    """Read-only: App Store versions with their states and the review submissions."""
+    for v in asc.all(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=IOS"):
+        a = v["attributes"]
+        log(f"version {a.get('versionString')} | state={a.get('appStoreState')} | release={a.get('releaseType')} | created={a.get('createdDate')}")
+    try:
+        for r in asc.all(f"/v1/reviewSubmissions?filter[app]={app['id']}"):
+            a = r["attributes"]
+            log(f"review submission {r['id']} | state={a.get('state')} | submitted={a.get('submittedDate')}")
+    except Exception as e:
+        log(f"review submissions: {str(e)[:300]}")
+
+
 def main():
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
@@ -464,6 +477,9 @@ def main():
     app = find_app(asc, meta["bundleId"])
     if os.environ.get("ASC_PROBE"):
         probe(asc, app)
+        return
+    if "--status" in sys.argv:
+        status(asc, app)
         return
     steps = [
         ("content rights", lambda: set_content_rights(asc, app)),

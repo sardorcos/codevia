@@ -176,6 +176,19 @@ workflows:
               print(f"build {a.get('version')} | processing={a.get('processingState')} | uploaded={a.get('uploadedDate')} | expired={a.get('expired')} | encryption={a.get('usesNonExemptEncryption')}")
           PY
 
+  # Read-only: App Store versions, their states and review submissions.
+  app-store-status:
+    name: Codevia Pocket — App Store status
+    instance_type: mac_mini_m2
+    max_build_duration: 10
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    scripts:
+      - name: App Store status
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py appstore/metadata.json --status
+
   # App Store listing: texts, categories, age rating, price, availability, screenshots, build,
   # review notes (tools/asc_submit.py + appstore/metadata.json). Does not submit.
   app-store-metadata:
