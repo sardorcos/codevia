@@ -19,6 +19,17 @@ import { t } from '../i18n';
 
 const WRITE_TIMEOUT = 20_000;
 const now = () => new Date().toISOString();
+/**
+ * Versions made within the same millisecond get distinct, increasing times so they keep their order.
+ * A clock that jumps back further (the user changed the time) is followed as is.
+ */
+let lastSnapshotMs = 0;
+const snapshotTime = (): string => {
+  let ms = Date.now();
+  if (ms <= lastSnapshotMs && lastSnapshotMs - ms < 1000) ms = lastSnapshotMs + 1;
+  lastSnapshotMs = ms;
+  return new Date(ms).toISOString();
+};
 /** Sizes of text files, remembered per file object and content (strings are immutable), so an
  *  autosave only measures the files that changed instead of re-encoding the whole project. */
 const sizeCache = new WeakMap<ProjectFile, { content: string; size: number }>();
@@ -283,7 +294,7 @@ export class Repository {
       if (!(await this.backend.hasBlob(hash))) await this.guard(this.backend.putBlob(hash, f));
       entries[path] = { hash, text: f.text, size: bytes.length };
     }
-    const snapshot: Snapshot = { id: makeId(), projectId: project.id, at: now(), label, kind, fileCount: Object.keys(entries).length, entries };
+    const snapshot: Snapshot = { id: makeId(), projectId: project.id, at: snapshotTime(), label, kind, fileCount: Object.keys(entries).length, entries };
     await this.guard(this.backend.putSnapshot(snapshot));
     await this.prune(project.id);
     const { entries: _e, ...meta } = snapshot;
