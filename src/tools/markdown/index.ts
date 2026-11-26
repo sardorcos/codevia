@@ -7,6 +7,7 @@ import type { Tool, ToolContext } from '../types';
 import { fileBytes, fileText, loadStored, pickProjectFile, saveStored, segmented, setSegmented } from '../shared';
 import { headingsOf, renderMarkdown } from './render';
 import '../tools.css';
+import { currentAppearance } from '../../ui/theme';
 
 export { renderMarkdown } from './render';
 
@@ -25,7 +26,7 @@ export function projectImageUrl(files: Files, from: string, src: string): string
 function mount(root: HTMLElement, ctx: ToolContext): () => void {
   let file: string | null = null;
   let lastText: string | null = null;
-  let theme = loadStored<'dark' | 'light'>('md.theme', 'dark') === 'light' ? 'light' : 'dark';
+  let theme: 'dark' | 'light' = loadStored<'dark' | 'light'>('md.theme', currentAppearance()) === 'light' ? 'light' : 'dark';
 
   root.classList.add('tool-root', 'tool-md');
   root.innerHTML = `
@@ -34,7 +35,7 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
       <span class="tool-file mono truncate" data-file></span>
       <span class="grow"></span>
       ${segmented('theme', [['dark', t('Тёмная')], ['light', t('Светлая')]], theme, t('Тема чтения'))}
-      <button type="button" class="icon-btn" data-act="outline" aria-label="${esc(t('Оглавление'))}" aria-expanded="false">${icon('sliders', 'sm')}</button>
+      <button type="button" class="icon-btn" data-act="outline" aria-label="${esc(t('Оглавление'))}" aria-expanded="false">${icon('list', 'sm')}</button>
       <button type="button" class="icon-btn" data-act="edit" aria-label="${esc(t('Открыть в редакторе'))}">${icon('edit', 'sm')}</button>
     </div>
     <div class="tool-md-layout">
@@ -169,6 +170,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const markdownTool: Tool = {
   id: 'markdown',
+  group: 'Веб',
+  description: 'Предпросмотр и экспорт Markdown',
   title: 'Markdown',
   icon: 'markdown',
   mount,

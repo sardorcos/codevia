@@ -290,6 +290,7 @@ test('gallery: a Vue todo project is created offline with its library and works 
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, (r) => r.abort());
   await start(page);
   await page.getByRole('button', { name: 'Новый', exact: true }).click();
+  await page.locator('[data-np-tab="gallery"]').click();
   await page.locator('[data-tpl="gallery:vue-todo"]').click();
   await page.getByRole('button', { name: 'Создать проект' }).click();
   await expect(page.locator('.project-title')).toContainText('Список дел на Vue');
@@ -303,6 +304,7 @@ test('gallery: a Vue todo project is created offline with its library and works 
 test('gallery: PHP form posts with method=post and shows $_POST safely', async ({ page }) => {
   await start(page);
   await page.getByRole('button', { name: 'Новый', exact: true }).click();
+  await page.locator('[data-np-tab="gallery"]').click();
   await page.locator('[data-tpl="gallery:php-form"]').click();
   await page.getByRole('button', { name: 'Создать проект' }).click();
   const frame = page.frameLocator('#live-preview');
@@ -339,4 +341,18 @@ test('lessons: start the Python course, fail the check, write the answer, pass a
   await expect(page.locator('.learn-result.ok')).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Следующий урок/ }).click();
   await expect(page.locator('.learn-h')).toContainText('Переменные и арифметика');
+});
+
+test('appearance: light and dark themes switch in Settings and are remembered', async ({ page }) => {
+  await start(page);
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="theme"][data-value="light"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'light');
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe('rgb(245, 246, 248)');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'light');
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="theme"][data-value="dark"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'dark');
 });

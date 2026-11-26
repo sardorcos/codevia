@@ -9,12 +9,12 @@
 }
 .learn-h {
   margin: 8px 0 6px;
-  font-size: 22px;
+  font-size: var(--fs-2xl);
 }
 .learn-step {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .learn-task {
   margin: 14px 0;
@@ -38,7 +38,7 @@
   border-radius: var(--radius-sm);
   background: var(--surface);
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 .learn-result {
   margin: 12px 0;
@@ -46,7 +46,7 @@
   border-radius: var(--radius-sm);
 }
 .learn-result.ok {
-  background: rgba(96, 215, 175, 0.15);
+  background: var(--success-bg);
   color: var(--success);
   display: flex;
   align-items: center;
@@ -63,7 +63,7 @@
 .learn-err {
   margin: 8px 0 0;
   white-space: pre-wrap;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text);
   opacity: 0.85;
 }
@@ -85,7 +85,7 @@
   align-items: center;
   justify-content: center;
   background: var(--panel2);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   flex: none;
 }
 .learn-lessons {

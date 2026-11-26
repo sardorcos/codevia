@@ -53,6 +53,7 @@ export function closeTool(): void {
   open.layer.remove();
   document.querySelector('.tool-peek-chip')?.remove();
   document.documentElement.classList.remove('tool-docked');
+  delete document.documentElement.dataset.toolDock;
   open = null;
 }
 
@@ -60,13 +61,23 @@ export function closeTool(): void {
 export async function pickTool(hasProject: boolean, makeContext: () => ToolContext): Promise<void> {
   const tools = registry.filter((x) => hasProject || !x.needsProject);
   if (!tools.length) return;
+  const groups: string[] = [];
+  for (const x of tools) if (!groups.includes(x.group ?? '')) groups.push(x.group ?? '');
+  const row = (x: Tool) =>
+    `<button class="row-button tool-row" role="listitem" data-tool="${esc(x.id)}"><span class="tool-ico">${icon(x.icon)}</span><span class="row-main"><span class="row-title">${esc(t(x.title))}</span>${
+      x.description ? `<span class="row-description">${esc(t(x.description))}</span>` : ''
+    }</span>${icon('chevron', 'sm')}</button>`;
   const id = await openSheet<string>({
     title: t('Инструменты'),
-    body: `<div class="list tool-list" role="list">${tools
+    body: groups
       .map(
-        (x) => `<button class="row-button" role="listitem" data-tool="${esc(x.id)}">${icon(x.icon)}<span class="row-main"><span class="row-title">${esc(t(x.title))}</span></span>${icon('chevron', 'sm')}</button>`,
+        (g) =>
+          `${g ? `<h3 class="section-heading tool-group">${esc(t(g))}</h3>` : ''}<div class="list tool-list" role="list" ${g ? `aria-label="${esc(t(g))}"` : ''}>${tools
+            .filter((x) => (x.group ?? '') === g)
+            .map(row)
+            .join('')}</div>`,
       )
-      .join('')}</div>`,
+      .join(''),
     onMount: (root, close) =>
       root.addEventListener('click', (e) => {
         const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tool]');
@@ -95,6 +106,7 @@ export function openTool(tool: Tool, ctx: ToolContext): void {
     if (e.key === 'Escape' && !document.querySelector('.sheet-layer')) ctx.close();
   });
   document.documentElement.classList.add('tool-docked');
+  document.documentElement.dataset.toolDock = tool.dock ?? 'code';
   open = { tool, layer };
   try {
     const cleanup = tool.mount(body, ctx);

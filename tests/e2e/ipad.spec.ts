@@ -47,3 +47,22 @@ test('iPad: Python project runs in the side pane; ⌘1–⌘4 and the side switc
   await page.keyboard.press(`${mod(page)}+4`);
   await expect(page.locator('.split-side #run-console')).toBeVisible();
 });
+
+test('iPad: a docked tool hides the file list and keeps the code (or the preview for the inspector)', async ({ page }) => {
+  await page.locator('.row-button', { hasText: 'Сайт-портфолио' }).click();
+  await page.locator('.split-files .row-button', { hasText: 'index.html' }).click();
+  await page.locator('[data-action="tools"]').click();
+  await page.locator('[data-tool="learn"]').click();
+  await expect(page.locator('.tool-layer')).toBeVisible();
+  await expect(page.locator('.split-files')).toBeHidden();
+  await expect(page.locator('.split-code .cm-content')).toBeVisible();
+  await page.locator('.tool-layer [data-tool-close]').click();
+  await expect(page.locator('.split-files')).toBeVisible();
+
+  await page.locator('[data-action="tools"]').click();
+  await page.locator('[data-tool="inspector"]').click();
+  await expect(page.locator('.split-files')).toBeHidden();
+  await expect(page.locator('#live-preview')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});

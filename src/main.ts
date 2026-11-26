@@ -1,6 +1,7 @@
 import { App } from './app';
 import { applyDocumentLang, initI18n, t } from './i18n';
 import './styles/app.css';
+import { applyTheme } from './ui/theme';
 
 /**
  * iOS Dynamic Type: WKWebView resolves `font: -apple-system-body` to the user's text size (17px by default).
@@ -20,6 +21,8 @@ function applyDynamicType(): void {
   document.documentElement.classList.toggle('dynamic-type', scale > 1);
 }
 applyDocumentLang();
+// Follow the system theme until the saved preference is read (avoids a flash of the wrong theme).
+applyTheme('system');
 applyDynamicType();
 window.addEventListener('resize', applyDynamicType);
 

@@ -36,44 +36,42 @@ export type { DefinitionOptions, DefinitionTrigger } from './definition';
 export type { DiagnosticsSummary } from './lint';
 export type { FormatOptions, FormatOutcome } from './format';
 
+// Colours come from CSS variables (src/styles/app.css), so the editor follows the light and dark themes.
 const highlight = HighlightStyle.define([
-  { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.operatorKeyword], color: '#ffcf87' },
-  { tag: [t.string, t.special(t.string), t.regexp], color: '#b7d98f' },
-  { tag: [t.number, t.bool, t.null, t.atom], color: '#dab3e7' },
-  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: '#7d90a4', fontStyle: 'italic' },
-  { tag: [t.tagName, t.angleBracket], color: '#f5b58e' },
-  { tag: [t.attributeName, t.propertyName], color: '#8bc5ed' },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: '#80d9ec' },
-  { tag: [t.className, t.typeName, t.definition(t.typeName)], color: '#9fe3c7' },
-  { tag: [t.heading], color: '#f2f4f7', fontWeight: '700' },
-  { tag: [t.link, t.url], color: '#40c8f6', textDecoration: 'underline' },
-  { tag: [t.invalid], color: '#ef757e' },
+  { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.operatorKeyword], color: 'var(--syn-keyword)' },
+  { tag: [t.string, t.special(t.string), t.regexp], color: 'var(--syn-string)' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--syn-number)' },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: 'var(--syn-comment)', fontStyle: 'italic' },
+  { tag: [t.tagName, t.angleBracket], color: 'var(--syn-tag)' },
+  { tag: [t.attributeName, t.propertyName], color: 'var(--syn-attr)' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--syn-fn)' },
+  { tag: [t.className, t.typeName, t.definition(t.typeName)], color: 'var(--syn-type)' },
+  { tag: [t.heading], color: 'var(--syn-heading)', fontWeight: '700' },
+  { tag: [t.link, t.url], color: 'var(--syn-link)', textDecoration: 'underline' },
+  { tag: [t.invalid], color: 'var(--syn-invalid)' },
 ]);
 
-const theme = EditorView.theme(
-  {
-    '&': { height: '100%', backgroundColor: 'transparent', color: '#dfebfa', fontSize: 'var(--code-font)' },
-    '.cm-scroller': {
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-      lineHeight: '1.6',
-      paddingBottom: '40px',
-      overscrollBehavior: 'contain',
-    },
-    '.cm-content': { caretColor: '#fafafa', padding: '6px 0' },
-    '.cm-gutters': { backgroundColor: '#0c1016', color: '#8792a3', border: 'none', borderRight: '1px solid #1c222b' },
-    '.cm-activeLineGutter': { backgroundColor: '#151b24', color: '#c5ceda' },
-    '.cm-activeLine': { backgroundColor: 'rgba(255,255,255,0.035)' },
-    '&.cm-focused .cm-cursor': { borderLeftColor: '#40c8f6', borderLeftWidth: '2px' },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'rgba(64,200,246,0.28) !important' },
-    '.cm-matchingBracket': { backgroundColor: 'rgba(64,200,246,0.2)', outline: '1px solid rgba(64,200,246,0.5)' },
-    '.cm-panels': { backgroundColor: '#14171c', color: '#f2f4f7', borderTop: '1px solid #282d37' },
-    '.cm-panels input, .cm-panels button': { fontSize: '16px', minHeight: '36px' },
-    '.cm-tooltip': { backgroundColor: '#1a1e24', border: '1px solid #343946', color: '#f2f4f7' },
-    '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'rgba(64,200,246,0.25)', color: '#fff' },
-    '.cm-foldPlaceholder': { backgroundColor: '#20252d', border: 'none', color: '#929ba9' },
+const theme = EditorView.theme({
+  '&': { height: '100%', backgroundColor: 'transparent', color: 'var(--syn-text)', fontSize: 'var(--code-font)' },
+  '.cm-scroller': {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    lineHeight: '1.6',
+    paddingBottom: '40px',
+    overscrollBehavior: 'contain',
   },
-  { dark: true },
-);
+  '.cm-content': { caretColor: 'var(--cm-caret)', padding: '6px 0' },
+  '.cm-gutters': { backgroundColor: 'var(--cm-gutter-bg)', color: 'var(--cm-gutter-text)', border: 'none', borderRight: '1px solid var(--cm-gutter-stroke)' },
+  '.cm-activeLineGutter': { backgroundColor: 'var(--cm-active-gutter)', color: 'var(--cm-active-gutter-text)' },
+  '.cm-activeLine': { backgroundColor: 'var(--cm-active-line)' },
+  '&.cm-focused .cm-cursor': { borderLeftColor: 'var(--accent)', borderLeftWidth: '2px' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': { backgroundColor: 'var(--cm-selection) !important' },
+  '.cm-matchingBracket': { backgroundColor: 'var(--accent-weak)', outline: '1px solid var(--accent-stroke)' },
+  '.cm-panels': { backgroundColor: 'var(--surface)', color: 'var(--text)', borderTop: '1px solid var(--stroke)' },
+  '.cm-panels input, .cm-panels button': { fontSize: '16px', minHeight: '36px' },
+  '.cm-tooltip': { backgroundColor: 'var(--tooltip-bg)', border: '1px solid var(--stroke2)', color: 'var(--text)' },
+  '.cm-tooltip-autocomplete ul li[aria-selected]': { backgroundColor: 'var(--cm-selection)', color: 'var(--text)' },
+  '.cm-foldPlaceholder': { backgroundColor: 'var(--panel2)', border: 'none', color: 'var(--muted)' },
+});
 
 /** Options of createEditor(). Callbacks may be changed later with setOptions(). */
 export interface EditorOptions extends DefinitionOptions {

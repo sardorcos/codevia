@@ -1,5 +1,5 @@
 import { esc, icon, fmtDateTime } from '../../ui/dom';
-import { openSheet } from '../../ui/sheet';
+import { menuSheet, openSheet } from '../../ui/sheet';
 import { t, tc } from '../../i18n';
 import { binaryFile, textFile } from '../../core/types';
 import { formatBytes } from '../../core/bytes';
@@ -98,10 +98,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
         <div class="tool-bar tool-http-actions">
           <button type="button" class="btn tiny secondary" data-act="history">${icon('clock', 'sm')}<span>${esc(t('История'))}</span></button>
           <button type="button" class="btn tiny secondary" data-act="saved">${icon('folder', 'sm')}<span>${esc(t('Сохранённые'))}</span></button>
-          <button type="button" class="btn tiny secondary" data-act="save-req">${icon('save', 'sm')}<span>${esc(t('Сохранить запрос'))}</span></button>
-          <button type="button" class="btn tiny secondary" data-act="curl">${icon('copy', 'sm')}<span>cURL</span></button>
-          <button type="button" class="btn tiny secondary" data-act="fetch">${icon('copy', 'sm')}<span>fetch()</span></button>
-          <button type="button" class="btn tiny ghost" data-act="new">${icon('plus', 'sm')}<span>${esc(t('Новый'))}</span></button>
+          <span class="grow"></span>
+          <button type="button" class="icon-btn" data-act="more" aria-label="${esc(t('Ещё действия с запросом'))}">${icon('more')}</button>
         </div>
         <p class="tool-note">${icon('info', 'xs')} ${esc(
           native
@@ -554,6 +552,18 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
       return;
     }
     switch (el.closest<HTMLElement>('[data-act]')?.dataset.act) {
+      case 'more':
+        return void (async () => {
+          const act = await menuSheet(t('Запрос'), [
+            { id: 'save-req', label: t('Сохранить запрос'), icon: 'save' },
+            { id: 'curl', label: t('Копировать как cURL'), icon: 'copy' },
+            { id: 'fetch', label: t('Копировать как fetch()'), icon: 'copy' },
+            { id: 'new', label: t('Новый запрос'), icon: 'plus' },
+          ]);
+          if (act === 'save-req') void saveRequest();
+          else if (act === 'curl' || act === 'fetch') exportCode(act);
+          else if (act === 'new') resetDraft();
+        })();
       case 'history':
         return void openHistory();
       case 'saved':
@@ -565,10 +575,7 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
       case 'fetch':
         return exportCode('fetch');
       case 'new':
-        load(emptyDraft());
-        clearResponse();
-        resBox.innerHTML = `<p class="tool-empty">${esc(t('Отправьте запрос, чтобы увидеть ответ'))}</p>`;
-        return;
+        return resetDraft();
       case 'pretty-body': {
         const r = parseJson(draft.body);
         if (r.ok) {
@@ -586,6 +593,12 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
         return void saveBody();
     }
   };
+
+  function resetDraft(): void {
+    load(emptyDraft());
+    clearResponse();
+    resBox.innerHTML = `<p class="tool-empty">${esc(t('Отправьте запрос, чтобы увидеть ответ'))}</p>`;
+  }
 
   const onSubmit = (e: Event) => {
     e.preventDefault();
@@ -626,6 +639,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const httpTool: Tool = {
   id: 'http',
+  group: 'Данные и API',
+  description: 'Запросы GET, POST и просмотр ответа',
   title: 'HTTP-клиент',
   icon: 'send',
   mount,

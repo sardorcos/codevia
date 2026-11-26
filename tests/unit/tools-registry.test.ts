@@ -7,7 +7,7 @@ import { LIBRARIES } from '../../src/tools/libraries/catalog';
 
 describe('tool registry', () => {
   it('lists the five tools with unique ids and icons from the sprite', () => {
-    expect(TOOLS.map((t) => t.id)).toEqual(['http', 'json', 'color', 'markdown', 'libraries']);
+    expect(TOOLS.map((t) => t.id)).toEqual(['libraries', 'color', 'markdown', 'http', 'json']);
     const sprite = readFileSync('index.html', 'utf8');
     for (const tool of TOOLS) {
       expect(sprite, tool.icon).toContain(`<symbol id="i-${tool.icon}"`);

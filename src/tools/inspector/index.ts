@@ -18,6 +18,9 @@ export type { InspectorBridge, InspectorEvent, InspectorRequest, PreviewMessage 
 export function createInspectorTool(bridge: InspectorBridge): Tool {
   return {
     id: 'inspector',
+    group: 'Веб',
+    description: 'DOM, стили и сетевые запросы страницы',
+    dock: 'preview',
     title: 'Инспектор',
     icon: 'search',
     needsProject: true,

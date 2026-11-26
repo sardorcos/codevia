@@ -43,7 +43,7 @@ test.describe('English', () => {
     expect(await page.locator('#app').innerText()).not.toMatch(CYRILLIC);
 
     await page.getByRole('button', { name: 'Back to projects' }).click();
-    await expect(page.getByRole('heading', { name: 'Continue' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent' })).toBeVisible();
     await page.locator('.row-button', { hasText: 'Hello site' }).click();
     await expect(page.locator('.project-title')).toContainText('Hello site');
     await page.locator('.row-button', { hasText: 'index.html' }).click();

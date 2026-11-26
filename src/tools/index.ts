@@ -6,7 +6,7 @@ import { markdownTool } from './markdown';
 import { librariesTool } from './libraries';
 
 /** Tool panels, in menu order. The app mounts one with a ToolContext (see ./types.ts). */
-export const TOOLS: Tool[] = [httpTool, jsonTool, colorTool, markdownTool, librariesTool];
+export const TOOLS: Tool[] = [librariesTool, colorTool, markdownTool, httpTool, jsonTool];
 
 export const toolById = (id: string): Tool | undefined => TOOLS.find((x) => x.id === id);
 

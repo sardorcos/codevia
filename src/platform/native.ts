@@ -4,14 +4,12 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Keyboard } from '@capacitor/keyboard';
 import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import { bytesToBase64 } from '../core/bytes';
 
 export const isNative = (): boolean => Capacitor.isNativePlatform();
 
 export async function initNativeChrome(onKeyboard: (open: boolean) => void): Promise<void> {
   if (isNative()) {
-    await StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined);
     await Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => undefined);
     void Keyboard.addListener('keyboardWillShow', () => onKeyboard(true));
     void Keyboard.addListener('keyboardWillHide', () => onKeyboard(false));

@@ -180,6 +180,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const learnTool: Tool = {
   id: 'learn',
+  group: 'Учёба',
+  description: 'Короткие уроки с автоматической проверкой',
   title: 'Уроки',
   icon: 'flag',
   mount,

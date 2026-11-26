@@ -386,8 +386,10 @@ export class Repository {
   // ---------- settings ----------
 
   async loadSettings(): Promise<Settings & Record<string, unknown>> {
-    const raw = await this.backend.getSettings().catch(() => ({}));
-    return { ...DEFAULT_SETTINGS, ...(raw as Partial<Settings>) };
+    const raw = (await this.backend.getSettings().catch(() => ({}))) as Partial<Settings>;
+    // Long lines are wrapped by default on phones, where a line rarely fits the screen.
+    const phone = typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
+    return { ...DEFAULT_SETTINGS, wrapLines: phone, ...raw };
   }
 
   saveSettings(s: Settings & Record<string, unknown>): Promise<void> {

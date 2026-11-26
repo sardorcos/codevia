@@ -47,6 +47,12 @@ export interface Tool {
   icon: string;
   /** Whether the tool needs an open project. */
   needsProject?: boolean;
+  /** Group in the tools list (Russian, translated by the app). */
+  group?: string;
+  /** One-line description in the tools list (Russian). */
+  description?: string;
+  /** What stays visible beside the docked panel on a narrow iPad: the code (default) or the preview. */
+  dock?: 'code' | 'preview';
   /** Renders into `root`; returns an optional cleanup function. */
   mount(root: HTMLElement, ctx: ToolContext): void | (() => void);
 }

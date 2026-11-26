@@ -229,8 +229,8 @@ test.describe('Codevia Pocket', () => {
     await page.locator('.cm-content').click();
     await page.keyboard.press(`${mod(page)}+End`);
     await page.keyboard.type('\n<img src="missing.png">');
-    await page.locator('.nav-item', { hasText: 'Файлы' }).click();
-    await page.getByRole('button', { name: 'Проверка' }).click();
+    await page.locator('[data-action="project-menu"]').click();
+    await page.locator('.menu-item', { hasText: 'Проверка файлов' }).click();
     await expect(page.locator('.issue.error')).toContainText('missing.png');
     await page.locator('.issue.error').first().click();
     await expect(page.locator('.cm-activeLine')).toContainText('missing.png');

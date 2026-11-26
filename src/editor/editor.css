@@ -35,24 +35,24 @@
 }
 .cm-editor .cm-touch-lint-item {
   padding: 6px 10px;
-  border-left: 4px solid #ef757e;
+  border-left: 4px solid var(--danger);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .cm-editor .cm-touch-lint-item + .cm-touch-lint-item {
-  border-top: 1px solid #2a303a;
+  border-top: 1px solid var(--stroke);
 }
 .cm-editor .cm-touch-lint-warning {
-  border-left-color: #ffcf87;
+  border-left-color: var(--warning);
 }
 .cm-editor .cm-touch-lint-info,
 .cm-editor .cm-touch-lint-hint {
-  border-left-color: #40c8f6;
+  border-left-color: var(--accent);
 }
 
 /* ---------- Emmet ---------- */
 .cm-editor .emmet-tracker {
-  text-decoration: underline 1px dashed #9fe3c7;
+  text-decoration: underline 1px dashed var(--syn-type);
   text-underline-offset: 3px;
 }
 .cm-editor .emmet-preview {
@@ -61,7 +61,7 @@
   max-height: 40vh;
   overflow: auto;
   padding: 4px 6px;
-  background: #1a1e24;
+  background: var(--tooltip-bg);
 }
 /* The preview is a nested read-only editor: undo the main editor's sizing that cascades into it. */
 .cm-editor .emmet-preview .cm-editor {
@@ -79,20 +79,20 @@
   background: transparent;
 }
 .cm-editor .emmet-preview_error {
-  color: #ef757e;
+  color: var(--danger);
 }
 .cm-editor .emmet-wrap-with-abbreviation__content {
-  background: #1a1e24;
-  border: 1px solid #343946;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--stroke2);
   border-top: none;
 }
 .cm-editor .emmet-wrap-with-abbreviation__content input {
   font-size: 16px; /* keeps iOS from zooming in */
   min-height: 36px;
   padding: 4px 8px;
-  color: #f2f4f7;
-  background: #0c1016;
-  border: 1px solid #343946;
+  color: var(--text);
+  background: var(--code-bg);
+  border: 1px solid var(--stroke2);
   border-radius: 6px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -112,17 +112,17 @@
 .cm-editor .cm-completionIcon-emmet::after {
   content: 'E';
   font-weight: 700;
-  color: #9fe3c7;
+  color: var(--syn-type);
   background: none;
   width: auto;
   height: auto;
 }
 .cm-editor .cm-snippetField {
-  background-color: rgba(64, 200, 246, 0.14);
+  background-color: var(--accent-weak);
   border-radius: 2px;
 }
 .cm-editor .cm-snippetFieldPosition {
-  border-left: 1.5px solid #40c8f6;
+  border-left: 1.5px solid var(--accent);
 }
 
 /* ---------- colour swatches ---------- */

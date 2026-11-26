@@ -462,6 +462,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const colorTool: Tool = {
   id: 'color',
+  group: 'Веб',
+  description: 'Пипетка, палитра, HEX, RGB и HSL',
   title: 'Цвет',
   icon: 'palette',
   mount,

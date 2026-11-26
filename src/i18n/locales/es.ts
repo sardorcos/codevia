@@ -1235,4 +1235,46 @@ export default {
   'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
     'Escribe una función greet(name) que devuelva Hi, <name>!, e imprime greet("Codevia").',
   'Этот проект не запускается — у него есть предпросмотр': 'Este proyecto no se ejecuta: tiene vista previa',
+  // 1.2 redesign
+  'Сайты, Python, JavaScript и PHP прямо на iPhone и iPad — без интернета и без отправки кода на сервер.':
+    'Sitios web, Python, JavaScript y PHP directamente en tu iPhone y iPad: sin conexión y sin que tu código salga del dispositivo.',
+  'Настоящий редактор': 'Un editor de verdad',
+  'Подсветка, автодополнение, Emmet, форматирование и ошибки на лету.': 'Resaltado, autocompletado, Emmet, formato y errores mientras escribes.',
+  'Страница обновляется на ходу, а инспектор показывает DOM, стили и сеть.':
+    'La página se actualiza mientras escribes y el inspector muestra el DOM, los estilos y la red.',
+  'Python, JavaScript и PHP офлайн': 'Python, JavaScript y PHP sin conexión',
+  'numpy, pandas и графики, TypeScript, PHP 8.3 — всё выполняется на устройстве.':
+    'numpy, pandas y gráficos, TypeScript, PHP 8.3: todo se ejecuta en el dispositivo.',
+  'GitHub и инструменты': 'GitHub y herramientas',
+  'Клонирование и коммиты, HTTP-клиент, JSON, цвета, Tailwind и Bootstrap без интернета.':
+    'Clonar y hacer commits, cliente HTTP, JSON, colores, Tailwind y Bootstrap sin conexión.',
+  'Уроки с проверкой': 'Lecciones con comprobación',
+  'HTML, JavaScript и Python с нуля: задание, код и автоматическая проверка.':
+    'HTML, JavaScript y Python desde cero: una tarea, tu código y una comprobación automática.',
+  'Недавние': 'Recientes',
+  'Поиск': 'Buscar',
+  'Без интернета: CDN и шрифты отключены': 'Sin conexión: CDN y fuentes web desactivados',
+  'Шаблоны': 'Plantillas',
+  'Оформление': 'Apariencia',
+  'Авто': 'Automático',
+  'Тёмное': 'Oscuro',
+  'Светлое': 'Claro',
+  'Плотность': 'Densidad',
+  'Учёба': 'Aprender',
+  'Веб': 'Web',
+  'Данные и API': 'Datos y API',
+  'Аккаунт': 'Cuenta',
+  'Короткие уроки с автоматической проверкой': 'Lecciones cortas con comprobación automática',
+  'Tailwind, Bootstrap, Vue и другие без интернета': 'Tailwind, Bootstrap, Vue y más, sin conexión',
+  'DOM, стили и сетевые запросы страницы': 'DOM, estilos y solicitudes de red de la página',
+  'Пипетка, палитра, HEX, RGB и HSL': 'Cuentagotas, paleta, HEX, RGB y HSL',
+  'Предпросмотр и экспорт Markdown': 'Vista previa y exportación de Markdown',
+  'Запросы GET, POST и просмотр ответа': 'Solicitudes GET y POST con visor de respuestas',
+  'Форматирование, дерево и проверка JSON': 'Formatear, explorar en árbol y validar JSON',
+  'Клонирование, коммиты, ветки и pull request’ы': 'Clonar, commits, ramas y pull requests',
+  'Ещё действия с запросом': 'Más acciones de la solicitud',
+  'Копировать как cURL': 'Copiar como cURL',
+  'Копировать как fetch()': 'Copiar como fetch()',
+  'Новый запрос': 'Nueva solicitud',
+  'Ещё действия': 'Más acciones',
 } as Record<string, string>;

@@ -1,5 +1,5 @@
 import { formatBytes } from '../core/bytes';
-import { basename, dirname, extOf, fileKind, isTextPath } from '../core/paths';
+import { basename, dirname, fileKind, isTextPath } from '../core/paths';
 import { searchProject } from '../core/search';
 import type { Language, Project, ProjectMeta } from '../core/types';
 import type { AppState, ConsoleLine } from '../state';
@@ -45,18 +45,18 @@ export function topbar(s: AppState): string {
       ${(() => {
         const gh = githubBadge(p);
         return gh
-          ? `<button class="gh-badge" data-action="open-tool" data-tool-id="github-sync" aria-label="${esc(t('GitHub: ветка {name}', { name: gh.label }))}">${icon('branch', 'xs')} ${esc(gh.label)}${gh.ahead ? ` <span class="gh-ahead">↑${gh.ahead}</span>` : ''}</button>`
+          ? `<button class="gh-badge" data-action="open-tool" data-tool-id="github" aria-label="${esc(t('GitHub: ветка {name}', { name: gh.label }))}">${icon('branch', 'xs')} ${esc(gh.label)}${gh.ahead ? ` <span class="gh-ahead">↑${gh.ahead}</span>` : ''}</button>`
           : '';
       })()}
       <div class="top-actions">
-        <button class="icon-btn" data-action="tools" aria-label="${t('Инструменты')}">${icon('sliders')}</button>
-        <button class="icon-btn" data-action="history" aria-label="${t('История версий')}">${icon('clock')}</button>
+        <button class="icon-btn labeled" data-action="tools" aria-label="${t('Инструменты')}">${icon('tools')}<span class="btn-label" aria-hidden="true">${t('Инструменты')}</span></button>
+        <button class="icon-btn labeled" data-action="history" aria-label="${t('История версий')}">${icon('clock')}<span class="btn-label" aria-hidden="true">${t('История')}</span></button>
         <button class="icon-btn" data-action="project-menu" aria-label="${t('Действия с проектом')}">${icon('more')}</button>
       </div></header>`;
   }
   if (s.route === 'home') {
     return `<header class="topbar"><div class="brand" aria-label="Codevia Pocket">codevia<span>.</span></div>
-      <div class="top-actions"><button class="icon-btn" data-action="tools" aria-label="${t('Инструменты')}">${icon('sliders')}</button>
+      <div class="top-actions"><button class="icon-btn labeled" data-action="tools" aria-label="${t('Инструменты')}">${icon('tools')}<span class="btn-label" aria-hidden="true">${t('Инструменты')}</span></button>
       <button class="icon-btn" data-action="settings" aria-label="${t('Настройки')}">${icon('settings')}</button></div></header>`;
   }
   const titles: Record<string, string> = {
@@ -102,12 +102,13 @@ export function welcome(): string {
   return `<main class="content welcome" id="main">
     <div class="welcome-mark" aria-hidden="true">codevia<span>.</span></div>
     <h1 class="screen-title">${t('Код в кармане')}</h1>
-    <p class="screen-sub">${t('Редактор для сайтов, Python и PHP. Всё работает прямо на iPhone — без интернета и без отправки кода на сервер.')}</p>
+    <p class="screen-sub">${t('Сайты, Python, JavaScript и PHP прямо на iPhone и iPad — без интернета и без отправки кода на сервер.')}</p>
     <ul class="feature-list">
-      <li>${icon('code')}<div><strong>${t('Редактор с подсветкой')}</strong><span>${t('Автодополнение, поиск, отмена, удобная панель символов.')}</span></div></li>
-      <li>${icon('eye')}<div><strong>${t('Живой предпросмотр')}</strong><span>${t('HTML, CSS и JavaScript со стилями, картинками и консолью.')}</span></div></li>
-      <li>${icon('terminal')}<div><strong>${t('Python и PHP офлайн')}</strong><span>${t('Python 3 и PHP 8.3 выполняются на устройстве.')}</span></div></li>
-      <li>${icon('folder')}<div><strong>${t('Ваши файлы — ваши')}</strong><span>${t('Проекты видны в приложении «Файлы», импорт и экспорт ZIP.')}</span></div></li>
+      <li>${icon('code')}<div><strong>${t('Настоящий редактор')}</strong><span>${t('Подсветка, автодополнение, Emmet, форматирование и ошибки на лету.')}</span></div></li>
+      <li>${icon('eye')}<div><strong>${t('Живой предпросмотр')}</strong><span>${t('Страница обновляется на ходу, а инспектор показывает DOM, стили и сеть.')}</span></div></li>
+      <li>${icon('terminal')}<div><strong>${t('Python, JavaScript и PHP офлайн')}</strong><span>${t('numpy, pandas и графики, TypeScript, PHP 8.3 — всё выполняется на устройстве.')}</span></div></li>
+      <li>${icon('branch')}<div><strong>${t('GitHub и инструменты')}</strong><span>${t('Клонирование и коммиты, HTTP-клиент, JSON, цвета, Tailwind и Bootstrap без интернета.')}</span></div></li>
+      <li>${icon('flag')}<div><strong>${t('Уроки с проверкой')}</strong><span>${t('HTML, JavaScript и Python с нуля: задание, код и автоматическая проверка.')}</span></div></li>
     </ul>
     <div class="stack">
       <button class="btn primary full" data-action="welcome-samples">${t('Начать с примеров')}</button>
@@ -118,7 +119,6 @@ export function welcome(): string {
 // ---------------- home ----------------
 
 export function home(s: AppState): string {
-  const last = s.projects[0];
   const q = s.projectQuery.trim().toLowerCase();
   const list = s.projects.filter((p) => !q || p.name.toLowerCase().includes(q));
   return `<main class="content" id="main">${storageBanner(s)}
@@ -128,18 +128,7 @@ export function home(s: AppState): string {
         <button class="btn primary" data-action="new-project">${icon('plus', 'sm')} ${t('Новый')}</button>
         <button class="btn secondary" data-action="import-project">${icon('upload', 'sm')} ${t('Импорт')}</button>
       </div>
-      ${
-        last
-          ? `<h2 class="section-heading">${t('Продолжить')}</h2>
-      <button class="continue-card" data-action="open-project" data-id="${esc(last.id)}">
-        ${langBadge(last.language)}
-        <span class="row-main"><span class="row-title">${esc(last.name)}</span>
-        <span class="row-description">${langLabel(last.language)} · ${t('изменён {date}', { date: esc(fmtDate(last.updatedAt)) })}</span></span>
-        <span class="continue-go">${t('Открыть')} ${icon('chevron', 'sm')}</span>
-      </button>`
-          : ''
-      }
-      <h2 class="section-heading">${t('Все проекты')} <span class="muted">${s.projects.length}</span></h2>
+      <h2 class="section-heading">${t('Недавние')} <span class="muted">${s.projects.length}</span></h2>
       ${
         s.projects.length > 4
           ? `<div class="search-wrap">${icon('search')}<input class="text-input search-input" id="project-search" type="search" value="${esc(s.projectQuery)}" placeholder="${t('Поиск проектов')}" aria-label="${t('Поиск проектов')}" autocomplete="off"></div>`
@@ -220,14 +209,13 @@ export function filesView(s: AppState, p: Project): string {
     .join('');
   return `<div class="pane files-pane">${storageBanner(s)}
     <div class="toolbar">
-      <div class="search-wrap grow">${icon('search')}<input id="file-search" class="text-input search-input" type="search" value="${esc(s.fileQuery)}" placeholder="${t('Поиск по именам и коду')}" aria-label="${t('Поиск по именам файлов и коду')}" autocomplete="off"></div>
+      <div class="search-wrap grow">${icon('search')}<input id="file-search" class="text-input search-input" type="search" value="${esc(s.fileQuery)}" placeholder="${t('Поиск')}" aria-label="${t('Поиск по именам файлов и коду')}" autocomplete="off"></div>
       <button class="icon-btn" data-action="new-file" aria-label="${t('Создать файл')}">${icon('plus')}</button>
       <button class="icon-btn" data-action="add-files" aria-label="${t('Добавить файлы с устройства')}">${icon('upload')}</button>
     </div>
-    <div class="toolbar">
+    <div class="toolbar files-filter">
       <div class="chips" role="group" aria-label="${t('Фильтр файлов')}">${chips}</div>
-      <button class="btn ghost tiny" data-action="select-mode" aria-pressed="${s.selecting}">${icon('check', 'sm')} ${s.selecting ? t('Готово') : t('Выбрать')}</button>
-      <button class="btn ghost tiny" data-action="diagnostics">${icon('shield', 'sm')} ${t('Проверка')}</button>
+      <button class="btn ghost tiny" data-action="select-mode" aria-pressed="${s.selecting}">${s.selecting ? t('Готово') : t('Выбрать')}</button>
     </div>
     <div class="list scroll" role="list" id="file-list">${rows || (q.length >= 2 ? '' : `<div class="empty-state">${q ? t('Ничего не найдено') : t('В проекте нет файлов')}</div>`)}${contentHits(p, s.fileQuery.trim())}</div>
     ${
@@ -302,38 +290,45 @@ export function codeView(s: AppState, p: Project): string {
     .filter((tab) => p.files[tab]?.text)
     .map(
       (tab) => `<div class="file-tab ${tab === path ? 'active' : ''}">
-        <button class="file-tab-name" data-action="select-tab" data-path="${esc(tab)}" ${tab === path ? 'aria-current="true"' : ''}>${esc(basename(tab))}</button>
+        <button class="file-tab-name" data-action="select-tab" data-path="${esc(tab)}" title="${esc(tab)}" ${tab === path ? 'aria-current="true"' : ''}>${esc(basename(tab))}</button>
         <button class="file-tab-close" data-action="close-tab" data-path="${esc(tab)}" aria-label="${t('Закрыть вкладку {name}', { name: esc(basename(tab)) })}">${icon('close', 'xs')}</button>
       </div>`,
     )
     .join('');
-  const saveLabel = s.save === 'saving' ? t('Сохранение…') : s.save === 'error' ? t('Ошибка сохранения') : t('Сохранено');
+  const cmd = (action: string, ic: string, label: string, extra = '') =>
+    `<button class="key-btn key-cmd" data-action="${action}" aria-label="${label}" title="${label}" ${extra}>${icon(ic, 'sm')}</button>`;
   return `<div class="pane editor-pane">
-    <div class="file-tabs" role="group" aria-label="${t('Открытые файлы')}">${tabs}</div>
-    <div class="editor-topline">
-      <span class="subtxt mono truncate">${esc(path)}</span>
-      <div class="btn-row nowrap">
+    <div class="editor-bar">
+      <div class="file-tabs" role="group" aria-label="${t('Открытые файлы')}">${tabs}</div>
+      <div class="editor-actions">
+        ${saveState(s.save)}
         <button class="icon-btn" data-action="editor-search" aria-label="${t('Найти и заменить')}">${icon('search', 'sm')}</button>
         <button class="icon-btn ${s.settings.wrapLines ? 'on' : ''}" data-action="toggle-wrap" aria-pressed="${s.settings.wrapLines}" aria-label="${t('Перенос строк')}">${icon('wrap', 'sm')}</button>
         <button class="icon-btn" data-action="copy-code" aria-label="${t('Скопировать код')}">${icon('copy', 'sm')}</button>
       </div>
     </div>
     <div class="editor-host" id="editor-host"></div>
-    <div class="editor-status"><span>${esc(extOf(path).toUpperCase() || 'TXT')} · UTF-8</span>
-      <span class="save-state ${s.save}" id="save-state">${s.save === 'saved' ? icon('check', 'xs') : ''} ${saveLabel}</span></div>
     <div class="keybar" role="toolbar" aria-label="${t('Символы')}">
-      <button class="key-btn" data-action="undo" aria-label="${t('Отменить')}">↶</button>
-      <button class="key-btn" data-action="redo" aria-label="${tc('redo', 'Повторить')}">↷</button>
-      <button class="key-btn" data-action="smart-tab" aria-label="${t('Tab: следующее поле, Emmet или отступ')}">⇥</button>
-      <button class="key-btn key-cmd" data-action="emmet" aria-label="${t('Развернуть Emmet')}">⚡</button>
-      <button class="key-btn key-cmd" data-action="format" aria-label="${t('Форматировать документ')}">✨</button>
-      <button class="key-btn key-cmd ${s.diagErrors ? 'has-errors' : ''}" data-action="next-error" aria-label="${t('Следующая ошибка')}">⚠${s.diagErrors ? `<span class="key-badge">${s.diagErrors}</span>` : ''}</button>
-      <button class="key-btn key-cmd" data-action="definition" aria-label="${t('Перейти к определению')}">⤴</button>
-      <button class="key-btn key-cmd" data-action="symbols" aria-label="${t('Символы файла')}">ƒ</button>
-      <button class="key-btn key-cmd" data-action="comment" aria-label="${t('Закомментировать')}">//</button>
+      ${cmd('undo', 'undo', t('Отменить'))}
+      ${cmd('redo', 'redo', tc('redo', 'Повторить'))}
+      ${cmd('smart-tab', 'indent', t('Tab: следующее поле, Emmet или отступ'))}
+      ${kind === 'html' || kind === 'css' || kind === 'php' ? cmd('emmet', 'zap', t('Развернуть Emmet')) : ''}
+      ${cmd('format', 'wand', t('Форматировать документ'))}
+      <button class="key-btn key-cmd ${s.diagErrors ? 'has-errors' : ''}" data-action="next-error" aria-label="${t('Следующая ошибка')}" title="${t('Следующая ошибка')}">${icon('alert', 'sm')}${s.diagErrors ? `<span class="key-badge">${s.diagErrors}</span>` : ''}</button>
+      ${cmd('definition', 'target', t('Перейти к определению'))}
+      ${cmd('symbols', 'list', t('Символы файла'))}
+      ${cmd('comment', 'comment', t('Закомментировать'))}
+      <span class="key-sep" aria-hidden="true"></span>
       ${keys.map((k) => `<button class="key-btn" data-action="key" data-value="${esc(k)}" aria-label="${t('Вставить {text}', { text: esc(k) })}">${esc(k.length === 2 && '{}[]()<>""\'\''.includes(k) ? k[0] + ' ' + k[1] : k)}</button>`).join('')}
     </div>
   </div>`;
+}
+
+/** Save indicator in the editor bar: an icon on phones, icon and text on wider screens. */
+export function saveState(save: AppState['save']): string {
+  const label = save === 'saving' ? t('Сохранение…') : save === 'error' ? t('Ошибка сохранения') : t('Сохранено');
+  const ic = save === 'saving' ? '<span class="spinner tiny" aria-hidden="true"></span>' : icon(save === 'error' ? 'alert' : 'check', 'xs');
+  return `<span class="save-state ${save}" id="save-state" role="status" title="${label}">${ic}<span class="save-text">${label}</span></span>`;
 }
 
 // ---------------- workspace: preview ----------------
@@ -367,7 +362,7 @@ export function previewView(s: AppState, p: Project): string {
     </div>
     <div class="browser-pane"><iframe id="live-preview" title="${t('Предпросмотр {name}', { name: esc(s.previewPage) })}" sandbox="allow-scripts allow-forms" referrerpolicy="no-referrer" src="./preview-host.html"></iframe></div>
     ${consolePanel(s.previewConsole, 'preview-console', !s.consoleOpen)}
-    ${!s.settings.previewNetwork ? `<div class="mini-info"><span class="grow">${t('Офлайн: внешние CDN и шрифты отключены')}</span><button class="link-btn" data-action="settings">${t('Изменить')}</button></div>` : ''}
+    ${!s.settings.previewNetwork ? `<div class="mini-info" title="${t('Офлайн: внешние CDN и шрифты отключены')}">${icon('globe', 'xs')}<span class="grow truncate">${t('Без интернета: CDN и шрифты отключены')}</span><button class="link-btn" data-action="settings">${t('Изменить')}</button></div>` : ''}
   </div>`;
 }
 
@@ -505,7 +500,18 @@ export function settingsView(s: AppState, storageKind: string, totalSize: number
   const st = s.settings;
   return `<main class="content" id="main"><section class="section narrow">
     <h2 class="section-heading">${t('Интерфейс')}</h2>
-    <div class="segmented" role="group" aria-label="${t('Плотность интерфейса')}">
+    <div class="setting-label" id="theme-label">${t('Оформление')}</div>
+    <div class="segmented theme-switch" role="group" aria-labelledby="theme-label">${(
+      [
+        ['system', t('Авто'), 'settings'],
+        ['dark', t('Тёмное'), 'moon'],
+        ['light', t('Светлое'), 'sun'],
+      ] as const
+    )
+      .map(([v, label, ic]) => `<button class="${st.theme === v ? 'active' : ''}" data-action="theme" data-value="${v}" aria-pressed="${st.theme === v}">${icon(ic, 'sm')} ${label}</button>`)
+      .join('')}</div>
+    <div class="setting-label" id="density-label">${t('Плотность')}</div>
+    <div class="segmented" role="group" aria-labelledby="density-label">
       <button class="${st.density === 'compact' ? 'active' : ''}" data-action="density" data-value="compact" aria-pressed="${st.density === 'compact'}">${t('Компактный')}</button>
       <button class="${st.density === 'comfortable' ? 'active' : ''}" data-action="density" data-value="comfortable" aria-pressed="${st.density === 'comfortable'}">${t('Просторный')}</button>
     </div>

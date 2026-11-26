@@ -1,4 +1,5 @@
 import { esc, icon } from '../../ui/dom';
+import { menuSheet } from '../../ui/sheet';
 import { t } from '../../i18n';
 import { textFile } from '../../core/types';
 import { formatBytes } from '../../core/bytes';
@@ -20,14 +21,12 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
       <button type="button" class="btn tiny secondary" data-act="open">${icon('folder', 'sm')}<span>${esc(t('Открыть файл'))}</span></button>
       <button type="button" class="btn tiny secondary" data-act="paste">${icon('copy', 'sm')}<span>${esc(t('Вставить'))}</span></button>
       <button type="button" class="btn tiny primary" data-act="save" hidden>${icon('save', 'sm')}<span>${esc(t('Сохранить'))}</span></button>
-      <span class="tool-file mono truncate" data-file></span>
+      <span class="tool-file mono truncate grow" data-file></span>
+      <button type="button" class="icon-btn" data-act="more" aria-label="${esc(t('Ещё действия'))}">${icon('more')}</button>
     </div>
     <div class="tool-bar">
       ${segmented('indent', [['2', '2'], ['4', '4'], ['tab', 'Tab']], '2', t('Отступ'))}
-      <button type="button" class="btn tiny secondary" data-act="pretty">${esc(t('Форматировать'))}</button>
-      <button type="button" class="btn tiny secondary" data-act="minify">${esc(t('Сжать'))}</button>
-      <button type="button" class="btn tiny secondary" data-act="sort">${esc(t('Сортировать ключи'))}</button>
-      <button type="button" class="btn tiny secondary" data-act="copy">${icon('copy', 'sm')}<span>${esc(t('Копировать'))}</span></button>
+      <button type="button" class="btn tiny primary" data-act="pretty">${esc(t('Форматировать'))}</button>
     </div>
     <div class="tool-json-tabs">${segmented('view', [['text', t('Текст')], ['tree', t('Дерево')]], 'text', t('Вид'))}</div>
     <div class="tool-status" data-status role="status" aria-live="polite"></div>
@@ -220,12 +219,18 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
       case 'pretty':
         transform((v) => formatJson(v, indent));
         break;
-      case 'minify':
-        transform(minifyJson);
+      case 'more': {
+        const pick = await menuSheet('JSON', [
+          { id: 'copy', label: t('Копировать'), icon: 'copy' },
+          { id: 'minify', label: t('Сжать'), icon: 'minus' },
+          { id: 'sort', label: t('Сортировать ключи'), icon: 'list' },
+        ]);
+        if (pick === 'copy') {
+          if (area.value) void copyText(area.value, ctx);
+        } else if (pick === 'minify') transform(minifyJson);
+        else if (pick === 'sort') transform((v) => formatJson(sortKeysDeep(v), indent));
         break;
-      case 'sort':
-        transform((v) => formatJson(sortKeysDeep(v), indent));
-        break;
+      }
       case 'copy':
         if (area.value) void copyText(area.value, ctx);
         break;
@@ -285,6 +290,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const jsonTool: Tool = {
   id: 'json',
+  group: 'Данные и API',
+  description: 'Форматирование, дерево и проверка JSON',
   title: 'JSON',
   icon: 'braces',
   mount,

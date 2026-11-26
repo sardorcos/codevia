@@ -65,6 +65,8 @@ export interface Snapshot extends SnapshotMeta {
 
 export interface Settings {
   density: 'compact' | 'comfortable';
+  /** Interface theme: follow iOS, or always dark / light. */
+  theme: 'system' | 'dark' | 'light';
   editorFont: number;
   wrapLines: boolean;
   previewNetwork: boolean;
@@ -77,6 +79,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   density: 'compact',
+  theme: 'system',
   editorFont: 14,
   wrapLines: false,
   previewNetwork: false,

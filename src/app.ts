@@ -22,6 +22,7 @@ import { $, esc, fmtDateTime, icon, toast } from './ui/dom';
 import { errorReport, installGlobalErrorHandlers, recordError } from './ui/errors';
 import { closeSheet, confirmSheet, menuSheet, openSheet, promptSheet, sheetOpen } from './ui/sheet';
 import * as V from './ui/views';
+import { applyTheme } from './ui/theme';
 import { closeTool, onToolOpen, openTool, pickTool, registeredTools, registerTools, setToolPeek } from './ui/tool-host';
 import { githubTools } from './tools/github';
 import { TOOLS } from './tools';
@@ -106,7 +107,7 @@ export class App {
       },
     });
     this.runner = new Runner(new URL('pyodide/', document.baseURI).href);
-    registerTools([learnTool, ...TOOLS, ...githubTools, createInspectorTool(this.inspectorBridge)]);
+    registerTools([learnTool, ...TOOLS.slice(0, 3), createInspectorTool(this.inspectorBridge), ...TOOLS.slice(3), ...githubTools]);
     onToolOpen((id) => {
       // The inspector works on the live preview: make sure it is on screen behind/beside the panel.
       if (id !== 'inspector' || !this.s.project) return;
@@ -129,6 +130,7 @@ export class App {
       if (migrated) toast(plural(migrated, 'Перенесено проектов из прошлой версии: {count}'), 'success');
     }
     this.s.settings = await this.repo.loadSettings();
+    applyTheme(this.s.settings.theme);
     this.applyRuntimeOptions();
     this.editor.setOptions({ formatOnSave: this.s.settings.formatOnSave });
     this.editor.setWrap(this.s.settings.wrapLines);
@@ -392,8 +394,7 @@ export class App {
   private updateSaveIndicator(): void {
     const el = $('#save-state', this.root);
     if (!el) return;
-    el.className = `save-state ${this.s.save}`;
-    el.innerHTML = this.s.save === 'saving' ? t('Сохранение…') : this.s.save === 'error' ? t('Ошибка сохранения') : `${icon('check', 'xs')} ${t('Сохранено')}`;
+    el.outerHTML = V.saveState(this.s.save);
   }
 
   // ------------------------------------------------------------------ saving
@@ -600,34 +601,45 @@ export class App {
       body: `<form class="stack" id="new-project-form" novalidate>
         <div class="field"><label class="field-label" for="np-name">${t('Название')}</label>
         <input class="text-input" id="np-name" maxlength="80" placeholder="${t('Мой сайт')}" autocomplete="off"></div>
-        <div class="field"><span class="field-label" id="np-tpl-label">${t('Шаблон')}</span>
-        <div class="template-grid" role="radiogroup" aria-labelledby="np-tpl-label">
+        <div class="segmented np-tabs" role="tablist" aria-label="${t('Шаблон')}">
+          <button type="button" role="tab" class="active" aria-selected="true" data-np-tab="tpl">${t('Шаблоны')}</button>
+          <button type="button" role="tab" aria-selected="false" data-np-tab="gallery">${t('Готовые проекты')} <span class="muted">${GALLERY.length}</span></button>
+        </div>
+        <div class="template-grid" role="radiogroup" aria-label="${t('Шаблон')}" data-np-panel="tpl">
           ${(
             [
-              ['web', t('Сайт'), 'HTML, CSS, JS', 'code'],
+              ['web', t('Сайт'), 'HTML, CSS, JS', 'globe'],
               ['python', 'Python', t('Скрипт и данные'), 'terminal'],
               ['php', 'PHP', t('Страница на PHP 8.3'), 'server'],
-              ['javascript', 'JavaScript', t('Node-подобный запуск, TypeScript'), 'code'],
+              ['javascript', 'JavaScript', t('Node-подобный запуск, TypeScript'), 'js'],
               ['empty', t('Пустой'), t('Один index.html'), 'file'],
             ] as const
           )
             .map(
               ([id, title, d, ic], i) =>
-                `<button type="button" class="template ${i === 0 ? 'active' : ''}" role="radio" aria-checked="${i === 0}" data-tpl="${id}">${icon(ic)}<strong>${title}</strong><span>${d}</span></button>`,
+                `<button type="button" class="template ${i === 0 ? 'active' : ''} ${id === 'empty' ? 'wide' : ''}" role="radio" aria-checked="${i === 0}" data-tpl="${id}">${icon(ic)}<strong>${title}</strong><span>${d}</span></button>`,
             )
             .join('')}
-        </div></div>
-        <div class="field"><span class="field-label" id="np-gallery-label">${t('Готовые проекты')}</span>
-        <div class="gallery-list" role="radiogroup" aria-labelledby="np-gallery-label">
+        </div>
+        <div class="gallery-list" role="radiogroup" aria-label="${t('Готовые проекты')}" data-np-panel="gallery" hidden>
           ${GALLERY.map(
             (g) =>
               `<button type="button" class="template gallery-item" role="radio" aria-checked="false" data-tpl="gallery:${g.id}">${icon(g.icon)}<strong>${esc(t(g.title))}</strong><span>${esc(t(g.description))}</span></button>`,
           ).join('')}
-        </div></div>
+        </div>
         <button class="btn primary full" type="submit">${t('Создать проект')}</button></form>`,
       initialFocus: '#np-name',
       onMount: (root, close) => {
         root.addEventListener('click', (e) => {
+          const tab = (e.target as HTMLElement).closest<HTMLElement>('[data-np-tab]');
+          if (tab) {
+            root.querySelectorAll<HTMLElement>('[data-np-tab]').forEach((x) => {
+              x.classList.toggle('active', x === tab);
+              x.setAttribute('aria-selected', String(x === tab));
+            });
+            root.querySelectorAll<HTMLElement>('[data-np-panel]').forEach((x) => (x.hidden = x.dataset.npPanel !== tab.dataset.npTab));
+            return;
+          }
           const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tpl]');
           if (!b) return;
           template = b.dataset.tpl as TemplateId | `gallery:${string}`;
@@ -2020,6 +2032,11 @@ export class App {
         return;
       case 'density':
         this.s.settings.density = el.dataset.value as 'compact' | 'comfortable';
+        this.render();
+        return this.saveSettings();
+      case 'theme':
+        this.s.settings.theme = el.dataset.value as 'system' | 'dark' | 'light';
+        applyTheme(this.s.settings.theme);
         this.render();
         return this.saveSettings();
       case 'font': {

@@ -4,7 +4,7 @@ import { encodeUtf8 } from '../../src/core/bytes';
 import { textFile, type Project } from '../../src/core/types';
 import { createMemoryStore, setSecureStore } from '../../src/github/secure-store';
 import { gitBlobSha1 } from '../../src/github/sync';
-import { githubTools } from '../../src/tools/github';
+import { githubPanels, githubTools } from '../../src/tools/github';
 import type { ToolContext } from '../../src/tools/types';
 import { makeProject } from './helpers/fake-github';
 
@@ -35,7 +35,7 @@ function fakeCtx(project: Project | null) {
   return ctx;
 }
 
-const tool = (id: string) => githubTools.find((t) => t.id === id)!;
+const tool = (id: string) => githubPanels.find((t) => t.id === id)!;
 
 async function signIn() {
   const store = createMemoryStore();
@@ -73,12 +73,19 @@ afterEach(() => {
 });
 
 describe('GitHub tools in the DOM', () => {
-  it('exports three tools with ids, icons and project needs', () => {
-    expect(githubTools.map((t) => [t.id, t.icon, !!t.needsProject])).toEqual([
-      ['github-account', 'user', false],
-      ['github-clone', 'download', false],
+  it('exports one GitHub tool whose sections are the project, cloning and the account', () => {
+    expect(githubTools.map((t) => t.id)).toEqual(['github']);
+    expect(githubPanels.map((t) => [t.id, t.icon, !!t.needsProject])).toEqual([
       ['github-sync', 'branch', true],
+      ['github-clone', 'download', false],
+      ['github-account', 'user', false],
     ]);
+  });
+
+  it('the GitHub tool shows the project section only when a project is open', () => {
+    cleanup = githubTools[0]!.mount(root, fakeCtx(null));
+    expect([...root.querySelectorAll<HTMLElement>('[data-section]')].map((b) => b.dataset.section)).toEqual(['github-clone', 'github-account']);
+    expect(root.querySelector('[data-section="github-clone"]')!.getAttribute('aria-selected')).toBe('true');
   });
 
   it('Account shows the signed-in user and the Keychain note, never the token', async () => {

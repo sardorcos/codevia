@@ -60,7 +60,12 @@ describe('JSON tool', () => {
     area.value = '{"b":1,"a":2}';
     area.dispatchEvent(new Event('input', { bubbles: true }));
     await new Promise((r) => setTimeout(r, 300));
-    (m.root.querySelector('[data-act="sort"]') as HTMLElement).click();
+    // Sorting lives in the "more" menu (a sheet).
+    if (!document.getElementById('sheet-root')) document.body.insertAdjacentHTML('beforeend', '<div id="sheet-root"></div>');
+    (m.root.querySelector('[data-act="more"]') as HTMLElement).click();
+    await flush();
+    (document.querySelector('.menu-item[data-id="sort"]') as HTMLElement).click();
+    await flush();
     expect(area.value).toBe('{\n  "a": 2,\n  "b": 1\n}');
     (m.root.querySelector('[data-act="save"]') as HTMLElement).click();
     await flush();

@@ -193,6 +193,8 @@ function mount(root: HTMLElement, ctx: ToolContext): () => void {
 
 export const librariesTool: Tool = {
   id: 'libraries',
+  group: 'Веб',
+  description: 'Tailwind, Bootstrap, Vue и другие без интернета',
   title: 'Библиотеки',
   icon: 'package',
   needsProject: true,

@@ -1324,4 +1324,46 @@ export default {
   'Напишите функцию greet(name), которая возвращает Hi, <name>!, и напечатайте greet("Codevia").':
     'Hi, <name>! qaytaradigan greet(name) funksiyasini yozing va greet("Codevia") natijasini chiqaring.',
   'Этот проект не запускается — у него есть предпросмотр': 'Bu loyiha ishga tushirilmaydi — uning oldindan koʻrishi bor',
+  // 1.2 redesign
+  'Сайты, Python, JavaScript и PHP прямо на iPhone и iPad — без интернета и без отправки кода на сервер.':
+    'Saytlar, Python, JavaScript va PHP toʻgʻridan-toʻgʻri iPhone va iPad’da — internetsiz va kodni serverga yubormasdan.',
+  'Настоящий редактор': 'Haqiqiy muharrir',
+  'Подсветка, автодополнение, Emmet, форматирование и ошибки на лету.':
+    'Sintaksisni yoritish, avtotoʻldirish, Emmet, formatlash va xatolarni darhol koʻrsatish.',
+  'Страница обновляется на ходу, а инспектор показывает DOM, стили и сеть.':
+    'Sahifa yozish jarayonida yangilanadi, inspektor esa DOM, uslublar va tarmoqni koʻrsatadi.',
+  'Python, JavaScript и PHP офлайн': 'Python, JavaScript va PHP oflayn',
+  'numpy, pandas и графики, TypeScript, PHP 8.3 — всё выполняется на устройстве.':
+    'numpy, pandas va grafiklar, TypeScript, PHP 8.3 — hammasi qurilmada bajariladi.',
+  'GitHub и инструменты': 'GitHub va vositalar',
+  'Клонирование и коммиты, HTTP-клиент, JSON, цвета, Tailwind и Bootstrap без интернета.':
+    'Klonlash va kommitlar, HTTP mijoz, JSON, ranglar, Tailwind va Bootstrap internetsiz.',
+  'Уроки с проверкой': 'Tekshiruvli darslar',
+  'HTML, JavaScript и Python с нуля: задание, код и автоматическая проверка.': 'HTML, JavaScript va Python noldan: topshiriq, kod va avtomatik tekshiruv.',
+  'Недавние': 'Soʻnggilar',
+  'Поиск': 'Qidiruv',
+  'Без интернета: CDN и шрифты отключены': 'Internetsiz: CDN va shriftlar oʻchirilgan',
+  'Шаблоны': 'Shablonlar',
+  'Оформление': 'Koʻrinish',
+  'Авто': 'Avto',
+  'Тёмное': 'Toʻq',
+  'Светлое': 'Yorugʻ',
+  'Плотность': 'Zichlik',
+  'Учёба': 'Taʼlim',
+  'Веб': 'Veb',
+  'Данные и API': 'Maʼlumotlar va API',
+  'Аккаунт': 'Hisob',
+  'Короткие уроки с автоматической проверкой': 'Avtomatik tekshiruvli qisqa darslar',
+  'Tailwind, Bootstrap, Vue и другие без интернета': 'Tailwind, Bootstrap, Vue va boshqalar internetsiz',
+  'DOM, стили и сетевые запросы страницы': 'Sahifaning DOM, uslublari va tarmoq soʻrovlari',
+  'Пипетка, палитра, HEX, RGB и HSL': 'Pipetka, palitra, HEX, RGB va HSL',
+  'Предпросмотр и экспорт Markdown': 'Markdown oldindan koʻrish va eksport',
+  'Запросы GET, POST и просмотр ответа': 'GET, POST soʻrovlari va javobni koʻrish',
+  'Форматирование, дерево и проверка JSON': 'JSON formatlash, daraxt koʻrinishi va tekshirish',
+  'Клонирование, коммиты, ветки и pull request’ы': 'Klonlash, kommitlar, tarmoqlar va pull request’lar',
+  'Ещё действия с запросом': 'Soʻrov bilan boshqa amallar',
+  'Копировать как cURL': 'cURL sifatida nusxalash',
+  'Копировать как fetch()': 'fetch() sifatida nusxalash',
+  'Новый запрос': 'Yangi soʻrov',
+  'Ещё действия': 'Boshqa amallar',
 } as Record<string, string>;
