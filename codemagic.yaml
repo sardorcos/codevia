@@ -206,6 +206,23 @@ workflows:
           python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
           python3 tools/asc_submit.py appstore/metadata.json
 
+  # Withdraws the version waiting for review (so a newer version can replace it), then applies the
+  # metadata of appstore/metadata.json to the now editable version. Does not submit.
+  app-store-replace-pending:
+    name: Codevia Pocket — withdraw pending review and apply metadata
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    integrations:
+      app_store_connect: monetniy-mir-asc
+    environment:
+      groups:
+        - review_contact
+    scripts:
+      - name: Withdraw and apply metadata
+        script: |
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography
+          python3 tools/asc_submit.py appstore/metadata.json --cancel-pending
+
   # Same as above, then sends the version to App Review. Needs the secure group "review_contact"
   # (REVIEW_FIRST_NAME, REVIEW_LAST_NAME, REVIEW_PHONE, REVIEW_EMAIL).
   app-store-submit:

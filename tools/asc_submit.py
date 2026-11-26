@@ -454,6 +454,28 @@ def probe(asc, app):
                     log(f"  {name}: ERROR {str(e)[:300]}")
 
 
+def cancel_pending(asc, app):
+    """Withdraws a version that is waiting for (or in) review, so a newer one can replace it.
+    The version returns to DEVELOPER_REJECTED and can be edited (including its version string)."""
+    subs = [s for s in asc.all(f"/v1/reviewSubmissions?filter[app]={app['id']}&filter[platform]=IOS")
+            if s["attributes"].get("state") in ("WAITING_FOR_REVIEW", "IN_REVIEW")]
+    if not subs:
+        log("No submission waiting for review")
+        return
+    for sub in subs:
+        asc.call("PATCH", f"/v1/reviewSubmissions/{sub['id']}", {"data": {"type": "reviewSubmissions", "id": sub["id"], "attributes": {"canceled": True}}})
+        log(f"Withdrawing review submission {sub['id']} ({sub['attributes'].get('state')})")
+    for _ in range(60):
+        states = [asc.get(f"/v1/reviewSubmissions/{sub['id']}")["data"]["attributes"].get("state") for sub in subs]
+        versions = asc.all(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=IOS")
+        waiting = [v for v in versions if v["attributes"].get("appStoreState") in ("WAITING_FOR_REVIEW", "IN_REVIEW")]
+        if not waiting and all(st not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "CANCELING") for st in states):
+            log(f"Withdrawn: submissions {states}; versions " + ", ".join(f"{v['attributes']['versionString']}={v['attributes']['appStoreState']}" for v in versions))
+            return
+        time.sleep(5)
+    raise SystemExit("The submission is still being withdrawn; run again in a few minutes")
+
+
 def status(asc, app):
     """Read-only: App Store versions with their states and the review submissions."""
     for v in asc.all(f"/v1/apps/{app['id']}/appStoreVersions?filter[platform]=IOS"):
@@ -481,6 +503,8 @@ def main():
     if "--status" in sys.argv:
         status(asc, app)
         return
+    if "--cancel-pending" in sys.argv:
+        cancel_pending(asc, app)
     steps = [
         ("content rights", lambda: set_content_rights(asc, app)),
     ]
